@@ -121,6 +121,19 @@ interface BranchInfoPrint {
   gdg_inv_instagram: string;
 }
 
+interface MockupAnnotation {
+  id: number;
+  side: "depan" | "belakang";
+  x: number; // posisi relatif (%) terhadap gambar, bukan px absolut
+  y: number;
+  jenisKeterangan: string; // "Logo", "Teks", dll
+  nama: string; // "LOGO KALSI"
+  panjangCm: number | null;
+  tinggiCm: number | null;
+  posisi: string; // "Dada Tengah", dll — atau bebas teks
+  catatan: string;
+}
+
 // --- State ---
 const activeTab = ref("pengajuan");
 const isLoadingData = ref(false);
@@ -274,6 +287,59 @@ const isConfirmDialogVisible = ref(false);
 const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
 const branchInfoPrint = ref<BranchInfoPrint | null>(null);
+const jenisKeteranganOptions = ["Logo", "Teks", "Nomor / Punggung", "Nama / Punggung", "Lainnya"];
+
+const sublimAnnotations = ref<MockupAnnotation[]>([]);
+const activeMockupSide = ref<"depan" | "belakang">("depan");
+const selectedAnnotationId = ref<number | null>(null);
+const isAddingAnnotation = ref(false);
+
+const activeMockupImage = computed(() =>
+  activeMockupSide.value === "depan"
+    ? sublimMockupDepanPreview.value
+    : sublimMockupBelakangPreview.value
+);
+
+const annotationsForActiveSide = computed(() =>
+  sublimAnnotations.value.filter((a) => a.side === activeMockupSide.value)
+);
+
+const selectedAnnotation = computed(
+  () => sublimAnnotations.value.find((a) => a.id === selectedAnnotationId.value) || null
+);
+
+const onMockupImageClick = (e: MouseEvent) => {
+  if (!isAddingAnnotation.value) return;
+  const target = e.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+  const newAnnotation: MockupAnnotation = {
+    id: Date.now() + Math.random(),
+    side: activeMockupSide.value,
+    x,
+    y,
+    jenisKeterangan: "Logo",
+    nama: "",
+    panjangCm: null,
+    tinggiCm: null,
+    posisi: "",
+    catatan: "",
+  };
+  sublimAnnotations.value.push(newAnnotation);
+  selectedAnnotationId.value = newAnnotation.id;
+  isAddingAnnotation.value = false;
+};
+
+const selectAnnotation = (id: number) => {
+  selectedAnnotationId.value = id;
+};
+
+const deleteAnnotation = (id: number) => {
+  sublimAnnotations.value = sublimAnnotations.value.filter((a) => a.id !== id);
+  if (selectedAnnotationId.value === id) selectedAnnotationId.value = null;
+};
 
 // --- Methods ---
 const onFileChange = (e: Event) => {
@@ -561,7 +627,7 @@ const executeSave = async () => {
             katalogGambar: sublimForm.value.katalogGambar,
             jerseySizes: jerseySizes.value,
             celanaSizes: celanaSizes.value,
-            colorDetails: sublimColorDetails.value,
+            annotations: sublimAnnotations.value,
           }
         : null,
       bordirItems: bordirItems.value,
@@ -906,11 +972,8 @@ const loadOfferData = async (nomor: string) => {
       sublimForm.value.katalogNama = data.sublimKatalogNama || "";
 
       // [BARU] Populate detail warna & mockup
-      if (data.sublimColorDetails) {
-        sublimColorDetails.value = {
-          ...sublimColorDetails.value,
-          ...data.sublimColorDetails,
-        };
+      if (data.sublimAnnotations) {
+        sublimAnnotations.value = data.sublimAnnotations;
       }
       sublimMockupDepanPreview.value = data.sublimMockupDepanUrl || null;
       sublimMockupBelakangPreview.value = data.sublimMockupBelakangUrl || null;
@@ -1146,28 +1209,15 @@ const totalCelanaQty = computed(() =>
   celanaSizes.value.reduce((s, r) => s + (Number(r.qty) || 0), 0)
 );
 
+const goBackToJerseyStep = () => {
+  sublimForm.value.jerseyChoice = "";
+  isEditingJersey.value = false; // biar kondisi step2 murni dari !jerseyChoice
+};
+
 // --- STATE STEP 4: DETAIL JERSEY (Mockup & Warna) ---
 const sublimShowDetailStep = ref(false);
+const sublimShowColorStep = ref(false);
 const sublimShowSummaryStep = ref(false);
-
-const sublimColorFields = [
-  { key: "bodyDepan", label: "Body Depan" },
-  { key: "bodyBelakang", label: "Body Belakang" },
-  { key: "lengan", label: "Lengan" },
-  { key: "kerah", label: "Kerah" },
-  { key: "manset", label: "Manset" },
-  { key: "sidePanel2", label: "Side Panel 2" },
-  { key: "listBaju", label: "List Baju" },
-  { key: "listKerah", label: "List Kerah" },
-  { key: "logo1", label: "Logo 1 (Kiri Dada Kiri)" },
-  { key: "logo2", label: "Logo 2 (Lengan Kiri)" },
-  { key: "nomor", label: "Nomor" },
-  { key: "nama", label: "Nama" },
-] as const;
-
-const sublimColorDetails = ref<Record<string, string>>(
-  Object.fromEntries(sublimColorFields.map((f) => [f.key, "#FFFFFF"]))
-);
 
 const sublimMockupDepanRef = ref<HTMLInputElement | null>(null);
 const sublimMockupBelakangRef = ref<HTMLInputElement | null>(null);
@@ -1178,8 +1228,12 @@ const sublimMockupBelakangPreview = ref<string | null>(null);
 
 const resetSublimDetailStep = () => {
   sublimShowDetailStep.value = false;
+  sublimShowColorStep.value = false;
   sublimShowSummaryStep.value = false;
-  sublimColorDetails.value = Object.fromEntries(sublimColorFields.map((f) => [f.key, "#FFFFFF"]));
+  sublimAnnotations.value = [];
+  activeMockupSide.value = "depan";
+  selectedAnnotationId.value = null;
+  isAddingAnnotation.value = false;
   sublimMockupDepanFile.value = null;
   sublimMockupDepanPreview.value = null;
   sublimMockupBelakangFile.value = null;
@@ -1296,6 +1350,65 @@ const fetchBranchInfoPrint = async () => {
   }
 };
 
+const ANNOTATION_COLORS = [
+  "#e53935",
+  "#1e88e5",
+  "#43a047",
+  "#8e24aa",
+  "#fb8c00",
+  "#00897b",
+  "#6d4c41",
+  "#546e7a",
+];
+
+const buildMockupBoxHtml = (side: "depan" | "belakang", imageUrl: string, label: string) => {
+  const items = sublimAnnotations.value
+    .filter((a) => a.side === side)
+    .map((a, idx) => ({ ...a, idx, color: ANNOTATION_COLORS[idx % ANNOTATION_COLORS.length] }));
+
+  const leftItems = items.filter((a) => a.x < 50).sort((a, b) => a.y - b.y);
+  const rightItems = items.filter((a) => a.x >= 50).sort((a, b) => a.y - b.y);
+
+  const pinsHtml = items
+    .map(
+      (a) =>
+        `<div class="mockup-pin-print" data-idx="${a.idx}" style="left:${a.x}%;top:${
+          a.y
+        }%;background:${a.color};">${a.idx + 1}</div>`
+    )
+    .join("");
+
+  const labelHtml = (a: (typeof items)[number]) => {
+    const ukuran = a.panjangCm || a.tinggiCm ? `${a.panjangCm || 0} x ${a.tinggiCm || 0} cm` : "";
+    return `
+      <div class="mockup-label-print" data-idx="${a.idx}" data-color="${a.color}">
+        <span class="mockup-label-badge" style="background:${a.color};">${a.idx + 1}</span>
+        <span class="mockup-label-text">
+          <strong>${a.nama || a.jenisKeterangan || "-"}</strong>
+          ${ukuran ? `<br>${ukuran}` : ""}
+        </span>
+      </div>`;
+  };
+
+  return `
+    <div class="mockup-box">
+      <div class="mockup-label">${label}</div>
+      <div class="mockup-annotated-row" data-side="${side}">
+        <div class="mockup-annot-col mockup-annot-col-left">
+          ${leftItems.map(labelHtml).join("")}
+        </div>
+        <div class="mockup-annot-img-wrap">
+          <img src="${imageUrl}" />
+          ${pinsHtml}
+        </div>
+        <div class="mockup-annot-col mockup-annot-col-right">
+          ${rightItems.map(labelHtml).join("")}
+        </div>
+        <svg class="mockup-lines-print"></svg>
+      </div>
+    </div>`;
+};
+
 const printSublimSummary = async () => {
   const totalHargaJersey = totalJerseyQty.value * (sublimPreview.value.jerseyHargaPerPcs || 0);
   const totalHargaCelana = totalCelanaQty.value * (sublimPreview.value.celanaHargaPerPcs || 0);
@@ -1306,20 +1419,23 @@ const printSublimSummary = async () => {
   const logoUrl = cabangKode === "K04" ? LogoRezso : Logo;
   const bi = branchInfoPrint.value;
 
-  const colorRowsHtml = sublimColorFields
-    .map(
-      (f) => `
+  const buildAnnotationRows = (side: "depan" | "belakang") =>
+    sublimAnnotations.value
+      .filter((a) => a.side === side)
+      .map(
+        (a, idx) => `
         <tr>
-          <td>${f.label}</td>
-          <td>
-            <span class="color-swatch-print" style="background:${
-              sublimColorDetails.value[f.key]
-            };"></span>
-            ${sublimColorDetails.value[f.key]}
-          </td>
+          <td>${idx + 1}</td>
+          <td>${a.nama || "-"}</td>
+          <td>${a.jenisKeterangan || "-"}</td>
+          <td>${a.panjangCm || 0} x ${a.tinggiCm || 0} cm</td>
+          <td>${a.posisi || "-"}</td>
         </tr>`
-    )
-    .join("");
+      )
+      .join("");
+
+  const annotationDepanRowsHtml = buildAnnotationRows("depan");
+  const annotationBelakangRowsHtml = buildAnnotationRows("belakang");
 
   const jerseySizeRowsHtml = jerseySizes.value
     .map((r) => `<tr><td>${r.size}</td><td style="text-align:right">${r.qty || 0}</td></tr>`)
@@ -1440,15 +1556,98 @@ const printSublimSummary = async () => {
           margin: 0 0 4px;
           letter-spacing: 0.4px;
         }
-        .mockup-section { display: flex; gap: 10px; margin-bottom: 10px; page-break-inside: avoid; }
-        .mockup-box { flex: 1; }
-        .mockup-box .mockup-label { font-weight: bold; margin-bottom: 2px; font-size: 10px; }
-        .mockup-box img {
+        .mockup-section {
+          display: flex;
+          flex-direction: row;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+        .mockup-box {
+          flex: 1;
+          min-width: 0;
+        }
+        .mockup-box .mockup-label { font-weight: bold; margin-bottom: 4px; font-size: 10px; }
+
+        .mockup-annotated-row {
+          position: relative;
+          display: flex;
+          align-items: stretch;
+          gap: 8px;
+        }
+        .mockup-annot-col {
+          width: 20mm;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 6px;
+        }
+        .mockup-annot-col-right { align-items: flex-start; }
+        .mockup-annot-col-left { align-items: flex-end; }
+
+        .mockup-annot-img-wrap {
+          position: relative;
+          flex: 1;
+          min-width: 0;
+        }
+        .mockup-annot-img-wrap img {
           width: 100%;
-          max-height: 120px;
-          object-fit: contain;
+          max-height: 85mm;
+          display: block;
           border: 1px solid #ccc;
           border-radius: 4px;
+          object-fit: contain;
+          margin: 0 auto;
+        }
+        .mockup-pin-print {
+          position: absolute;
+          transform: translate(-50%, -50%);
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          color: #fff;
+          font-size: 8px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1.5px solid #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+          z-index: 2;
+        }
+
+        .mockup-label-print {
+          display: flex;
+          align-items: flex-start;
+          gap: 4px;
+          max-width: 20mm;
+        }
+        .mockup-label-badge {
+          width: 13px;
+          height: 13px;
+          border-radius: 50%;
+          color: #fff;
+          font-size: 8px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+        .mockup-label-text {
+          font-size: 7.5px;
+          line-height: 1.25;
+        }
+        .mockup-label-text strong { font-size: 8px; }
+
+        .mockup-lines-print {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 1;
         }
         table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; }
         th, td { border: 1px solid #ccc; padding: 3px 6px; font-size: 9.5px; text-align: left; }
@@ -1529,18 +1728,18 @@ const printSublimSummary = async () => {
         ${
           sublimMockupDepanPreview.value || sublimMockupBelakangPreview.value
             ? `<h2 class="section-title">Mockup Desain</h2>
-              <div class="mockup-section">
-                ${
-                  sublimMockupDepanPreview.value
-                    ? `<div class="mockup-box"><div class="mockup-label">Depan</div><img src="${sublimMockupDepanPreview.value}" /></div>`
-                    : ""
-                }
-                ${
-                  sublimMockupBelakangPreview.value
-                    ? `<div class="mockup-box"><div class="mockup-label">Belakang</div><img src="${sublimMockupBelakangPreview.value}" /></div>`
-                    : ""
-                }
-              </div>`
+      <div class="mockup-section">
+        ${
+          sublimMockupDepanPreview.value
+            ? buildMockupBoxHtml("depan", sublimMockupDepanPreview.value, "Depan")
+            : ""
+        }
+        ${
+          sublimMockupBelakangPreview.value
+            ? buildMockupBoxHtml("belakang", sublimMockupBelakangPreview.value, "Belakang")
+            : ""
+        }
+      </div>`
             : ""
         }
 
@@ -1560,11 +1759,21 @@ const printSublimSummary = async () => {
           </div>
         </div>
 
-        <h2 class="section-title">Detail Warna</h2>
-        <table>
-          <thead><tr><th colspan="2">Bagian</th></tr></thead>
-          <tbody>${colorRowsHtml}</tbody>
-        </table>
+        ${
+          annotationDepanRowsHtml || annotationBelakangRowsHtml
+            ? `<h2 class="section-title">Keterangan Mockup</h2>
+      ${
+        annotationDepanRowsHtml
+          ? `<div class="text-caption mb-1">Depan</div><table><thead><tr><th>No</th><th>Nama</th><th>Jenis</th><th>Ukuran</th><th>Posisi</th></tr></thead><tbody>${annotationDepanRowsHtml}</tbody></table>`
+          : ""
+      }
+      ${
+        annotationBelakangRowsHtml
+          ? `<div class="text-caption mb-1 mt-2">Belakang</div><table><thead><tr><th>No</th><th>Nama</th><th>Jenis</th><th>Ukuran</th><th>Posisi</th></tr></thead><tbody>${annotationBelakangRowsHtml}</tbody></table>`
+          : ""
+      }`
+            : ""
+        }
 
         <div class="summary-section">
           <table class="totals-table">
@@ -1608,6 +1817,42 @@ const printSublimSummary = async () => {
           Harga dapat berubah sewaktu-waktu tanpa pemberitahuan sebelumnya. Pengajuan harga ini berlaku selama 7 hari sejak tanggal dibuat.
         </div>
       </div>
+       <script>
+          function layoutMockupAnnotations() {
+            document.querySelectorAll('.mockup-annotated-row').forEach(function (row) {
+              const svg = row.querySelector('.mockup-lines-print');
+              const rowRect = row.getBoundingClientRect();
+              svg.setAttribute('width', rowRect.width);
+              svg.setAttribute('height', rowRect.height);
+              svg.innerHTML = '';
+
+              const ns = 'http://www.w3.org/2000/svg';
+              row.querySelectorAll('.mockup-pin-print').forEach(function (pin) {
+                const idx = pin.getAttribute('data-idx');
+                const label = row.querySelector('.mockup-label-print[data-idx="' + idx + '"]');
+                if (!label) return;
+
+                const pinRect = pin.getBoundingClientRect();
+                const labelRect = label.getBoundingClientRect();
+                const isLeftCol = labelRect.left < pinRect.left;
+
+                const x1 = pinRect.left + pinRect.width / 2 - rowRect.left;
+                const y1 = pinRect.top + pinRect.height / 2 - rowRect.top;
+                const x2 = (isLeftCol ? labelRect.right : labelRect.left) - rowRect.left;
+                const y2 = labelRect.top + labelRect.height / 2 - rowRect.top;
+
+                const line = document.createElementNS(ns, 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', label.getAttribute('data-color') || '#999');
+                line.setAttribute('stroke-width', '1');
+                svg.appendChild(line);
+              });
+            });
+          }
+        <\/script>
     </body>
     </html>
   `;
@@ -1620,6 +1865,10 @@ const printSublimSummary = async () => {
   printWindow.document.write(html);
   printWindow.document.close();
   printWindow.onload = () => {
+    const win = printWindow as unknown as Window & { layoutMockupAnnotations?: () => void };
+    if (typeof win.layoutMockupAnnotations === "function") {
+      win.layoutMockupAnnotations();
+    }
     printWindow.focus();
     printWindow.print();
   };
@@ -2554,6 +2803,26 @@ onMounted(() => {
                     <div class="sublim-summary-card-label">Jumlah / Kuantiti</div>
                     <div class="sublim-summary-card-action">Ubah jumlah</div>
                   </div>
+                  <div
+                    v-if="sublimForm.warna && sublimShowDetailStep && !sublimShowColorStep"
+                    class="sublim-summary-card"
+                    @click="sublimShowColorStep = true"
+                  >
+                    <div class="sublim-summary-card-label">{{ sublimForm.warna }}</div>
+                    <div class="sublim-summary-card-action">Ganti warna</div>
+                  </div>
+
+                  <div
+                    v-if="sublimShowSummaryStep"
+                    class="sublim-summary-card"
+                    @click="sublimShowSummaryStep = false"
+                  >
+                    <div class="sublim-summary-card-label">Detail Jersey</div>
+                    <div class="sublim-summary-card-desc">
+                      {{ sublimAnnotations.length }} keterangan mockup
+                    </div>
+                    <div class="sublim-summary-card-action">Ubah detail</div>
+                  </div>
                 </div>
 
                 <!-- KIRI (75%) — konten step yang lagi aktif -->
@@ -2601,6 +2870,27 @@ onMounted(() => {
 
                   <!-- Step 2 -->
                   <template v-else-if="!sublimForm.jerseyChoice || isEditingJersey">
+                    <v-btn
+                      v-if="isEditingJersey"
+                      variant="text"
+                      size="small"
+                      prepend-icon="mdi-arrow-left"
+                      class="mb-3"
+                      @click="isEditingJersey = false"
+                    >
+                      Batal Ganti Jenis
+                    </v-btn>
+                    <v-btn
+                      v-else
+                      variant="text"
+                      size="small"
+                      prepend-icon="mdi-arrow-left"
+                      class="mb-3"
+                      @click="isEditingKain = true"
+                    >
+                      Kembali ke Pilih Kain
+                    </v-btn>
+
                     <div class="sublim-step-label">
                       <span class="sublim-step-num">2</span> Pilih Jenis Jersey
                     </div>
@@ -2651,6 +2941,16 @@ onMounted(() => {
                   <!-- Step 3 & 4 -->
                   <template v-else>
                     <template v-if="!sublimShowDetailStep">
+                      <v-btn
+                        variant="text"
+                        size="small"
+                        prepend-icon="mdi-arrow-left"
+                        class="mb-3"
+                        @click="goBackToJerseyStep"
+                      >
+                        Kembali ke Pilih Jenis Jersey
+                      </v-btn>
+
                       <div class="sublim-step-label">
                         <span class="sublim-step-num">3</span> Pilih Desain & Ukuran
                       </div>
@@ -2706,7 +3006,6 @@ onMounted(() => {
                         <div v-if="selectedDesignThumbnail">
                           <v-divider class="my-4"></v-divider>
                           <div class="sublim-qty-layout">
-                            <!-- Kolom kiri: tabel qty horizontal -->
                             <div class="sublim-qty-main">
                               <div class="qty-table-card">
                                 <div class="qty-table-card-title">
@@ -2804,7 +3103,6 @@ onMounted(() => {
                               </div>
                             </div>
 
-                            <!-- Kolom kanan: sidebar ringkasan -->
                             <div class="sublim-qty-side">
                               <div class="info-card">
                                 <div class="info-card-title">Informasi Pilihan</div>
@@ -2854,9 +3152,12 @@ onMounted(() => {
                               color="primary"
                               append-icon="mdi-arrow-right"
                               :disabled="totalJerseyQty === 0"
-                              @click="sublimShowDetailStep = true"
+                              @click="
+                                sublimShowDetailStep = true;
+                                sublimShowColorStep = true;
+                              "
                             >
-                              Lanjut ke Detail Warna & Mockup
+                              Lanjut ke Pilih Warna
                             </v-btn>
                           </div>
                         </div>
@@ -2865,151 +3166,359 @@ onMounted(() => {
 
                     <template v-else>
                       <template v-if="!sublimShowSummaryStep">
-                        <v-btn
-                          variant="text"
-                          size="small"
-                          prepend-icon="mdi-arrow-left"
-                          class="mb-3"
-                          @click="sublimShowDetailStep = false"
-                        >
-                          Kembali ke Jumlah Kuantiti
-                        </v-btn>
-
-                        <div class="sublim-step-label mb-3">
-                          <span class="sublim-step-num">4</span> Detail Jersey — Mockup & Warna
-                        </div>
-
-                        <div class="sublim-detail-layout">
-                          <!-- Kolom kiri: warna kaos, upload mockup, detail warna -->
-                          <div class="sublim-detail-main">
-                            <div class="qty-table-card mb-4">
-                              <div class="qty-table-card-title">Warna Kaos</div>
-                              <v-text-field
-                                v-model="sublimForm.warna"
-                                label="Warna Kaos"
-                                readonly
-                                placeholder="Tekan F1 atau klik..."
-                                @click="openSublimWarnaSearch"
-                                @keydown.f1.prevent="openSublimWarnaSearch"
-                                variant="outlined"
-                                density="compact"
-                                hide-details
-                                append-inner-icon="mdi-magnify"
-                                @click:append-inner="openSublimWarnaSearch"
-                              ></v-text-field>
-                            </div>
-
-                            <div class="qty-table-card mb-4">
-                              <div class="qty-table-card-title">Upload Mockup</div>
-                              <v-row dense>
-                                <v-col cols="6">
-                                  <div
-                                    class="mockup-upload-box"
-                                    @click="sublimMockupDepanRef?.click()"
-                                  >
-                                    <img
-                                      v-if="sublimMockupDepanPreview"
-                                      :src="sublimMockupDepanPreview"
-                                      class="mockup-preview-img"
-                                    />
-                                    <div v-else class="mockup-upload-placeholder">
-                                      <v-icon size="28">mdi-upload</v-icon>
-                                      <span class="text-caption mt-1">Upload Mockup Depan</span>
-                                    </div>
-                                  </div>
-                                  <input
-                                    ref="sublimMockupDepanRef"
-                                    type="file"
-                                    accept="image/jpeg,image/png"
-                                    style="display: none"
-                                    @change="onSublimMockupChange($event, 'depan')"
-                                  />
-                                  <div class="text-caption text-center mt-1">Depan</div>
-                                </v-col>
-                                <v-col cols="6">
-                                  <div
-                                    class="mockup-upload-box"
-                                    @click="sublimMockupBelakangRef?.click()"
-                                  >
-                                    <img
-                                      v-if="sublimMockupBelakangPreview"
-                                      :src="sublimMockupBelakangPreview"
-                                      class="mockup-preview-img"
-                                    />
-                                    <div v-else class="mockup-upload-placeholder">
-                                      <v-icon size="28">mdi-upload</v-icon>
-                                      <span class="text-caption mt-1">Upload Mockup Belakang</span>
-                                    </div>
-                                  </div>
-                                  <input
-                                    ref="sublimMockupBelakangRef"
-                                    type="file"
-                                    accept="image/jpeg,image/png"
-                                    style="display: none"
-                                    @change="onSublimMockupChange($event, 'belakang')"
-                                  />
-                                  <div class="text-caption text-center mt-1">Belakang</div>
-                                </v-col>
-                              </v-row>
-                            </div>
-
-                            <div class="qty-table-card">
-                              <div class="qty-table-card-title">Detail Warna</div>
-                              <v-row dense>
-                                <v-col v-for="field in sublimColorFields" :key="field.key" cols="6">
-                                  <div class="color-field-row">
-                                    <span class="color-field-label">{{ field.label }}</span>
-                                    <div class="color-field-input">
-                                      <input
-                                        type="color"
-                                        v-model="sublimColorDetails[field.key]"
-                                        class="color-swatch-input"
-                                      />
-                                      <span class="color-hex-label">{{
-                                        sublimColorDetails[field.key]
-                                      }}</span>
-                                    </div>
-                                  </div>
-                                </v-col>
-                              </v-row>
-                            </div>
-                          </div>
-
-                          <!-- Kolom kanan: preview mockup -->
-                          <div class="sublim-detail-side">
-                            <div class="info-card">
-                              <div class="info-card-title">Preview Mockup</div>
-                              <div
-                                v-if="sublimMockupDepanPreview || sublimMockupBelakangPreview"
-                                class="d-flex flex-column ga-2"
-                              >
-                                <img
-                                  v-if="sublimMockupDepanPreview"
-                                  :src="sublimMockupDepanPreview"
-                                  class="mockup-thumb"
-                                />
-                                <img
-                                  v-if="sublimMockupBelakangPreview"
-                                  :src="sublimMockupBelakangPreview"
-                                  class="mockup-thumb"
-                                />
-                              </div>
-                              <div v-else class="text-caption text-medium-emphasis">
-                                Belum ada mockup diunggah.
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="d-flex justify-end mt-4">
+                        <template v-if="sublimShowColorStep">
                           <v-btn
-                            color="primary"
-                            append-icon="mdi-arrow-right"
-                            @click="sublimShowSummaryStep = true"
+                            variant="text"
+                            size="small"
+                            prepend-icon="mdi-arrow-left"
+                            class="mb-3"
+                            @click="sublimShowDetailStep = false"
                           >
-                            Lanjut ke Ringkasan
+                            Kembali ke Jumlah Kuantiti
                           </v-btn>
-                        </div>
+
+                          <div class="sublim-step-label mb-3">
+                            <span class="sublim-step-num">4</span> Pilih Warna Kaos
+                          </div>
+
+                          <div class="qty-table-card" style="max-width: 420px">
+                            <div class="qty-table-card-title">Warna Kaos</div>
+                            <v-text-field
+                              v-model="sublimForm.warna"
+                              label="Warna Kaos"
+                              readonly
+                              placeholder="Tekan F1 atau klik..."
+                              @click="openSublimWarnaSearch"
+                              @keydown.f1.prevent="openSublimWarnaSearch"
+                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              append-inner-icon="mdi-magnify"
+                              @click:append-inner="openSublimWarnaSearch"
+                            ></v-text-field>
+                          </div>
+
+                          <div class="d-flex justify-end mt-4">
+                            <v-btn
+                              color="primary"
+                              append-icon="mdi-arrow-right"
+                              :disabled="!sublimForm.warna"
+                              @click="sublimShowColorStep = false"
+                            >
+                              Lanjut ke Mockup & Anotasi
+                            </v-btn>
+                          </div>
+                        </template>
+
+                        <template v-else>
+                          <v-btn
+                            variant="text"
+                            size="small"
+                            prepend-icon="mdi-arrow-left"
+                            class="mb-3"
+                            @click="sublimShowColorStep = true"
+                          >
+                            Kembali ke Warna Kaos
+                          </v-btn>
+
+                          <div class="sublim-step-label mb-3">
+                            <span class="sublim-step-num">5</span> Mockup & Anotasi
+                          </div>
+
+                          <div class="sublim-detail-layout">
+                            <div class="sublim-detail-main">
+                              <div class="qty-table-card mb-4">
+                                <div class="qty-table-card-title">Upload Mockup</div>
+                                <v-row dense>
+                                  <v-col cols="6">
+                                    <div
+                                      class="mockup-upload-box"
+                                      @click="sublimMockupDepanRef?.click()"
+                                    >
+                                      <img
+                                        v-if="sublimMockupDepanPreview"
+                                        :src="sublimMockupDepanPreview"
+                                        class="mockup-preview-img"
+                                      />
+                                      <div v-else class="mockup-upload-placeholder">
+                                        <v-icon size="28">mdi-upload</v-icon>
+                                        <span class="text-caption mt-1">Upload Mockup Depan</span>
+                                      </div>
+                                    </div>
+                                    <input
+                                      ref="sublimMockupDepanRef"
+                                      type="file"
+                                      accept="image/jpeg,image/png"
+                                      style="display: none"
+                                      @change="onSublimMockupChange($event, 'depan')"
+                                    />
+                                    <div class="text-caption text-center mt-1">Depan</div>
+                                  </v-col>
+                                  <v-col cols="6">
+                                    <div
+                                      class="mockup-upload-box"
+                                      @click="sublimMockupBelakangRef?.click()"
+                                    >
+                                      <img
+                                        v-if="sublimMockupBelakangPreview"
+                                        :src="sublimMockupBelakangPreview"
+                                        class="mockup-preview-img"
+                                      />
+                                      <div v-else class="mockup-upload-placeholder">
+                                        <v-icon size="28">mdi-upload</v-icon>
+                                        <span class="text-caption mt-1"
+                                          >Upload Mockup Belakang</span
+                                        >
+                                      </div>
+                                    </div>
+                                    <input
+                                      ref="sublimMockupBelakangRef"
+                                      type="file"
+                                      accept="image/jpeg,image/png"
+                                      style="display: none"
+                                      @change="onSublimMockupChange($event, 'belakang')"
+                                    />
+                                    <div class="text-caption text-center mt-1">Belakang</div>
+                                  </v-col>
+                                </v-row>
+                              </div>
+
+                              <div class="qty-table-card">
+                                <div class="d-flex justify-space-between align-center mb-3">
+                                  <div class="qty-table-card-title mb-0">
+                                    Anotasi Mockup — Sisi
+                                    {{ activeMockupSide === "depan" ? "Depan" : "Belakang" }}
+                                  </div>
+                                  <v-btn-toggle
+                                    v-model="activeMockupSide"
+                                    mandatory
+                                    density="compact"
+                                    color="primary"
+                                  >
+                                    <v-btn value="depan" size="small">Depan</v-btn>
+                                    <v-btn value="belakang" size="small">Belakang</v-btn>
+                                  </v-btn-toggle>
+                                </div>
+
+                                <v-alert
+                                  v-if="!activeMockupImage"
+                                  type="info"
+                                  variant="tonal"
+                                  density="compact"
+                                >
+                                  Upload mockup {{ activeMockupSide }} terlebih dahulu untuk mulai
+                                  menambah keterangan.
+                                </v-alert>
+
+                                <template v-else>
+                                  <div class="annotation-toolbar">
+                                    <v-btn
+                                      size="small"
+                                      :color="isAddingAnnotation ? 'error' : 'primary'"
+                                      :prepend-icon="isAddingAnnotation ? 'mdi-close' : 'mdi-plus'"
+                                      @click="isAddingAnnotation = !isAddingAnnotation"
+                                    >
+                                      {{
+                                        isAddingAnnotation ? "Batal Tambah" : "Tambah Keterangan"
+                                      }}
+                                    </v-btn>
+                                    <span
+                                      v-if="isAddingAnnotation"
+                                      class="text-caption text-primary ml-2"
+                                    >
+                                      Klik di gambar untuk menempatkan titik.
+                                    </span>
+                                  </div>
+
+                                  <div
+                                    class="annotation-canvas"
+                                    :class="{ 'annotation-canvas-adding': isAddingAnnotation }"
+                                    @click="onMockupImageClick"
+                                  >
+                                    <img :src="activeMockupImage" class="annotation-canvas-img" />
+                                    <div
+                                      v-for="(anno, idx) in annotationsForActiveSide"
+                                      :key="anno.id"
+                                      class="annotation-pin"
+                                      :class="{
+                                        'annotation-pin-active': anno.id === selectedAnnotationId,
+                                      }"
+                                      :style="{ left: anno.x + '%', top: anno.y + '%' }"
+                                      @click.stop="selectAnnotation(anno.id)"
+                                    >
+                                      {{ idx + 1 }}
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+
+                            <div class="sublim-detail-side">
+                              <div class="info-card mb-4">
+                                <div class="info-card-title">
+                                  Daftar Keterangan ({{ annotationsForActiveSide.length }})
+                                </div>
+                                <div
+                                  v-if="annotationsForActiveSide.length === 0"
+                                  class="text-caption text-medium-emphasis"
+                                >
+                                  Belum ada keterangan untuk sisi ini.
+                                </div>
+                                <div
+                                  v-for="(anno, idx) in annotationsForActiveSide"
+                                  :key="anno.id"
+                                  class="annotation-list-row"
+                                  :class="{
+                                    'annotation-list-row-active': anno.id === selectedAnnotationId,
+                                  }"
+                                  @click="selectAnnotation(anno.id)"
+                                >
+                                  <span class="annotation-list-num">{{ idx + 1 }}</span>
+                                  <div class="annotation-list-info">
+                                    <div class="annotation-list-name">
+                                      {{ anno.nama || "(Belum diberi nama)" }}
+                                    </div>
+                                    <div
+                                      class="annotation-list-size"
+                                      v-if="anno.panjangCm || anno.tinggiCm"
+                                    >
+                                      {{ anno.panjangCm || 0 }} x {{ anno.tinggiCm || 0 }} cm
+                                    </div>
+                                  </div>
+                                  <v-btn
+                                    icon="mdi-delete"
+                                    size="x-small"
+                                    variant="text"
+                                    color="error"
+                                    @click.stop="deleteAnnotation(anno.id)"
+                                  ></v-btn>
+                                </div>
+                              </div>
+
+                              <div
+                                v-if="selectedAnnotation"
+                                class="info-card annotation-props-card mb-4"
+                              >
+                                <div class="info-card-title">Properti Keterangan</div>
+
+                                <div class="prop-field">
+                                  <v-select
+                                    v-model="selectedAnnotation.jenisKeterangan"
+                                    :items="jenisKeteranganOptions"
+                                    label="Jenis Keterangan"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                  ></v-select>
+                                </div>
+
+                                <div class="prop-field">
+                                  <v-text-field
+                                    v-model="selectedAnnotation.nama"
+                                    label="Nama Keterangan"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                  ></v-text-field>
+                                </div>
+
+                                <v-row dense class="prop-field">
+                                  <v-col cols="6">
+                                    <v-text-field
+                                      v-model.number="selectedAnnotation.panjangCm"
+                                      label="Panjang (cm)"
+                                      type="number"
+                                      variant="outlined"
+                                      density="compact"
+                                      hide-details
+                                    ></v-text-field>
+                                  </v-col>
+                                  <v-col cols="6">
+                                    <v-text-field
+                                      v-model.number="selectedAnnotation.tinggiCm"
+                                      label="Tinggi (cm)"
+                                      type="number"
+                                      variant="outlined"
+                                      density="compact"
+                                      hide-details
+                                    ></v-text-field>
+                                  </v-col>
+                                </v-row>
+
+                                <div class="prop-field">
+                                  <v-text-field
+                                    v-model="selectedAnnotation.posisi"
+                                    label="Posisi"
+                                    placeholder="Cth: Dada Tengah"
+                                    variant="outlined"
+                                    density="compact"
+                                    hide-details
+                                  ></v-text-field>
+                                </div>
+
+                                <div class="prop-field prop-field-last">
+                                  <v-textarea
+                                    v-model="selectedAnnotation.catatan"
+                                    label="Catatan (opsional)"
+                                    variant="outlined"
+                                    density="compact"
+                                    rows="2"
+                                    hide-details
+                                  ></v-textarea>
+                                </div>
+
+                                <div class="annotation-props-actions">
+                                  <v-btn
+                                    variant="tonal"
+                                    color="error"
+                                    @click="deleteAnnotation(selectedAnnotation.id)"
+                                  >
+                                    Hapus
+                                  </v-btn>
+                                  <v-btn
+                                    color="primary"
+                                    variant="flat"
+                                    @click="selectedAnnotationId = null"
+                                  >
+                                    Selesai
+                                  </v-btn>
+                                </div>
+                              </div>
+
+                              <div class="info-card">
+                                <div class="info-card-title">Preview Mockup</div>
+                                <div
+                                  v-if="sublimMockupDepanPreview || sublimMockupBelakangPreview"
+                                  class="d-flex flex-column ga-2"
+                                >
+                                  <img
+                                    v-if="sublimMockupDepanPreview"
+                                    :src="sublimMockupDepanPreview"
+                                    class="mockup-thumb"
+                                  />
+                                  <img
+                                    v-if="sublimMockupBelakangPreview"
+                                    :src="sublimMockupBelakangPreview"
+                                    class="mockup-thumb"
+                                  />
+                                </div>
+                                <div v-else class="text-caption text-medium-emphasis">
+                                  Belum ada mockup diunggah.
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="d-flex justify-end mt-4">
+                            <v-btn
+                              color="primary"
+                              append-icon="mdi-arrow-right"
+                              @click="sublimShowSummaryStep = true"
+                            >
+                              Lanjut ke Ringkasan
+                            </v-btn>
+                          </div>
+                        </template>
                       </template>
 
                       <template v-else>
@@ -3025,7 +3534,7 @@ onMounted(() => {
 
                         <div class="d-flex align-center justify-space-between mb-3">
                           <div class="sublim-step-label mb-0">
-                            <span class="sublim-step-num">5</span> Ringkasan & Preview Cetak
+                            <span class="sublim-step-num">6</span> Ringkasan & Preview Cetak
                           </div>
                           <v-btn
                             color="primary"
@@ -3852,6 +4361,11 @@ onMounted(() => {
   transition: border-color 0.15s, background 0.15s;
   margin-bottom: 12px;
 }
+.sublim-summary-card-desc {
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-top: 2px;
+}
 
 .sublim-summary-card:hover {
   border-color: rgb(var(--v-theme-primary));
@@ -4150,5 +4664,121 @@ onMounted(() => {
 .harga-summary-total {
   font-weight: 700;
   font-size: 14px;
+}
+
+.annotation-toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.annotation-canvas {
+  position: relative;
+  width: 100%;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  overflow: hidden;
+}
+.annotation-canvas-adding {
+  cursor: crosshair;
+}
+.annotation-canvas-img {
+  width: 100%;
+  display: block;
+}
+.annotation-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-primary));
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  border: 2px solid white;
+}
+.annotation-pin-active {
+  background: rgb(var(--v-theme-error));
+  transform: translate(-50%, -50%) scale(1.15);
+}
+.annotation-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.annotation-list-row:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+.annotation-list-row-active {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+.annotation-list-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-primary));
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.annotation-list-info {
+  flex: 1;
+  min-width: 0;
+}
+.annotation-list-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.annotation-list-size {
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.annotation-props-card {
+  padding: 16px;
+}
+
+.annotation-props-card .prop-field {
+  margin-bottom: 14px;
+}
+
+.annotation-props-card .prop-field-last {
+  margin-bottom: 16px;
+}
+
+.annotation-props-card :deep(.v-label) {
+  font-size: 11px !important;
+}
+
+.annotation-props-card :deep(input),
+.annotation-props-card :deep(textarea) {
+  font-size: 12.5px !important;
+}
+
+.annotation-props-card :deep(.v-field) {
+  border-radius: 8px;
+}
+
+.annotation-props-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  margin-top: 4px;
+}
+
+.annotation-props-actions .v-btn {
+  flex: 1;
 }
 </style>

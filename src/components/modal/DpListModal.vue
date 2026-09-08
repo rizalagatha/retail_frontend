@@ -6,6 +6,7 @@ import UnpaidDpSearchModal from "@/components/lookup/UnpaidDpSearchModal.vue"; /
 // 1. Definisikan Interface
 interface DpItem {
   nomor: string;
+  tanggal?: string;
   jenis: string;
   posting: string;
   fsk: string;
@@ -43,6 +44,7 @@ const newDpNomor = ref(""); // Model untuk input pencarian (visual saja)
 // 5. Headers Tabel
 const dpTableHeaders = [
   { title: "No. Setoran", key: "nomor", width: "200px" },
+  { title: "Tanggal", key: "tanggal", width: "110px" },
   { title: "Jenis", key: "jenis", width: "100px" },
   { title: "Nominal", key: "nominal", align: "end", width: "150px" },
   { title: "Posting", key: "posting", width: "100px" },
@@ -104,6 +106,17 @@ const openDpSearch = () => {
               filled
             />
           </template>
+          <template #[`item.tanggal`]="{ item }">
+            <v-text-field
+              :model-value="item.tanggal || '-'"
+              variant="underlined"
+              density="compact"
+              hide-details
+              readonly
+              filled
+              class="text-center"
+            />
+          </template>
           <template #[`item.jenis`]="{ item }">
             <v-text-field
               :model-value="item.jenis"
@@ -153,6 +166,8 @@ const openDpSearch = () => {
                 />
               </td>
               <td></td>
+              <!-- kolom tanggal -->
+              <td></td>
               <td></td>
               <td></td>
               <td></td>
@@ -180,6 +195,10 @@ const openDpSearch = () => {
 
 .text-end :deep(input) {
   text-align: right;
+}
+
+.text-center :deep(input) {
+  text-align: center;
 }
 
 /* Style agar input terlihat jelas bisa diklik */

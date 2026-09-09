@@ -288,6 +288,24 @@ const confirmText = ref("");
 const pendingAction = ref<(() => void) | null>(null);
 const branchInfoPrint = ref<BranchInfoPrint | null>(null);
 const jenisKeteranganOptions = ["Logo", "Teks", "Nomor / Punggung", "Nama / Punggung", "Lainnya"];
+const sublimColorFields = [
+  { key: "bodyDepan", label: "Body Depan" },
+  { key: "bodyBelakang", label: "Body Belakang" },
+  { key: "lengan", label: "Lengan" },
+  { key: "kerah", label: "Kerah" },
+  { key: "manset", label: "Manset" },
+  { key: "sidePanel2", label: "Side Panel 2" },
+  { key: "listBaju", label: "List Baju" },
+  { key: "listKerah", label: "List Kerah" },
+  { key: "logo1", label: "Logo 1 (Kiri Dada Kiri)" },
+  { key: "logo2", label: "Logo 2 (Lengan Kiri)" },
+  { key: "nomor", label: "Nomor" },
+  { key: "nama", label: "Nama" },
+] as const;
+
+const sublimColorDetails = ref<Record<string, string>>(
+  Object.fromEntries(sublimColorFields.map((f) => [f.key, "#FFFFFF"]))
+);
 
 const sublimAnnotations = ref<MockupAnnotation[]>([]);
 const activeMockupSide = ref<"depan" | "belakang">("depan");
@@ -628,6 +646,7 @@ const executeSave = async () => {
             jerseySizes: jerseySizes.value,
             celanaSizes: celanaSizes.value,
             annotations: sublimAnnotations.value,
+            colorDetails: sublimColorDetails.value,
           }
         : null,
       bordirItems: bordirItems.value,
@@ -975,6 +994,12 @@ const loadOfferData = async (nomor: string) => {
       if (data.sublimAnnotations) {
         sublimAnnotations.value = data.sublimAnnotations;
       }
+      if (data.sublimColorDetails) {
+        sublimColorDetails.value = {
+          ...sublimColorDetails.value,
+          ...data.sublimColorDetails,
+        };
+      }
       sublimMockupDepanPreview.value = data.sublimMockupDepanUrl || null;
       sublimMockupBelakangPreview.value = data.sublimMockupBelakangUrl || null;
 
@@ -1234,6 +1259,7 @@ const resetSublimDetailStep = () => {
   activeMockupSide.value = "depan";
   selectedAnnotationId.value = null;
   isAddingAnnotation.value = false;
+  sublimColorDetails.value = Object.fromEntries(sublimColorFields.map((f) => [f.key, "#FFFFFF"]));
   sublimMockupDepanFile.value = null;
   sublimMockupDepanPreview.value = null;
   sublimMockupBelakangFile.value = null;
@@ -1407,6 +1433,22 @@ const buildMockupBoxHtml = (side: "depan" | "belakang", imageUrl: string, label:
         <svg class="mockup-lines-print"></svg>
       </div>
     </div>`;
+};
+
+// [BARU] Legend warna compact — 1 baris per bagian, wrap otomatis, hemat tempat
+const buildColorLegendHtml = () => {
+  return sublimColorFields
+    .map(
+      (f) => `
+        <div class="color-legend-item">
+          <span class="color-swatch-print" style="background:${
+            sublimColorDetails.value[f.key]
+          };"></span>
+          <span class="color-legend-label">${f.label}:</span>
+          <span class="color-legend-value">${sublimColorDetails.value[f.key]}</span>
+        </div>`
+    )
+    .join("");
 };
 
 const printSublimSummary = async () => {
@@ -1663,6 +1705,35 @@ const printSublimSummary = async () => {
           vertical-align: middle;
           margin-right: 5px;
         }
+          .color-swatch-print {
+          display: inline-block;
+          width: 11px;
+          height: 11px;
+          border: 1px solid #999;
+          vertical-align: middle;
+          margin-right: 5px;
+        }
+        .color-legend-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px 12px;
+          margin-bottom: 10px;
+          page-break-inside: avoid;
+        }
+        .color-legend-item {
+          display: flex;
+          align-items: center;
+          font-size: 8.5px;
+          gap: 3px;
+          white-space: nowrap;
+        }
+        .color-legend-label {
+          font-weight: 600;
+        }
+        .color-legend-value {
+          color: #666;
+          text-transform: uppercase;
+        }
         .summary-section { display: flex; justify-content: flex-end; margin-top: 8px; page-break-inside: avoid; }
         .totals-table { flex-basis: 48%; margin-bottom: 0; }
         .totals-table td { text-align: right; padding: 2px 6px; }
@@ -1744,19 +1815,31 @@ const printSublimSummary = async () => {
         }
 
         <h2 class="section-title">Rincian Ukuran</h2>
-        <div class="two-col">
-          <div>
-            <table>
-              <thead><tr><th colspan="2">Jersey</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
-              <tbody>${jerseySizeRowsHtml}</tbody>
-            </table>
-          </div>
-          <div>
-            <table>
-              <thead><tr><th colspan="2">Celana</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
-              <tbody>${celanaSizeRowsHtml}</tbody>
-            </table>
-          </div>
+        ${
+          totalCelanaQty.value > 0
+            ? `<div class="two-col">
+                <div>
+                  <table>
+                    <thead><tr><th colspan="2">Jersey</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
+                    <tbody>${jerseySizeRowsHtml}</tbody>
+                  </table>
+                </div>
+                <div>
+                  <table>
+                    <thead><tr><th colspan="2">Celana</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
+                    <tbody>${celanaSizeRowsHtml}</tbody>
+                  </table>
+                </div>
+              </div>`
+            : `<table style="max-width: 50%;">
+                <thead><tr><th colspan="2">Jersey</th></tr><tr><th>Ukuran</th><th>Qty</th></tr></thead>
+                <tbody>${jerseySizeRowsHtml}</tbody>
+              </table>`
+        }
+
+        <h2 class="section-title">Detail Warna</h2>
+        <div class="color-legend-row">
+          ${buildColorLegendHtml()}
         </div>
 
         ${
@@ -1784,12 +1867,16 @@ const printSublimSummary = async () => {
                 } pcs x ${formatRupiah(sublimPreview.value.jerseyHargaPerPcs || 0)})</td>
                 <td>${formatRupiah(totalHargaJersey)}</td>
               </tr>
-              <tr>
-                <td style="text-align:left;">Subtotal Celana (${
-                  totalCelanaQty.value
-                } pcs x ${formatRupiah(sublimPreview.value.celanaHargaPerPcs || 0)})</td>
-                <td>${formatRupiah(totalHargaCelana)}</td>
-              </tr>
+             ${
+               totalCelanaQty.value > 0
+                 ? `<tr>
+                    <td style="text-align:left;">Subtotal Celana (${
+                      totalCelanaQty.value
+                    } pcs x ${formatRupiah(sublimPreview.value.celanaHargaPerPcs || 0)})</td>
+                    <td>${formatRupiah(totalHargaCelana)}</td>
+                  </tr>`
+                 : ""
+             }
               <tr>
                 <td style="text-align:left;">Diskon</td>
                 <td>- ${formatRupiah(diskon)}</td>
@@ -3196,6 +3283,27 @@ onMounted(() => {
                               append-inner-icon="mdi-magnify"
                               @click:append-inner="openSublimWarnaSearch"
                             ></v-text-field>
+                          </div>
+
+                          <div class="qty-table-card mt-4">
+                            <div class="qty-table-card-title">Detail Warna</div>
+                            <v-row dense>
+                              <v-col v-for="field in sublimColorFields" :key="field.key" cols="6">
+                                <div class="color-field-row">
+                                  <span class="color-field-label">{{ field.label }}</span>
+                                  <div class="color-field-input">
+                                    <input
+                                      type="color"
+                                      v-model="sublimColorDetails[field.key]"
+                                      class="color-swatch-input"
+                                    />
+                                    <span class="color-hex-label">{{
+                                      sublimColorDetails[field.key]
+                                    }}</span>
+                                  </div>
+                                </div>
+                              </v-col>
+                            </v-row>
                           </div>
 
                           <div class="d-flex justify-end mt-4">

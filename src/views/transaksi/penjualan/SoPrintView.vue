@@ -21,6 +21,7 @@ interface PrintHeader {
   cus_alamat: string;
   cus_kota: string;
   cus_telp: string;
+  gdg_inv_nama?: string;
   gdg_inv_instagram: string;
   gdg_inv_alamat: string;
   gdg_inv_kota: string;
@@ -203,6 +204,9 @@ onMounted(() => {
         <img v-if="qrCodeData" :src="qrCodeData" class="qr-code" />
 
         <div class="company-info">
+          <!-- Tambahkan baris ini untuk menampilkan nama gudang/toko -->
+          <div class="company-title font-weight-bold">{{ printData.header.gdg_inv_nama }}</div>
+
           <div class="company-name">
             <img :src="instagramLogo" alt="Instagram" class="instagram-logo" />
             <span class="instagram-text">{{ printData.header.gdg_inv_instagram }}</span>

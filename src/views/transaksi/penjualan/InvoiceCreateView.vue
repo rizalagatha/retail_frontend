@@ -1681,13 +1681,14 @@ const calculateTotals = () => {
     totals.subTotal = netItemTotal;
     totals.totalDiskonItem = totalDiskonItem;
 
-    // [FIX] Pakai nominal diskon APA ADANYA dari SO — jangan dihitung ulang
-    // dari persentase × basis Invoice. SO sudah final saat DP ditagih;
-    // menghitung ulang di sini (dengan basis Invoice yang bisa berbeda,
-    // bahkan antar-load karena rounding) menggeser Grand Total dan
-    // memunculkan sisa piutang meski DP sudah lunas sesuai SO.
+    // [FIX] Backend (getSoDetailsForGrid) sudah memisahkan diskonBaseRp dan
+    // diskonMapsRp secara presisi (diskonBaseRp + diskonMapsRp = so_disc
+    // persis). Pakai keduanya apa adanya — JANGAN nolkan mapsRp berdasar
+    // flag isMapsAlreadyInDiskonRp, itu peninggalan proteksi lama sebelum
+    // backend melakukan split sendiri, dan sekarang malah membuang
+    // komponen Maps sepenuhnya kalau SO memang pakai promo Maps.
     const baseRpSO = Number(header.diskonRp || 0);
-    const mapsRpSO = isMapsAlreadyInDiskonRp.value ? 0 : Number(header.diskonMapsRp || 0);
+    const mapsRpSO = Number(header.diskonMapsRp || 0);
 
     totals.diskonNominal1 = header.diskonPersen1 > 0 ? baseRpSO : 0;
     totals.diskonNominalRp = header.diskonPersen1 > 0 ? 0 : baseRpSO;

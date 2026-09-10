@@ -16,6 +16,7 @@ interface PrintHeader {
   cus_nama: string;
   cus_alamat: string;
   cus_telp: string;
+  gdg_inv_nama?: string;
   gdg_inv_alamat: string;
   gdg_inv_kota: string;
   gdg_inv_telp: string;
@@ -204,14 +205,14 @@ onMounted(() => {
         <div class="company-info centered">
           <div class="company-name">
             <img :src="igLogo" class="icon-ig" />
-            KAOSAN.OFFICIAL
+            {{ printData.header.gdg_inv_nama }}
           </div>
           <div>{{ printData.header.gdg_inv_alamat }}</div>
           <div>{{ printData.header.gdg_inv_kota }}</div>
           <div>{{ printData.header.gdg_inv_telp }}</div>
         </div>
 
-        <img :src="dynamicLogo" alt="Logo Perusahaan" class="company-logo-right" />
+        <img :src="dynamicLogo" alt="Logo Perusahaaan" class="company-logo-right" />
       </div>
 
       <div class="document-title">PENAWARAN</div>

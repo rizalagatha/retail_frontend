@@ -1681,32 +1681,18 @@ const calculateTotals = () => {
     totals.subTotal = netItemTotal;
     totals.totalDiskonItem = totalDiskonItem;
 
-    const d1AmountSO = (header.diskonPersen1 / 100) * basisDiskonFaktur;
+    // [FIX] Pakai nominal diskon APA ADANYA dari SO — jangan dihitung ulang
+    // dari persentase × basis Invoice. SO sudah final saat DP ditagih;
+    // menghitung ulang di sini (dengan basis Invoice yang bisa berbeda,
+    // bahkan antar-load karena rounding) menggeser Grand Total dan
+    // memunculkan sisa piutang meski DP sudah lunas sesuai SO.
+    const baseRpSO = Number(header.diskonRp || 0);
+    const mapsRpSO = isMapsAlreadyInDiskonRp.value ? 0 : Number(header.diskonMapsRp || 0);
 
-    // [FIX] header.diskonRp dari SO adalah REPRESENTASI RUPIAH dari basis
-    // diskon dasar (dipakai untuk tampilan "Diskon Rp" di DiscountCostModal
-    // yang otomatis disable kalau diskonPersen1 > 0) — bukan komponen diskon
-    // terpisah. Kalau P1 sudah aktif, basisnya SUDAH terhitung lewat P1 di
-    // atas; jangan jumlahkan header.diskonRp lagi sebagai "Diskon Nominal/
-    // Promo" kedua, atau nilainya kehitung dua kali (persis bug di screenshot).
-    const manualRpSO = header.diskonPersen1 > 0 ? 0 : Number(header.diskonRp || 0);
-
-    const d2AmountSO = isMapsAlreadyInDiskonRp.value
-      ? Number(header.diskonMapsRp || 0)
-      : (header.diskonPersen2 / 100) * Math.max(0, basisDiskonFaktur - d1AmountSO - manualRpSO);
-
-    totals.diskonNominal1 = d1AmountSO;
-    totals.diskonNominal2 = d2AmountSO;
-    totals.diskonNominalRp = manualRpSO;
-    totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + manualRpSO);
-
-    if (isKpr.value) {
-      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + manualRpSO);
-    } else {
-      // [REVISI] Jalur Non-KPR sekarang juga menghitung Persen 1 & 2 secara bertingkat
-      // Ini agar Diskon Maps Review (P2) tetap masuk hitungan meskipun ada nomor SO
-      totals.totalDiskonFaktur = Math.round(d1AmountSO + d2AmountSO + manualRpSO);
-    }
+    totals.diskonNominal1 = header.diskonPersen1 > 0 ? baseRpSO : 0;
+    totals.diskonNominalRp = header.diskonPersen1 > 0 ? 0 : baseRpSO;
+    totals.diskonNominal2 = mapsRpSO;
+    totals.totalDiskonFaktur = Math.round(baseRpSO + mapsRpSO);
 
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
 
@@ -1719,7 +1705,7 @@ const calculateTotals = () => {
     totals.totalDp = totalDp;
     totals.sisaPiutang = Math.max(0, totals.grandTotal - totalDp);
 
-    return; // ← STOP
+    return;
   }
 
   // ---------------------------------------------------------------------

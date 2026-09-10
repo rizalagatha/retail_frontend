@@ -973,7 +973,7 @@ const calculateTotals = () => {
   }
 
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
-  const remainingAfterBase = Math.max(0, subtotalDiscountable - baseNominalDiscount);
+  const remainingAfterBase = Math.max(0, subtotal - baseNominalDiscount);
   const mapsDiscountRp = (diskonP2 / 100) * remainingAfterBase;
 
   // Gabungkan untuk tampilan di layar

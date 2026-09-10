@@ -1180,7 +1180,7 @@ const calculateTotals = async () => {
   // HITUNG DISKON 2 (MAPS) SECARA AKUMULATIF DARI SISA TAGIHAN
   // ---------------------------------------------------------
   const diskonP2 = Number(footer.value.diskonPersen2) || 0;
-  const remainingAfterBase = Math.max(0, totalSoBruto - baseNominalDiscount);
+  const remainingAfterBase = Math.max(0, newTotalDiscountable - baseNominalDiscount);
   const mapsDiscountRp = (diskonP2 / 100) * remainingAfterBase;
 
   // SEKARANG BARU KITA GABUNGKAN KE FOOTER UNTUK TAMPILAN DI LAYAR & DATABASE!

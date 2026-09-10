@@ -5,6 +5,7 @@ import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
 import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import InstagramLogo from "@/assets/instagram.jpg"; // Import logo Instagram
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
@@ -72,9 +73,12 @@ const qrCodeData = ref<string | null>(null);
 const trackingCode = ref<string>("");
 
 const dynamicLogo = computed(() => {
-  // Cek jika data sudah ada dan nomor SO dimulai dengan K04
-  if (printData.value?.header?.so_nomor?.startsWith("K04")) {
+  const nomor = printData.value?.header?.so_nomor || "";
+  if (nomor.startsWith("K04")) {
     return LogoRezso;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
   }
   return Logo; // Default ke logo Kaosan
 });

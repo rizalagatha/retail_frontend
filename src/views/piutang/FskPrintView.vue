@@ -5,6 +5,7 @@ import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
 import LogoReszo from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintDetail1 {
@@ -43,8 +44,13 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 const dynamicLogo = computed(() => {
-  if (printData.value?.header?.fsk_nomor?.startsWith("K04")) {
+  const nomor = printData.value?.header?.fsk_nomor?.toUpperCase() || "";
+
+  if (nomor.startsWith("K04")) {
     return LogoReszo;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
   }
   return Logo;
 });

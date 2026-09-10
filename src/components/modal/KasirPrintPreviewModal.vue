@@ -4,6 +4,7 @@ import api from "@/services/api";
 
 import Logo from "@/assets/logo.png";
 import LogoReszo from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import InstagramLogo from "@/assets/instagram.jpg";
 import FacebookLogo from "@/assets/facebook.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -68,12 +69,14 @@ const printData = ref<PrintData | null>(null);
 const isLoading = ref(false);
 const maxPundi = 500;
 const dynamicLogo = computed(() => {
-  // Cek apakah data sudah dimuat dan apakah gudang adalah K04
-  if (
-    printData.value?.header?.inv_nomor?.startsWith("K04") ||
-    printData.value?.header?.perush_nama?.toUpperCase().includes("RESZO")
-  ) {
+  const nomor = printData.value?.header?.inv_nomor?.toUpperCase() || "";
+  const namaPerush = printData.value?.header?.perush_nama?.toUpperCase() || "";
+
+  if (nomor.startsWith("K04") || namaPerush.includes("RESZO")) {
     return LogoReszo;
+  }
+  if (nomor.startsWith("KF1") || namaPerush.includes("KIDDIFY")) {
+    return LogoKiddify;
   }
   return Logo;
 });

@@ -4,6 +4,8 @@ import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format } from "date-fns";
 import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import QRCode from "qrcode";
 
 interface PrintData {
@@ -35,10 +37,20 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo;
 const qrCodeData = ref<string | null>(null);
 
 const barangList = computed(() => printData.value?.detailBarang || []);
+
+const dynamicLogo = computed(() => {
+  const nomor = printData.value?.sd_nomor || "";
+  if (nomor.startsWith("K04")) {
+    return LogoRezso;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
+  }
+  return Logo;
+});
 
 // Tambahkan fungsi ini
 const getFullImageUrl = (path?: string | null): string | undefined => {
@@ -108,7 +120,7 @@ onMounted(() => {
     <div v-if="printData" class="page">
       <div class="page-header">
         <div class="header-left">
-          <img :src="appLogo" alt="Logo" class="logo" />
+          <img :src="dynamicLogo" alt="Logo" class="logo" />
 
           <div class="title-block">
             <div class="main-title">SO {{ getJenisOrderDisplay(printData.sd_jo_kode) }}</div>

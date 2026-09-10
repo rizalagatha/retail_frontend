@@ -12,6 +12,7 @@ import type { AxiosError } from "axios";
 import axios from "axios";
 import LogoKaosan from "@/assets/logo.png";
 import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
 import {
@@ -301,6 +302,9 @@ const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert")
 const dynamicLogo = computed(() => {
   if (authStore.user?.cabang === "K04") {
     return LogoRezso;
+  }
+  if (authStore.user?.cabang === "KF1") {
+    return LogoKiddify;
   }
   return LogoKaosan;
 });

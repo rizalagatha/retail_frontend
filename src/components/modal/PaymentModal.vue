@@ -271,6 +271,8 @@ const isQrisFocused = ref(false);
 const rekeningSearchCaller = ref<"transfer" | "qris">("transfer");
 
 import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import InstagramLogo from "@/assets/instagram.jpg";
 import FacebookLogo from "@/assets/facebook.jpg";
 
@@ -278,7 +280,16 @@ import ImgKardus from "@/assets/kardus.png";
 import ImgPlastik from "@/assets/plastik.png";
 import ImgGoodie from "@/assets/goodie-bag.png";
 
-const appLogo = Logo;
+const BRANCH_LOGO_MAP: Record<string, string> = {
+  K04: LogoRezso,
+  KF1: LogoKiddify,
+};
+
+const appLogo = computed(() => {
+  const cabang = props.invoiceHeader.gudang?.kode || "";
+  return BRANCH_LOGO_MAP[cabang] || Logo;
+});
+
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
 const dtPundi = new Date("2024-06-01");

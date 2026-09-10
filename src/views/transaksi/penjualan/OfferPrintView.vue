@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from "vue";
+import { ref, onMounted, nextTick, watch, computed } from "vue";
 import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import InstagramLogo from "@/assets/instagram.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
@@ -74,9 +76,18 @@ interface CustomParsedData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo;
 const igLogo = InstagramLogo;
 const qrCodeData = ref<string | null>(null);
+const dynamicLogo = computed(() => {
+  const nomor = printData.value?.header?.pen_nomor || "";
+  if (nomor.startsWith("K04")) {
+    return LogoRezso;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
+  }
+  return Logo;
+});
 
 function terbilang(n: number): string {
   n = Math.floor(n);
@@ -200,7 +211,7 @@ onMounted(() => {
           <div>{{ printData.header.gdg_inv_telp }}</div>
         </div>
 
-        <img :src="appLogo" alt="Logo Perusahaan" class="company-logo-right" />
+        <img :src="dynamicLogo" alt="Logo Perusahaan" class="company-logo-right" />
       </div>
 
       <div class="document-title">PENAWARAN</div>

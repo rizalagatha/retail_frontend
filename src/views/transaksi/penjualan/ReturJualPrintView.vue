@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from "vue";
+import { ref, onMounted, nextTick, watch, computed } from "vue";
 import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 import QRCode from "qrcode";
 
@@ -52,7 +54,17 @@ const route = useRoute();
 const printData = ref<ReturJualPrintData | null>(null);
 const qrCodeData = ref<string | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo;
+
+const dynamicLogo = computed(() => {
+  const nomor = printData.value?.header?.nomor || "";
+  if (nomor.startsWith("K04")) {
+    return LogoRezso;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
+  }
+  return Logo;
+});
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
@@ -92,7 +104,7 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat data...</div>
     <div v-if="printData" class="page">
       <div class="header">
-        <img :src="appLogo" alt="Logo" class="logo" />
+        <img :src="dynamicLogo" alt="Logo" class="logo" />
 
         <div class="company-info">
           <strong>{{ printData.header.gudang.nama }}</strong>

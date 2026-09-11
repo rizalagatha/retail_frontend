@@ -83,6 +83,78 @@ const monthOptions = [
   { value: 12, title: "Desember" },
 ];
 
+// BARU: state untuk export rentang bulan (terpisah dari filter tabel utama)
+const isRangeDialogOpen = ref(false);
+const isExportingRange = ref(false);
+const rangeFilter = reactive({
+  tahun: currentYear,
+  bulanDari: 1,
+  bulanSampai: new Date().getMonth() + 1,
+});
+
+const namaBulan = (b: number) => monthOptions.find((m) => m.value === b)?.title || String(b);
+
+const exportRangeSummary = async () => {
+  if (!canExport.value) return toast.error("Anda tidak memiliki izin untuk mengekspor data.");
+  if (rangeFilter.bulanDari > rangeFilter.bulanSampai) {
+    return toast.error("Bulan 'Dari' tidak boleh lebih besar dari bulan 'Sampai'.");
+  }
+
+  isExportingRange.value = true;
+  try {
+    const response = await api.get("/sales-vs-target/range-summary", { params: rangeFilter });
+    const summary = response.data;
+
+    const totalQty = Number(summary.total_qty || 0);
+    const totalNominal = Number(summary.total_nominal || 0);
+    const totalTarget = Number(summary.total_target || 0);
+    const persen = totalTarget > 0 ? (totalNominal / totalTarget) * 100 : 0;
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Grand Total");
+
+    sheet.columns = [{ width: 28 }, { width: 22 }];
+
+    sheet.addRow([
+      "Periode",
+      `${namaBulan(rangeFilter.bulanDari)} - ${namaBulan(rangeFilter.bulanSampai)} ${
+        rangeFilter.tahun
+      }`,
+    ]);
+    sheet.addRow([]);
+    sheet.addRow(["Total Qty (Seluruh Cabang)", totalQty]);
+    sheet.addRow(["Total Nominal (Seluruh Cabang)", totalNominal]);
+    sheet.addRow(["Total Target (Seluruh Cabang)", totalTarget]);
+    sheet.addRow(["% Pencapaian", Number(persen.toFixed(2))]);
+
+    sheet.getColumn(1).font = { bold: true };
+    sheet.getRow(1).font = { bold: true, size: 12 };
+    sheet.getCell("B4").numFmt = "#,##0";
+    sheet.getCell("B5").numFmt = "#,##0";
+    sheet.getCell("B6").numFmt = "#,##0";
+    sheet.getCell("B7").numFmt = '0.00"%"';
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `GrandTotal_SalesVsTarget_${rangeFilter.tahun}_${rangeFilter.bulanDari}-${rangeFilter.bulanSampai}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    isRangeDialogOpen.value = false;
+    toast.success("Grand total berhasil diekspor.");
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal mengekspor grand total.");
+  } finally {
+    isExportingRange.value = false;
+  }
+};
+
 // const headers = [
 //   { title: 'No', key: 'no', sortable: false, width: '50px', rowspan: 2 },
 //   { title: 'Tahun', key: 'tahun', rowspan: 2 },
@@ -581,6 +653,17 @@ watch(
       >
         Export
       </v-btn>
+      <!-- BARU -->
+      <v-btn
+        v-if="canExport"
+        size="small"
+        color="blue-grey"
+        variant="tonal"
+        @click="isRangeDialogOpen = true"
+        prepend-icon="mdi-calendar-range"
+      >
+        Export Rentang Bulan
+      </v-btn>
     </template>
 
     <div class="browse-content">
@@ -833,6 +916,64 @@ watch(
       </div>
     </div>
   </PageLayout>
+
+  <v-dialog v-model="isRangeDialogOpen" max-width="420px">
+    <v-card>
+      <v-toolbar color="blue-grey" density="compact">
+        <v-toolbar-title class="text-subtitle-1"
+          >Export Grand Total (Rentang Bulan)</v-toolbar-title
+        >
+      </v-toolbar>
+      <v-card-text class="pa-4">
+        <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+          Export ini hanya menghasilkan total gabungan seluruh cabang untuk rentang bulan yang
+          dipilih — bukan rincian per cabang.
+        </v-alert>
+        <v-select
+          v-model="rangeFilter.tahun"
+          :items="yearOptions"
+          label="Tahun"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="mb-3"
+        />
+        <v-select
+          v-model="rangeFilter.bulanDari"
+          :items="monthOptions"
+          item-title="title"
+          item-value="value"
+          label="Dari Bulan"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="mb-3"
+        />
+        <v-select
+          v-model="rangeFilter.bulanSampai"
+          :items="monthOptions"
+          item-title="title"
+          item-value="value"
+          label="Sampai Bulan"
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
+      </v-card-text>
+      <v-card-actions class="pa-4">
+        <v-spacer />
+        <v-btn variant="text" @click="isRangeDialogOpen = false">Batal</v-btn>
+        <v-btn
+          color="teal"
+          :loading="isExportingRange"
+          prepend-icon="mdi-file-excel"
+          @click="exportRangeSummary"
+        >
+          Export
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from "vue";
+import { ref, onMounted, nextTick, watch, computed } from "vue";
 import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
-import Logo from "@/assets/logo.png"; // Pastikan logo diimpor
+import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 
 interface PrintHeader {
@@ -49,7 +51,17 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const appLogo = Logo; // Sediakan logo untuk template
+const dynamicLogo = computed(() => {
+  const nomor = printData.value?.header?.nomor?.toUpperCase() || "";
+
+  if (nomor.startsWith("K04")) {
+    return LogoReszo;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
+  }
+  return Logo;
+});
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
@@ -83,7 +95,7 @@ onMounted(() => {
     <div v-if="isLoading" class="text-center">Memuat...</div>
     <div v-if="printData" class="content">
       <div class="header text-center">
-        <img :src="appLogo" alt="Logo" class="logo" />
+        <img :src="dynamicLogo" alt="Logo" class="logo" />
         <strong>{{ printData.header.gudang.nama }}</strong>
         <div>{{ printData.header.gudang.alamat }}</div>
         <div>{{ printData.header.gudang.telp }}</div>

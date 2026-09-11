@@ -6,6 +6,8 @@ import RekeningSearchModal from "../lookup/RekeningSearchModal.vue";
 import { useAuthStore } from "@/stores/authStore";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 import axios from "axios";
 
@@ -43,11 +45,22 @@ interface NewDpItem {
 
 const toast = useToast();
 const authStore = useAuthStore();
-const appLogo = Logo;
 
 const kekuranganDp = computed(() => {
   const kurang = props.minimalDp - props.existingDp;
   return kurang > 0 ? kurang : 0;
+});
+
+const dynamicLogo = computed(() => {
+  const nomor = printHeaderData.value?.sh_nomor?.toUpperCase() || "";
+
+  if (nomor.startsWith("K04")) {
+    return LogoReszo;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
+  }
+  return Logo;
 });
 
 const documentTitle = computed(() => {
@@ -438,7 +451,7 @@ const onRekeningSelected = (rekening: Rekening) => {
           <template v-if="printHeaderData">
             <div v-for="copy in 2" :key="copy" class="page" :class="{ 'copy-section': copy === 2 }">
               <div class="company-header">
-                <img :src="appLogo" alt="Logo" class="company-logo" />
+                <img :src="dynamicLogo" alt="Logo" class="company-logo" />
                 <div class="company-info">
                   <div class="company-name">{{ printHeaderData.perush_nama }}</div>
                   <div>{{ printHeaderData.perush_alamat }}</div>

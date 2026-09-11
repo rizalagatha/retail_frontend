@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from "vue";
+import { ref, onMounted, nextTick, watch, computed } from "vue";
 import { useRoute } from "vue-router";
 import api from "@/services/api";
 import Logo from "@/assets/logo.png";
+import LogoReszo from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import InstagramLogo from "@/assets/instagram.jpg";
 import FacebookLogo from "@/assets/facebook.jpg";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -72,7 +74,17 @@ const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
 
-const appLogo = Logo;
+const dynamicLogo = computed(() => {
+  const nomor = printData.value?.header?.inv_nomor?.toUpperCase() || "";
+
+  if (nomor.startsWith("K04")) {
+    return LogoReszo;
+  }
+  if (nomor.startsWith("KF1")) {
+    return LogoKiddify;
+  }
+  return Logo;
+});
 const igLogo = InstagramLogo;
 const fbLogo = FacebookLogo;
 
@@ -210,7 +222,7 @@ onMounted(() => {
     <div v-else-if="printData">
       <!-- Header -->
       <div class="header text-center">
-        <img :src="appLogo" alt="Logo" class="logo" />
+        <img :src="dynamicLogo" alt="Logo" class="logo" />
         <strong>{{ printData.header.perush_nama }}</strong>
         <div>{{ printData.header.perush_alamat }}</div>
         <div>{{ printData.header.perush_telp }}</div>

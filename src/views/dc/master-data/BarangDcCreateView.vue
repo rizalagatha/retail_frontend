@@ -669,7 +669,15 @@ watch(
               ><v-select
                 label="Kategori Produk"
                 v-model="header.kategoriProduk"
-                :items="['REGULER', 'PESANAN', 'SESIONAL']"
+                :items="[
+                  'REGULER',
+                  'PREMIUM',
+                  'ANAK',
+                  'JAKET WOVEN',
+                  'JAKET KNIT',
+                  'PESANAN',
+                  'SESIONAL',
+                ]"
                 variant="outlined"
                 density="compact"
                 hide-details

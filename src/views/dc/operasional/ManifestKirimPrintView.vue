@@ -345,6 +345,12 @@ onMounted(() => {
                 <td class="text-grey-darken-1 py-1">Driver / PIC Pengirim</td>
                 <td class="font-weight-bold py-1">: {{ header.driver || header.Driver || "-" }}</td>
               </tr>
+              <tr>
+                <td class="text-grey-darken-1 py-1">Berat Kiriman</td>
+                <td class="font-weight-bold py-1">
+                  : {{ Number(header.beratKg || header.BeratKg || 0) > 0 ? (header.beratKg || header.BeratKg) + " Kg" : "-" }}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -368,34 +374,40 @@ onMounted(() => {
           </div>
           <div class="border-t d-flex bg-white rounded-b-lg">
             <div class="flex-grow-1 border-e py-2 px-1">
-              <div class="text-grey" style="font-size: 10px">Total SJ</div>
+              <div class="text-grey" style="font-size: 10px">Total Dokumen</div>
               <div class="font-weight-bold text-subtitle-2">{{ sjItems.length }}</div>
             </div>
             <div class="flex-grow-1 border-e py-2 px-1">
-              <div class="text-grey" style="font-size: 10px">Total PL</div>
+              <div class="text-grey" style="font-size: 10px">Total PL / Ref</div>
               <div class="font-weight-bold text-subtitle-2">{{ totalPlCount }}</div>
             </div>
-            <div class="flex-grow-1 py-2 px-1">
+            <div class="flex-grow-1 border-e py-2 px-1">
               <div class="text-grey" style="font-size: 10px">Total Qty</div>
               <div class="font-weight-bold text-subtitle-2">
                 {{ totalQtyPcs }} <span style="font-size: 10px">Pcs</span>
+              </div>
+            </div>
+            <div class="flex-grow-1 py-2 px-1">
+              <div class="text-grey" style="font-size: 10px">Total Berat</div>
+              <div class="font-weight-bold text-subtitle-2">
+                {{ Number(header.beratKg || header.BeratKg || 0) > 0 ? (header.beratKg || header.BeratKg) + " Kg" : "-" }}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Table: DAFTAR SURAT JALAN & MUATAN MANIFEST -->
+      <!-- Table: DAFTAR SURAT JALAN / INVOICE & MUATAN MANIFEST -->
       <div class="mb-4">
         <div class="text-caption font-weight-bold text-uppercase mb-2 text-grey-darken-3">
-          DAFTAR SURAT JALAN & MUATAN MANIFEST
+          DAFTAR DOKUMEN (SJ / INVOICE) & MUATAN MANIFEST
         </div>
         <table class="print-table w-100 border text-caption" style="border-collapse: collapse">
           <thead>
             <tr class="bg-grey-lighten-4 text-center font-weight-bold border-b">
               <th style="width: 35px" class="py-2 border-e">No.</th>
-              <th style="width: 140px" class="py-2 border-e">No. Surat Jalan</th>
-              <th style="width: 140px" class="py-2 border-e">No. Packing List</th>
+              <th style="width: 150px" class="py-2 border-e">No. SJ / Invoice</th>
+              <th style="width: 140px" class="py-2 border-e">No. Packing List / Ref</th>
               <th style="width: 85px" class="py-2 border-e text-end">Qty (Pcs)</th>
               <th style="width: 90px" class="py-2 border-e text-center">Koli</th>
               <th style="width: 90px" class="py-2 border-e text-center">Status Koli</th>
@@ -422,9 +434,12 @@ onMounted(() => {
               <tr class="border-b">
                 <td class="text-center py-2 border-e">{{ idx + 1 }}</td>
 
-                <!-- Jika Item Surat Jalan: 2 kolom (No Surat Jalan & No Packing List) -->
+                <!-- Jika Item Surat Jalan / Invoice: 2 kolom (No Surat Jalan & No Packing List) -->
                 <template v-if="item.sjNomor && String(item.sjNomor).trim() !== ''">
-                  <td class="font-weight-bold py-2 border-e px-2">{{ item.sjNomor }}</td>
+                  <td class="font-weight-bold py-2 border-e px-2">
+                    <span v-if="item.sjNomor?.startsWith('KPR.INV')" class="text-caption font-weight-bold me-1">[KPR]</span>
+                    {{ item.sjNomor }}
+                  </td>
                   <td class="py-2 border-e px-2">{{ item.noPackingList || "-" }}</td>
                 </template>
 

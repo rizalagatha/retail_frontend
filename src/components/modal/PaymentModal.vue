@@ -510,7 +510,14 @@ onMounted(() => {
 // [UPDATE] Handle Final Save
 const handleFinalSave = async () => {
   // [BARU] VALIDASI WAJIB PILIH PACKAGING JIKA STOK TERSEDIA
-  if (hasPackagingStockAvailable.value && totalPackagingPcs.value === 0) {
+  const cabangSementara = props.invoiceHeader.gudang?.kode || "";
+  const isExcludedFromPackagingLock = ["KDC", "KPR"].includes(cabangSementara);
+
+  if (
+    !isExcludedFromPackagingLock &&
+    hasPackagingStockAvailable.value &&
+    totalPackagingPcs.value === 0
+  ) {
     return toast.error(
       "Packaging (Plastik/Goodie Bag/Kardus) wajib dipilih karena stok tersedia. Silakan pilih minimal 1 packaging sebelum menyimpan invoice."
     );

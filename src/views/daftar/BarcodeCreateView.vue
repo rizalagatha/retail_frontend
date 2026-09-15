@@ -13,6 +13,7 @@ import ProductSearchModal from "@/components/lookup/ProductSearchModal.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useUiStore } from "@/stores/uiStore";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import { printFontFaces } from "@/assets/print-fonts";
 
 const fr = (v: number) => formatRupiah(v);
 
@@ -111,6 +112,7 @@ const tableHeaders = [
 
 // --- FUNGSI CETAK ---
 const printStylesXP360B = `
+${printFontFaces}
   @page {
     size: 68mm 15mm landscape;
     margin: 0 !important;
@@ -149,7 +151,7 @@ const printStylesXP360B = `
   .item-name {
     font-size: 5pt;
     font-weight: bold;
-    font-family: 'Arial Narrow', Arial, sans-serif;
+    font-family: 'LabelCondensed', Arial, sans-serif;
     line-height: 1;
     width: 100%;
     margin-bottom: 0.1mm;
@@ -162,7 +164,7 @@ const printStylesXP360B = `
   }
   .item-size {
     font-size: 4.5pt;
-    font-family: Arial;
+    font-family: 'LabelCondensed', Arial, sans-serif;
     margin-bottom: 0.1mm;
   }
   .barcode-svg {
@@ -175,7 +177,7 @@ const printStylesXP360B = `
     justify-content: space-between;
     width: 95%; /* Agak disempitkan biar harga tidak terpotong tepi kanan */
     font-size: 4.5pt;
-    font-family: Arial, sans-serif;
+    font-family: 'LabelCondensed', Arial, sans-serif;
     font-weight: bold;
   }
 `;
@@ -222,7 +224,7 @@ const printStylesPostek = `
   .item-name {
     font-size: 5pt;
     font-weight: bold;
-    font-family: 'Arial Narrow', Arial, sans-serif;
+    font-family: 'LabelCondensed', Arial, sans-serif;
     line-height: 1;
     width: 100%;
     margin-bottom: 0.1mm;
@@ -235,7 +237,7 @@ const printStylesPostek = `
   }
   .item-size {
     font-size: 4.5pt;
-    font-family: Arial;
+    font-family: 'LabelCondensed', Arial, sans-serif;
     margin-bottom: 0.1mm;
   }
   .barcode-svg {
@@ -248,7 +250,7 @@ const printStylesPostek = `
     justify-content: space-between;
     width: 95%;
     font-size: 4.5pt;
-    font-family: Arial, sans-serif;
+    font-family: 'LabelCondensed', Arial, sans-serif;
     font-weight: bold;
   }
 `;
@@ -1091,7 +1093,7 @@ onMounted(() => {
 
 .item-name {
   font-size: 6pt !important;
-  font-family: "Arial Narrow", sans-serif !important;
+  font-family: "LabelCondensed", Arial, sans-serif;
   line-height: 1.1 !important;
 
   /* Samakan logika 2 baris di pratinjau */
@@ -1204,7 +1206,7 @@ onMounted(() => {
     overflow: hidden;
     text-overflow: clip;
     /* Alternatif: gunakan font condensed */
-    font-family: "Arial Narrow", sans-serif;
+    font-family: "LabelCondensed", Arial, sans-serif;
   }
 
   .item-size {

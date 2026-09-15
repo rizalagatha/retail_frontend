@@ -72,6 +72,7 @@ interface Item {
   isJasa?: boolean;
   isFreeGift?: boolean;
   isHargaKhusus?: boolean;
+  unitSerial?: string;
 }
 interface LinkedDp {
   nomor: string;
@@ -2696,13 +2697,11 @@ const updateMemberInfo = (customer: Customer | null) => {
 };
 
 const handleBarcodeScan = async () => {
-  // 1. Cek Promo 005 (Scan non-aktif)
   if (header.nomorPromo === "PRO-2025-005") {
-    audioError.play().catch(() => {}); // Bunyi Error
+    audioError.play().catch(() => {});
     return toast.error("Scan barcode non-aktif saat promo ini. Gunakan F1/F2.");
   }
 
-  // 2. Cek Customer
   if (!header.customer.kode) {
     audioError.play().catch(() => {});
     return toast.error("Pilih customer terlebih dahulu sebelum scan!");
@@ -2711,12 +2710,69 @@ const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // [TAMBAHAN] Bersihkan barcode dari angka nol di depan untuk pencarian lokal di array 'items'
-  const cleanedBarcode = barcode.replace(/^0+/, "");
   isScanning.value = true;
 
+  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs)
   try {
-    // A. Cek apakah barang sudah ada di list (Increment Qty)
+    const res = await api.get(`/invoice-form/lookup/unit-for-sale/${barcode}`, {
+      params: { gudang: header.gudang.kode },
+    });
+    const unit = res.data;
+
+    const currentLevel = String(header.customer.level_kode || "1").trim();
+    let basePrice = unit.harga;
+    if (currentLevel === "5") basePrice = unit.harga3;
+    const isPromoActive = header.nomorPromo === "PRO-2025-005";
+    const finalPrice = isPromoActive ? 33333 : basePrice;
+
+    const newItem: Item = {
+      id: Date.now(),
+      kode: unit.kode,
+      nama: unit.nama,
+      ukuran: unit.ukuran,
+      stok: 0, // sudah pasti tersedia karena validasi status DI_TOKO di backend
+      harga: finalPrice,
+      jumlah: 1,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: finalPrice,
+      barcode: unit.barcode,
+      qtyso: 0,
+      kategori: unit.kategori || "",
+      hpp: unit.hpp,
+      terhitungPromo: isPromoActive,
+      _isHargaEditable: !isPromoActive,
+      unitSerial: unit.unitSerial, // BARU
+    };
+
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+    if (emptyRowIndex !== -1) {
+      items.value.splice(emptyRowIndex, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+    addNewRow();
+    jumpToLastPage();
+    audioSuccess.play().catch(() => {});
+    toast.success(`OK: ${unit.nama}`);
+    scannedBarcode.value = "";
+    return;
+  } catch (unitError) {
+    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
+      audioError.play().catch(() => {});
+      toast.error(unitError.response?.data?.message || "Gagal memproses QR.");
+      scannedBarcode.value = "";
+      isScanning.value = false;
+      nextTick(() => barcodeInputRef.value?.focus());
+      return;
+    }
+    // 404 → bukan unit_serial baru, lanjut ke jalur lama di bawah
+  }
+
+  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
+  const cleanedBarcode = barcode.replace(/^0+/, "");
+
+  try {
     const existingItem = items.value.find((item) => {
       if (!item.kode) return false;
       const itemBarcode = String(item.barcode || "").replace(/^0+/, "");
@@ -2726,23 +2782,18 @@ const handleBarcodeScan = async () => {
     if (existingItem) {
       existingItem.jumlah += 1;
       jumpToLastPage();
-
-      // Feedback Sukses
       audioSuccess.play().catch(() => {});
       toast.info(`+1 ${existingItem.nama}`);
-
       scannedBarcode.value = "";
-      return; // Selesai, masuk finally
+      return;
     }
 
-    // B. Jika belum ada, Cari ke API
     const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
       params: { gudang: header.gudang.kode },
     });
 
     const product = response.data;
 
-    // --- Logic penentuan harga (Copy dari kode lama Anda) ---
     const emptyRowIndex = items.value.findIndex((item) => !item.kode);
     const currentLevel = String(header.customer.level_kode || "1").trim();
     let basePrice = Number(product.harga || 0);
@@ -2755,7 +2806,6 @@ const handleBarcodeScan = async () => {
     const isPromoActive = header.nomorPromo === "PRO-2025-005";
     const finalPrice = isPromoActive ? 33333 : basePrice;
     const isEditable = !isPromoActive;
-    // --------------------------------------------------------
 
     const newItem = {
       id: Date.now(),
@@ -2783,32 +2833,20 @@ const handleBarcodeScan = async () => {
 
     addNewRow();
     jumpToLastPage();
-
-    // Feedback Sukses
     audioSuccess.play().catch(() => {});
     toast.success(`OK: ${product.nama}`);
     scannedBarcode.value = "";
-  } catch (error: unknown) {
-    // Feedback Error
+  } catch (error) {
     audioError.play().catch(() => {});
-
     if (axios.isAxiosError(error) && error.response) {
       toast.error(error.response.data?.message || `Barcode ${barcode} tidak valid.`);
     } else {
       toast.error(`Barcode ${barcode} tidak valid.`);
     }
-
-    // Select text agar user bisa langsung ganti tanpa hapus manual
-    nextTick(() => {
-      barcodeInputRef.value?.select();
-    });
+    nextTick(() => barcodeInputRef.value?.select());
   } finally {
     isScanning.value = false;
-
-    // [PENTING] Kembalikan fokus ke input scanner
-    nextTick(() => {
-      barcodeInputRef.value?.focus();
-    });
+    nextTick(() => barcodeInputRef.value?.focus());
   }
 };
 

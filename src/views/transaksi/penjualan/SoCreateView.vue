@@ -2958,29 +2958,19 @@ const handleBarcodeScanVerify = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // Kumpulkan semua baris yang barcodenya cocok
   const matchingItems = items.value.filter((i) => i.barcode === barcode && i.kode);
 
-  // =========================================================================
-  // [BARU - KASUS A]: Barcode belum ada di grid sama sekali → scan berfungsi
-  // sebagai "tambah barang", menggantikan kebutuhan F1/F2 manual biar SC
-  // tidak salah pilih kode. Tidak butuh SO tersimpan karena belum ada proses mutasi.
-  // =========================================================================
+  // KASUS A: Barcode belum ada di grid sama sekali → tambah barang
+  // (tetap pakai barcode SKU-level, jalur ini di luar scope serialisasi)
   if (matchingItems.length === 0) {
     await addItemByBarcode(barcode);
     scannedBarcode.value = "";
     return;
   }
 
-  // =========================================================================
-  // [KUNCI 1 - DIPERTAHANKAN]: Pastikan SO sudah disimpan dan punya nomor
-  // sebelum di-scan untuk VERIFIKASI/MUTASI. Guard ini sekarang hanya berlaku
-  // untuk barang yang SUDAH ADA di grid (proses verify), bukan proses tambah baru.
-  // =========================================================================
+  // KASUS B: SO belum tersimpan → verify/mutasi belum relevan, scan
+  // cuma nambah qty manual (SAMA seperti sebelumnya)
   if (!header.value.nomor) {
-    // [BARU - KASUS B]: SO belum tersimpan tapi barangnya sudah ada di grid —
-    // verify/mutasi belum relevan (belum ada nomor SO), jadi scan berfungsi
-    // sebagai tambah qty saja, bukan diblokir total seperti sebelumnya.
     const item = matchingItems[0];
 
     if (STICKER_DTF_LOCKED_KODE.includes(item.kode) && (item.stok || 0) <= 0) {
@@ -2996,16 +2986,40 @@ const handleBarcodeScanVerify = async () => {
     return;
   }
 
-  // Prioritaskan mencari baris yang Qty Scanned-nya MASIH KURANG dari Qty Order
+  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs) — SO sudah
+  // tersimpan, jadi mutasi bisa langsung dieksekusi backend
+  try {
+    const response = await api.post("/so-form/auto-mutasi-scan", {
+      nomor_so: header.value.nomor,
+      unit_serial: barcode,
+    });
+    const { kode, ukuran } = response.data;
+    const item = items.value.find((i) => i.kode === kode && i.ukuran === ukuran);
+    if (item) {
+      item.scannedQty = (item.scannedQty || 0) + 1;
+      item.isReady = item.scannedQty >= (item.jumlah || 0);
+      item.mutatedQty = (item.mutatedQty || 0) + 1;
+      item.isMutated = true;
+      item.stok = Math.max(0, (item.stok || 0) - 1);
+      addAdjustmentLog(item.kode, item.ukuran, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
+      toast.success(`${item.nama} terverifikasi & dimutasi (${item.scannedQty}/${item.jumlah})`);
+    }
+    scannedBarcode.value = "";
+    return;
+  } catch (unitError) {
+    // Selain 404 (bukan sekadar "bukan unit_serial"), itu error beneran
+    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
+      toast.error(unitError.response?.data?.message || "Gagal melakukan mutasi otomatis.");
+      scannedBarcode.value = "";
+      return;
+    }
+    // 404 → bukan unit_serial, lanjut ke jalur lama (barcode SKU-level)
+  }
+
+  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
   const item = matchingItems.find((i) => Number(i.scannedQty || 0) < Number(i.jumlah || 0));
 
-  // Jika semua baris sudah terpenuhi
   if (!item) {
-    // =========================================================================
-    // [BARU - KASUS C]: Semua baris match sudah full verified — satu-satunya
-    // kasus ambigu (niatnya tambah qty baru atau salah scan?), jadi baru di
-    // sini konfirmasi dipakai, bukan di jalur utama.
-    // =========================================================================
     showConfirmation(() => {
       addItemByBarcode(barcode);
     }, `${matchingItems[0].nama} sudah terverifikasi penuh (Ready). Tambah qty baru untuk barang ini?`);
@@ -3029,30 +3043,23 @@ const handleBarcodeScanVerify = async () => {
   }
 
   if (current < target) {
-    // =========================================================================
-    // [KUNCI 2 - DIPERTAHANKAN]: TEMBAK API AUTO-MUTASI KE BACKEND SECARA REAL-TIME
-    // =========================================================================
     try {
       await api.post("/so-form/auto-mutasi-scan", {
         nomor_so: header.value.nomor,
         kode_barang: item.kode,
         ukuran: item.ukuran,
-        qty: 1, // Mutasi 1 per 1 sesuai scan
+        qty: 1,
       });
 
-      // Jika sukses API-nya (Trigger DB berhasil jalan), baru update tampilan di layar
       item.scannedQty = current + 1;
       item.isReady = item.scannedQty >= target;
-
-      // Langsung gembok barisnya karena sudah resmi dimutasi di DB
       item.mutatedQty = (item.mutatedQty || 0) + 1;
       item.isMutated = true;
-
       item.stok = Math.max(0, (item.stok || 0) - 1);
 
       addAdjustmentLog(item.kode, item.ukuran, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
       toast.success(`${item.nama} terverifikasi & dimutasi (${item.scannedQty}/${target})`);
-    } catch (error: unknown) {
+    } catch (error) {
       if (axios.isAxiosError(error)) {
         toast.error(
           error.response?.data?.message || "Gagal melakukan mutasi otomatis ke database."
@@ -3061,7 +3068,6 @@ const handleBarcodeScanVerify = async () => {
         toast.error("Terjadi kesalahan saat menghubungi server.");
       }
     }
-    // =========================================================================
   } else {
     toast.warning("Qty Ready sudah memenuhi atau melebihi jumlah Order di semua baris.");
   }

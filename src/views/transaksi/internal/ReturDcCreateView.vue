@@ -35,6 +35,8 @@ interface Item {
   hargabaru: number;
   kodebaru: string;
   barcode: string;
+  unitSerial?: string;
+  unitSerials?: string[];
 }
 interface ProductSelected {
   kode: string;
@@ -67,6 +69,7 @@ interface ItemFromRJ {
   ukuran: string;
   jumlah: number;
   stok: number;
+  unitSerials?: string[];
 }
 
 interface BackendReturItem {
@@ -220,6 +223,55 @@ const onGudangSelected = (gudang: { kode: string; nama: string }) => {
 const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
+
+  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs)
+  try {
+    const res = await api.get(`/retur-dc-form/lookup/unit-for-retur/${barcode}`, {
+      params: { gudang: authStore.user?.cabang },
+    });
+    const unit = res.data;
+    const existingUnitRow = items.value.find((item) => item.unitSerial === unit.unitSerial);
+    if (existingUnitRow) {
+      toast.info("Unit ini sudah ada di daftar.");
+      scannedBarcode.value = "";
+      return;
+    }
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+    const newItem: Item = {
+      id: Date.now(),
+      kode: unit.kode,
+      nama: unit.nama,
+      ukuran: unit.ukuran,
+      stok: 0,
+      jumlah: 1,
+      harga: 0,
+      hargaDtf: 0,
+      jenis: "",
+      ket: "",
+      diskon: 0,
+      hargabaru: 0,
+      kodebaru: "",
+      barcode: unit.barcode,
+      unitSerial: unit.unitSerial,
+    };
+    if (emptyRowIndex !== -1) {
+      items.value.splice(emptyRowIndex, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+    addNewRow();
+    scannedBarcode.value = "";
+    return;
+  } catch (unitError) {
+    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
+      toast.error(unitError.response?.data?.message || "Gagal memproses QR.");
+      scannedBarcode.value = "";
+      return;
+    }
+    // 404 → bukan unit_serial baru, lanjut ke jalur lama di bawah
+  }
+
+  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
   const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
     existingItem.jumlah = (existingItem.jumlah || 0) + 1;
@@ -238,22 +290,18 @@ const handleBarcodeScan = async () => {
       addNewRow();
     }
   } catch (error: unknown) {
-    // <-- 2. Catch as 'unknown'
-    // --- 3. Refactored Error Handling ---
-    let errorMessage = `Barcode ${barcode} tidak valid atau terjadi kesalahan.`; // Default message
+    let errorMessage = `Barcode ${barcode} tidak valid atau terjadi kesalahan.`;
     if (axios.isAxiosError(error)) {
-      // Now TypeScript knows 'error' is an AxiosError
-      const axiosError = error as AxiosError<{ message?: string }>; // Optional: Cast for clearer data access
+      const axiosError = error as AxiosError<{ message?: string }>;
       if (axiosError.response?.data?.message) {
         errorMessage = axiosError.response.data.message;
       } else if (axiosError.message) {
-        errorMessage = axiosError.message; // Use Axios's generic message if no specific one
+        errorMessage = axiosError.message;
       }
     } else if (error instanceof Error) {
-      errorMessage = error.message; // Handle generic JS Errors
+      errorMessage = error.message;
     }
     toast.error(errorMessage);
-    // ------------------------------------
   } finally {
     scannedBarcode.value = "";
   }
@@ -359,7 +407,12 @@ const save = () => {
   if (validItems.some((i) => (i.jumlah || 0) <= 0)) {
     return toast.error("Jumlah retur harus diisi dan lebih dari 0.");
   }
-  if (validItems.some((i) => (i.jumlah || 0) > i.stok)) {
+  if (
+    validItems.some(
+      (i) =>
+        !i.unitSerial && (!i.unitSerials || i.unitSerials.length === 0) && (i.jumlah || 0) > i.stok
+    )
+  ) {
     return toast.error("Ada jumlah retur yang melebihi stok yang tersedia.");
   }
   // --- AKHIR VALIDASI ---

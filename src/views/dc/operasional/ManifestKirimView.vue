@@ -12,87 +12,90 @@ import { AxiosError } from "axios";
 
 // --- Tipe Data ---
 interface DataTableHeader {
-  title: string;
-  key: string;
-  width?: number;
-  fixed?: boolean;
-  align?: "start" | "center" | "end";
-  minWidth?: string | number;
-  maxWidth?: string | number;
-  sortable?: boolean;
+    title: string;
+    key: string;
+    width?: number;
+    fixed?: boolean;
+    align?: "start" | "center" | "end";
+    minWidth?: string | number;
+    maxWidth?: string | number;
+    sortable?: boolean;
 }
 
 interface ColumnFilter {
-  type: "multi" | "custom";
-  values?: (string | number)[];
-  operator?: string;
-  value?: string | number;
+    type: "multi" | "custom";
+    values?: (string | number)[];
+    operator?: string;
+    value?: string | number;
 }
 
 interface ManifestKirimHeader {
-  Nomor: string;
-  Tanggal: string;
-  Gudang: string;
-  Tujuan: string;
-  NamaTujuan?: string;
-  NamaGudang?: string;
-  JenisKirim: string;
-  Driver: string;
-  PlatNomor: string;
-  Ekspedisi: string;
-  NoResi: string;
-  TotalSj: number;
-  TotalKoli: number;
-  TotalQty: number;
-  BeratKg?: number;
-  Keterangan?: string;
-  Status: string;
-  Usr?: string;
-  DateCreate?: string;
-  HasTtdPengirim?: string;
-  HasTtdDriver?: string;
-  [key: string]: unknown;
+    Nomor: string;
+    Tanggal: string;
+    Gudang: string;
+    Tujuan: string;
+    NamaTujuan?: string;
+    NamaGudang?: string;
+    JenisKirim: string;
+    Driver: string;
+    PlatNomor: string;
+    Ekspedisi: string;
+    NoResi: string;
+    TotalSj: number;
+    TotalKoli: number;
+    TotalQty: number;
+    BeratKg?: number;
+    Keterangan?: string;
+    Status: string;
+    Usr?: string;
+    DateCreate?: string;
+    HasTtdPengirim?: string;
+    HasTtdDriver?: string;
+    HasTtdPenerima?: string;
+    [key: string]: unknown;
 }
 
 interface ManifestKirimItem {
-  idDrec?: string;
-  manifestNomor?: string;
-  sjNomor: string;
-  sjTanggal?: string;
-  namaBarang?: string;
-  kategori?: string;
-  storeKode: string;
-  storeNama?: string;
-  koli: number;
-  qty: number;
-  keterangan?: string;
-  [key: string]: unknown;
+    idDrec?: string;
+    manifestNomor?: string;
+    sjNomor: string;
+    sjTanggal?: string;
+    namaBarang?: string;
+    kategori?: string;
+    storeKode: string;
+    storeNama?: string;
+    koli: number;
+    qty: number;
+    keterangan?: string;
+    [key: string]: unknown;
 }
 
 interface ManifestKirimExportDetail {
-  "Nomor Manifest": string;
-  Tanggal?: string | Date;
-  Jam?: string;
-  Status: string;
-  "Gudang Pengirim": string;
-  "Tujuan Manifest": string;
-  "Jenis Kirim": string;
-  Driver: string;
-  "Plat Nomor": string;
-  Ekspedisi: string;
-  "No Resi": string;
-  "Nomor SJ": string;
-  "Tanggal SJ"?: string | Date;
-  "Kode Store SJ": string;
-  "Nama Store SJ": string;
-  "No Minta Barang": string;
-  "Jml Koli": number;
-  Qty: number;
-  "Item / Barang": string;
-  Kategori?: string;
-  "Keterangan SJ": string;
-  "User Create": string;
-  [key: string]: unknown;
+    "Nomor Manifest": string;
+    Tanggal?: string | Date;
+    Jam?: string;
+    Status: string;
+    "Gudang Pengirim": string;
+    "Jenis Kirim": string;
+    Driver: string;
+    "Plat Nomor": string;
+    Ekspedisi: string;
+    "No Resi": string;
+    "Nomer Dokumen"?: string;
+    "Isi Dokumen"?: string;
+    "Tgl Dokumen"?: string | Date;
+    "Tujuan Manifest"?: string;
+    "Kode Tujuan"?: string;
+    "Nama Tujuan"?: string;
+    "No Minta / Ref"?: string;
+    "No Packing List"?: string;
+    "Qty (Pcs)"?: number;
+    Koli?: number;
+    "Berat (Kg)"?: number;
+    Kategori?: string;
+    Keterangan?: string;
+    "User Create": string;
+    [key: string]: unknown;
 }
 
 // --- Inisialisasi ---
@@ -103,17 +106,17 @@ const MENU_ID = "227";
 
 // --- State ---
 interface Cabang {
-  kode: string;
-  nama: string;
+    kode: string;
+    nama: string;
 }
 
 const filters = reactive({
-  startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-  endDate: format(new Date(), "yyyy-MM-dd"),
-  gudang: authStore.userCabang,
-  tujuan: "",
-  status: "",
-  search: "",
+    startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+    endDate: format(new Date(), "yyyy-MM-dd"),
+    gudang: authStore.userCabang,
+    tujuan: "",
+    status: "",
+    search: "",
 });
 const cabangList = ref<Cabang[]>([]);
 const loading = reactive({ master: false });
@@ -136,308 +139,338 @@ const startWidth = ref(0);
 
 // --- Computed Properties ---
 const isSingleSelected = computed(() => selected.value.length === 1);
-const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
+const selectedRow = computed(() =>
+    isSingleSelected.value ? selected.value[0] : null,
+);
 
 // --- Header Definisi (Resizable) ---
 const masterHeaders = computed<DataTableHeader[]>(() => [
-  { title: "", key: "data-table-expand", width: 50, fixed: true },
-  { title: "No. Manifest", key: "Nomor", width: 160, fixed: true },
-  { title: "Status", key: "Status", width: 110, align: "center" },
-  { title: "Tanggal", key: "Tanggal", width: 110 },
-  { title: "Jam", key: "Jam", width: 80, align: "center" },
-  { title: "Gudang", key: "NamaGudang", width: 140 },
-  { title: "Store Tujuan", key: "Tujuan", width: 120 },
-  { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
-  { title: "Driver", key: "Driver", width: 140 },
-  { title: "Plat Nomor", key: "PlatNomor", width: 120 },
-  { title: "Ekspedisi", key: "Ekspedisi", width: 160 },
-  { title: "No. Resi", key: "NoResi", width: 150 },
-  { title: "Total SJ", key: "TotalSj", width: 90, align: "end" },
-  { title: "Total Koli", key: "TotalKoli", width: 100, align: "end" },
-  { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
-  { title: "User", key: "Usr", width: 100 },
-  { title: "Dibuat", key: "DateCreate", width: 150 },
+    { title: "", key: "data-table-expand", width: 50, fixed: true },
+    { title: "No. Dokumen", key: "Nomor", width: 160, fixed: true },
+    { title: "Status", key: "Status", width: 110, align: "center" },
+    { title: "Tanggal", key: "Tanggal", width: 110 },
+    { title: "Jam", key: "Jam", width: 80, align: "center" },
+    { title: "Gudang", key: "NamaGudang", width: 140 },
+    { title: "Tujuan Kirim", key: "Tujuan", width: 120 },
+    { title: "Jenis Kirim", key: "JenisKirim", width: 140 },
+    { title: "Driver", key: "Driver", width: 140 },
+    { title: "Plat Nomor", key: "PlatNomor", width: 120 },
+    { title: "Ekspedisi", key: "Ekspedisi", width: 160 },
+    { title: "No. Resi", key: "NoResi", width: 150 },
+    { title: "Total Dokumen", key: "TotalSj", width: 110, align: "end" },
+    { title: "Total Koli", key: "TotalKoli", width: 100, align: "end" },
+    { title: "Total Qty", key: "TotalQty", width: 100, align: "end" },
+    { title: "Berat (Kg)", key: "BeratKg", width: 110, align: "end" },
+    { title: "User", key: "Usr", width: 100 },
+    { title: "Dibuat", key: "DateCreate", width: 150 },
 ]);
 
 // --- Helper: ambil status display ---
 const getDisplayStatus = (item: ManifestKirimHeader): string => {
-  return item.Status || "DRAFT";
+    return item.Status || "DRAFT";
 };
 
 // Tombol Konfirmasi Kirim hanya muncul jika row dipilih dan berstatus DRAFT
 const isDraftSelected = computed(() => {
-  if (!selectedRow.value) return false;
-  return (selectedRow.value.Status || "").toUpperCase() === "DRAFT";
+    if (!selectedRow.value) return false;
+    return (selectedRow.value.Status || "").toUpperCase() === "DRAFT";
 });
 
 const detailHeaders: DataTableHeader[] = [
-  { title: "No. Surat Jalan / Nama Barang", key: "sjNomor", width: 200 },
-  { title: "Tgl. SJ", key: "sjTanggal", width: 110 },
-  { title: "Store Tujuan", key: "storeNama", width: 120 },
-  { title: "Jml Koli", key: "koli", width: 90 },
-  { title: "Qty", key: "qty", width: 70 },
-  { title: "Keterangan", key: "keterangan", width: 200 },
-  { title: "Kategori", key: "kategori", width: 150 },
+    { title: "Nomer Dokumen", key: "sjNomor", width: 220 },
+    { title: "Tgl Dokumen", key: "sjTanggal", width: 110 },
+    { title: "Tujuan Kirim", key: "storeNama", width: 160 },
+    { title: "Qty (Pcs)", key: "qty", width: 80 },
+    { title: "Koli", key: "koli", width: 80 },
+    { title: "Keterangan", key: "keterangan", width: 200 },
+    { title: "Kategori", key: "kategori", width: 150 },
 ];
 
 // --- Logic Filter Client-Side ---
 const filteredList = computed(() => {
-  let data = [...manifestList.value];
+    let data = [...manifestList.value];
 
-  for (const key in columnFilters.value) {
-    const f = columnFilters.value[key];
+    for (const key in columnFilters.value) {
+        const f = columnFilters.value[key];
 
-    // MULTI FILTER
-    if (f.type === "multi" && f.values) {
-      data = data.filter((row) => f.values!.includes(row[key] as string | number));
-    }
-
-    // CUSTOM FILTER
-    if (f.type === "custom" && f.value !== undefined) {
-      const target = String(f.value).toLowerCase();
-      data = data.filter((row) => {
-        const v = row[key];
-        if (v === null || v === undefined) return false;
-        const s = String(v).toLowerCase();
-
-        switch (f.operator) {
-          case "=":
-            return s === target;
-          case "!=":
-            return s !== target;
-          case ">":
-            return Number(s) > Number(target);
-          case ">=":
-            return Number(s) >= Number(target);
-          case "<":
-            return Number(s) < Number(target);
-          case "<=":
-            return Number(s) <= Number(target);
-          case "contains":
-            return s.includes(target);
-          case "starts":
-            return s.startsWith(target);
-          case "ends":
-            return s.endsWith(target);
-          default:
-            return true;
+        // MULTI FILTER
+        if (f.type === "multi" && f.values) {
+            data = data.filter((row) =>
+                f.values!.includes(row[key] as string | number),
+            );
         }
-      });
+
+        // CUSTOM FILTER
+        if (f.type === "custom" && f.value !== undefined) {
+            const target = String(f.value).toLowerCase();
+            data = data.filter((row) => {
+                const v = row[key];
+                if (v === null || v === undefined) return false;
+                const s = String(v).toLowerCase();
+
+                switch (f.operator) {
+                    case "=":
+                        return s === target;
+                    case "!=":
+                        return s !== target;
+                    case ">":
+                        return Number(s) > Number(target);
+                    case ">=":
+                        return Number(s) >= Number(target);
+                    case "<":
+                        return Number(s) < Number(target);
+                    case "<=":
+                        return Number(s) <= Number(target);
+                    case "contains":
+                        return s.includes(target);
+                    case "starts":
+                        return s.startsWith(target);
+                    case "ends":
+                        return s.endsWith(target);
+                    default:
+                        return true;
+                }
+            });
+        }
     }
-  }
-  return data;
+    return data;
 });
 
 // --- Methods: Filter Logic ---
 const uniqueValues = (key: string): Array<string | number> => {
-  return Array.from(
-    new Set(
-      manifestList.value
-        .map((i) => i[key] as string | number | null | undefined)
-        .filter((v): v is string | number => v !== null && v !== undefined && v !== "")
-    )
-  ).sort((a, b) => String(a).localeCompare(String(b)));
+    return Array.from(
+        new Set(
+            manifestList.value
+                .map((i) => i[key] as string | number | null | undefined)
+                .filter(
+                    (v): v is string | number =>
+                        v !== null && v !== undefined && v !== "",
+                ),
+        ),
+    ).sort((a, b) => String(a).localeCompare(String(b)));
 };
 
 const formatFilterValue = (key: string, val: string | number) => {
-  if (!val) return "-";
-  if (key === "Tanggal") {
-    try {
-      return format(new Date(String(val)), "dd-MM-yyyy");
-    } catch {
-      return val;
+    if (!val) return "-";
+    if (key === "Tanggal") {
+        try {
+            return format(new Date(String(val)), "dd-MM-yyyy");
+        } catch {
+            return val;
+        }
     }
-  }
-  return val;
+    return val;
 };
 
 const filterType = (key: string) => columnFilters.value[key]?.type ?? "";
 const isFilterActive = (key: string) => Boolean(columnFilters.value[key]);
 const clearColumnFilter = (key: string) => {
-  delete columnFilters.value[key];
+    delete columnFilters.value[key];
 };
 
 const toggleMultiSelectValue = (key: string, value: string | number) => {
-  const f = columnFilters.value[key];
-  if (!f || f.type !== "multi") {
-    columnFilters.value[key] = { type: "multi", values: [value] };
-    return;
-  }
-  const arr = f.values ?? [];
-  if (arr.includes(value)) {
-    f.values = arr.filter((v) => v !== value);
-    if (f.values.length === 0) delete columnFilters.value[key];
-  } else {
-    f.values = [...arr, value];
-  }
+    const f = columnFilters.value[key];
+    if (!f || f.type !== "multi") {
+        columnFilters.value[key] = { type: "multi", values: [value] };
+        return;
+    }
+    const arr = f.values ?? [];
+    if (arr.includes(value)) {
+        f.values = arr.filter((v) => v !== value);
+        if (f.values.length === 0) delete columnFilters.value[key];
+    } else {
+        f.values = [...arr, value];
+    }
 };
 
 const openCustomFilter = (key: string) => {
-  customFilter.key = key;
-  customFilter.operator = "=";
-  customFilter.value = "";
-  customFilterDialog.value = true;
+    customFilter.key = key;
+    customFilter.operator = "=";
+    customFilter.value = "";
+    customFilterDialog.value = true;
 };
 
 const applyCustomFilter = () => {
-  columnFilters.value[customFilter.key] = {
-    type: "custom",
-    operator: customFilter.operator,
-    value: customFilter.value,
-  };
-  customFilterDialog.value = false;
+    columnFilters.value[customFilter.key] = {
+        type: "custom",
+        operator: customFilter.operator,
+        value: customFilter.value,
+    };
+    customFilterDialog.value = false;
 };
 
 const resetAllFilters = () => {
-  columnFilters.value = {};
-  filters.search = "";
-  filters.status = "";
-  filters.tujuan = "";
-  loadData();
+    columnFilters.value = {};
+    filters.search = "";
+    filters.status = "";
+    filters.tujuan = "";
+    loadData();
 };
 
 const fetchCabangList = async () => {
-  try {
-    const response = await api.get<Cabang[]>("/surat-jalan/lookup/cabang");
-    cabangList.value = response.data || [];
-  } catch (error: unknown) {
-    console.error("Gagal memuat daftar cabang/gudang", error);
-  }
+    try {
+        const response = await api.get<Cabang[]>("/surat-jalan/lookup/cabang");
+        cabangList.value = response.data || [];
+    } catch (error: unknown) {
+        console.error("Gagal memuat daftar cabang/gudang", error);
+    }
 };
 
 // --- Methods: Resize Logic ---
 const onResizeStart = (e: MouseEvent, column: DataTableHeader) => {
-  e.preventDefault();
-  e.stopPropagation();
-  resizingColumn.value = column;
-  startX.value = e.pageX;
-  startWidth.value = typeof column.width === "number" ? column.width : 100;
-  document.addEventListener("mousemove", onResizeMove);
-  document.addEventListener("mouseup", onResizeEnd);
-  document.body.style.cursor = "col-resize";
+    e.preventDefault();
+    e.stopPropagation();
+    resizingColumn.value = column;
+    startX.value = e.pageX;
+    startWidth.value = typeof column.width === "number" ? column.width : 100;
+    document.addEventListener("mousemove", onResizeMove);
+    document.addEventListener("mouseup", onResizeEnd);
+    document.body.style.cursor = "col-resize";
 };
 const onResizeMove = (e: MouseEvent) => {
-  if (!resizingColumn.value) return;
-  const diff = e.pageX - startX.value;
-  resizingColumn.value.width = Math.max(50, startWidth.value + diff);
+    if (!resizingColumn.value) return;
+    const diff = e.pageX - startX.value;
+    resizingColumn.value.width = Math.max(50, startWidth.value + diff);
 };
 const onResizeEnd = () => {
-  resizingColumn.value = null;
-  document.removeEventListener("mousemove", onResizeMove);
-  document.removeEventListener("mouseup", onResizeEnd);
-  document.body.style.cursor = "";
+    resizingColumn.value = null;
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeEnd);
+    document.body.style.cursor = "";
 };
 
 // --- Logic Selection ---
-const handleRowClick = (_event: Event, { item }: { item: ManifestKirimHeader }) => {
-  selected.value = [item];
+const handleRowClick = (
+    _event: Event,
+    { item }: { item: ManifestKirimHeader },
+) => {
+    selected.value = [item];
 };
 
 // --- Methods: Data ---
 const loadData = async () => {
-  loading.master = true;
-  manifestList.value = [];
-  selected.value = [];
-  expanded.value = [];
-  details.value = {};
-  try {
-    const response = await api.get<ManifestKirimHeader[]>("/manifest-kirim", {
-      params: {
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        gudang: filters.gudang,
-        tujuan: filters.tujuan,
-        status: filters.status,
-        search: filters.search,
-      },
-    });
-    manifestList.value = response.data;
-  } catch (error: unknown) {
-    const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || "Gagal memuat data manifest kirim.");
-  } finally {
-    loading.master = false;
-  }
+    loading.master = true;
+    manifestList.value = [];
+    selected.value = [];
+    expanded.value = [];
+    details.value = {};
+    try {
+        const response = await api.get<ManifestKirimHeader[]>(
+            "/manifest-kirim",
+            {
+                params: {
+                    startDate: filters.startDate,
+                    endDate: filters.endDate,
+                    gudang: filters.gudang,
+                    tujuan: filters.tujuan,
+                    status: filters.status,
+                    search: filters.search,
+                },
+            },
+        );
+        manifestList.value = response.data;
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(
+            err.response?.data?.message || "Gagal memuat data manifest kirim.",
+        );
+    } finally {
+        loading.master = false;
+    }
 };
 
 const loadDetails = async (newlyExpandedItems: ManifestKirimHeader[]) => {
-  const itemToLoad = newlyExpandedItems.find(
-    (item) => !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor)
-  );
-  if (!itemToLoad) return;
-
-  const nomorToLoad = itemToLoad.Nomor;
-  loadingDetails.value.add(nomorToLoad);
-  try {
-    const response = await api.get<{ header: ManifestKirimHeader; items: ManifestKirimItem[] }>(
-      `/manifest-kirim/${encodeURIComponent(nomorToLoad)}`
+    const itemToLoad = newlyExpandedItems.find(
+        (item) =>
+            !details.value[item.Nomor] && !loadingDetails.value.has(item.Nomor),
     );
-    details.value[nomorToLoad] = response.data.items || [];
-  } catch {
-    toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
-    details.value[nomorToLoad] = [];
-  } finally {
-    loadingDetails.value.delete(nomorToLoad);
-  }
+    if (!itemToLoad) return;
+
+    const nomorToLoad = itemToLoad.Nomor;
+    loadingDetails.value.add(nomorToLoad);
+    try {
+        const response = await api.get<{
+            header: ManifestKirimHeader;
+            items: ManifestKirimItem[];
+        }>(`/manifest-kirim/${encodeURIComponent(nomorToLoad)}`);
+        details.value[nomorToLoad] = response.data.items || [];
+    } catch {
+        toast.error(`Gagal memuat detail untuk ${nomorToLoad}`);
+        details.value[nomorToLoad] = [];
+    } finally {
+        loadingDetails.value.delete(nomorToLoad);
+    }
 };
 
 const createNew = () => {
-  router.push("/gudang-dc/operasional/manifest-kirim/create");
+    router.push("/gudang-dc/operasional/manifest-kirim/create");
 };
 
 const handleEdit = () => {
-  if (!selectedRow.value) return;
-  router.push(
-    `/gudang-dc/operasional/manifest-kirim/create?nomor=${encodeURIComponent(
-      selectedRow.value.Nomor
-    )}`
-  );
+    if (!selectedRow.value) return;
+    router.push(
+        `/gudang-dc/operasional/manifest-kirim/create?nomor=${encodeURIComponent(
+            selectedRow.value.Nomor,
+        )}`,
+    );
 };
 
 const showDeleteConfirmation = () => {
-  if (!selectedRow.value) return;
-  confirmAction.value = executeDelete;
-  confirmText.value = `Apakah Anda yakin ingin menghapus Manifest Kirim nomor ${selectedRow.value.Nomor}? Surat Jalan terkait akan dilepaskan.`;
-  dialog.confirm = true;
+    if (!selectedRow.value) return;
+    if (
+        selectedRow.value.HasTtdDriver === "Y" ||
+        selectedRow.value.HasTtdPenerima === "Y"
+    ) {
+        toast.warning(
+            "Manifest sudah ditandatangani oleh penerima dan tidak dapat dihapus.",
+        );
+        return;
+    }
+    confirmAction.value = executeDelete;
+    confirmText.value = `Apakah Anda yakin ingin menghapus Manifest Kirim nomor ${selectedRow.value.Nomor}? Surat Jalan terkait akan dilepaskan.`;
+    dialog.confirm = true;
 };
 
 const executeDelete = async () => {
-  if (!selectedRow.value) return;
-  try {
-    const response = await api.delete<{ message: string }>(
-      `/manifest-kirim/${encodeURIComponent(selectedRow.value.Nomor)}`
-    );
-    toast.success(response.data.message || "Manifest kirim berhasil dihapus.");
-    loadData();
-  } catch (error: unknown) {
-    const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || "Gagal menghapus manifest.");
-  }
+    if (!selectedRow.value) return;
+    try {
+        const response = await api.delete<{ message: string }>(
+            `/manifest-kirim/${encodeURIComponent(selectedRow.value.Nomor)}`,
+        );
+        toast.success(
+            response.data.message || "Manifest kirim berhasil dihapus.",
+        );
+        loadData();
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(err.response?.data?.message || "Gagal menghapus manifest.");
+    }
 };
 
 const getStatusColor = (status: string) => {
-  switch (status) {
-    case "DRAFT":
-      return "grey";
-    case "DIKIRIM":
-      return "blue";
-    case "SELESAI":
-      return "green";
-    case "BATAL":
-      return "red";
-    default:
-      return "grey";
-  }
+    switch (status) {
+        case "DRAFT":
+            return "grey";
+        case "DIKIRIM":
+            return "blue";
+        case "SELESAI":
+            return "green";
+        case "BATAL":
+            return "red";
+        default:
+            return "grey";
+    }
 };
 
 // Highlight baris kuning jika EKSPEDISI tapi resi belum diisi
 const getRowProps = (item: ManifestKirimHeader) => {
-  const isEkspedisi = String(item.JenisKirim || "").toUpperCase() === "EKSPEDISI";
-  const missingResi = !item.NoResi || String(item.NoResi).trim() === "";
-  if (isEkspedisi && missingResi) {
-    return { class: "row-resi-missing" };
-  }
-  return {};
+    const isEkspedisi =
+        String(item.JenisKirim || "").toUpperCase() === "EKSPEDISI";
+    const missingResi = !item.NoResi || String(item.NoResi).trim() === "";
+    if (isEkspedisi && missingResi) {
+        return { class: "row-resi-missing" };
+    }
+    return {};
 };
 
 // Konfirmasi Kirim (DRAFT -> DIKIRIM)
@@ -445,890 +478,1217 @@ const confirmKirimDialog = ref(false);
 const loadingKirim = ref(false);
 
 const showKonfirmasiKirim = () => {
-  if (!selectedRow.value) return;
-  confirmKirimDialog.value = true;
+    if (!selectedRow.value) return;
+    confirmKirimDialog.value = true;
 };
 
 const executeKonfirmasiKirim = async () => {
-  if (!selectedRow.value) return;
-  loadingKirim.value = true;
-  try {
-    const response = await api.patch<{ message: string }>(
-      `/manifest-kirim/${encodeURIComponent(selectedRow.value.Nomor)}/status`,
-      { status: "DIKIRIM" }
-    );
-    toast.success(response.data.message || "Status berhasil diubah ke DIKIRIM.");
-    confirmKirimDialog.value = false;
-    loadData();
-  } catch (error: unknown) {
-    const err = error as AxiosError<{ message?: string }>;
-    toast.error(err.response?.data?.message || "Gagal mengubah status manifest.");
-  } finally {
-    loadingKirim.value = false;
-  }
+    if (!selectedRow.value) return;
+    loadingKirim.value = true;
+    try {
+        const response = await api.patch<{ message: string }>(
+            `/manifest-kirim/${encodeURIComponent(
+                selectedRow.value.Nomor,
+            )}/status`,
+            { status: "DIKIRIM" },
+        );
+        toast.success(
+            response.data.message || "Status berhasil diubah ke DIKIRIM.",
+        );
+        confirmKirimDialog.value = false;
+        loadData();
+    } catch (error: unknown) {
+        const err = error as AxiosError<{ message?: string }>;
+        toast.error(
+            err.response?.data?.message || "Gagal mengubah status manifest.",
+        );
+    } finally {
+        loadingKirim.value = false;
+    }
 };
 
 // Direct Print Logic
 const handlePrintSelected = () => {
-  if (!selectedRow.value) {
-    toast.error("Pilih satu Manifest Kirim yang ingin dicetak.");
-    return;
-  }
-  const nomor = selectedRow.value.Nomor;
-  const routeData = router.resolve({
-    name: "ManifestKirimPrint",
-    params: { nomor },
-  });
-  window.open(routeData.href, "_blank");
+    if (!selectedRow.value) {
+        toast.error("Pilih satu Manifest Kirim yang ingin dicetak.");
+        return;
+    }
+    const nomor = selectedRow.value.Nomor;
+    const routeData = router.resolve({
+        name: "ManifestKirimPrint",
+        params: { nomor },
+    });
+    window.open(routeData.href, "_blank");
 };
 
 // Helper Format Tanggal Indonesia
 const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    }).format(date);
 };
 
 // Helper Auto Width Columns
 const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
-  if (data.length === 0) return [];
-  return Object.keys(data[0]).map((key) => ({
-    wch: Math.max(key.length + 5, 15),
-  }));
+    if (data.length === 0) return [];
+    return Object.keys(data[0]).map((key) => {
+        let maxLen = key.length;
+        const sampleLimit = Math.min(data.length, 100);
+        for (let i = 0; i < sampleLimit; i++) {
+            const val = data[i][key];
+            const len =
+                val !== null && val !== undefined ? String(val).length : 0;
+            if (len > maxLen) maxLen = len;
+        }
+        return {
+            wch: Math.min(Math.max(maxLen + 3, 12), 50),
+        };
+    });
 };
 
 // --- Fungsi Export Data ---
 const exportData = async (type: "header" | "detail") => {
-  // === EXPORT HEADER ===
-  if (type === "header") {
-    const currentList = filteredList.value as ManifestKirimHeader[];
+    // === EXPORT HEADER ===
+    if (type === "header") {
+        const currentList = filteredList.value as ManifestKirimHeader[];
 
-    if (currentList.length === 0) {
-      toast.warning("Tidak ada data header untuk diekspor.");
-      return;
-    }
-
-    try {
-      toast.info("Membuat file Excel Header...");
-
-      // Mapping & Formatting Tanggal & Fields
-      const formattedHeader = currentList.map((item) => ({
-        "No. Manifest": item.Nomor,
-        Status: item.Status || "DRAFT",
-        Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
-        Jam: item.Jam || "",
-        "Gudang Pengirim": item.NamaGudang || item.Gudang || "",
-        "Store Tujuan": item.Tujuan
-          ? [item.Tujuan, item.NamaTujuan].filter(Boolean).join(" - ")
-          : "",
-        "Jenis Kirim": item.JenisKirim || "",
-        Driver: item.Driver || "",
-        "Plat Nomor": item.PlatNomor || "",
-        Ekspedisi: item.Ekspedisi || "",
-        "No. Resi": item.NoResi || "",
-        "Total SJ": Number(item.TotalSj) || 0,
-        "Total Koli": Number(item.TotalKoli) || 0,
-        "Total Qty": Number(item.TotalQty) || 0,
-        "Berat (Kg)": Number(item.BeratKg) || 0,
-        Keterangan: item.Keterangan || "",
-        User: item.Usr || "",
-        Dibuat: item.DateCreate ? formatDateIndo(item.DateCreate) : "",
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
-      worksheet["!cols"] = getAutoColumnWidth(formattedHeader);
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Manifest Header");
-      XLSX.writeFile(workbook, "Export_Manifest_Pengiriman_Header.xlsx");
-      toast.success("File Header berhasil dibuat.");
-    } catch (error: unknown) {
-      const err = error as AxiosError<{ message?: string }>;
-      toast.error(err.response?.data?.message || "Gagal membuat file Excel.");
-    }
-
-    // === EXPORT DETAIL ===
-  } else if (type === "detail") {
-    try {
-      toast.info("Mengambil data detail dari server...");
-
-      const response = await api.get<ManifestKirimExportDetail[]>(
-        "/manifest-kirim/export-details",
-        {
-          params: {
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-            gudang: filters.gudang,
-            tujuan: filters.tujuan,
-            status: filters.status,
-            search: filters.search,
-          },
+        if (currentList.length === 0) {
+            toast.warning("Tidak ada data header untuk diekspor.");
+            return;
         }
-      );
 
-      if (response.data.length === 0) {
-        toast.warning("Tidak ada data detail untuk diekspor pada filter ini.");
-        return;
-      }
+        try {
+            toast.info("Membuat file Excel Header...");
 
-      toast.info("Membuat file Excel Detail...");
+            // Mapping & Formatting Tanggal & Fields
+            const formattedHeader = currentList.map((item) => ({
+                "No. Manifest": item.Nomor,
+                Status: item.Status || "DRAFT",
+                Tanggal: item.Tanggal ? formatDateIndo(item.Tanggal) : "",
+                Jam: item.Jam || "",
+                "Gudang Pengirim": item.NamaGudang || item.Gudang || "",
+                "Tujuan Kirim": item.Tujuan
+                    ? [item.Tujuan, item.NamaTujuan].filter(Boolean).join(" - ")
+                    : "",
+                "Jenis Kirim": item.JenisKirim || "",
+                Driver: item.Driver || "",
+                "Plat Nomor": item.PlatNomor || "",
+                Ekspedisi: item.Ekspedisi || "",
+                "No. Resi": item.NoResi || "",
+                "Total Dokumen": Number(item.TotalSj) || 0,
+                "Total Koli": Number(item.TotalKoli) || 0,
+                "Total Qty": Number(item.TotalQty) || 0,
+                "Berat (Kg)": Number(item.BeratKg) || 0,
+                Keterangan: item.Keterangan || "",
+                User: item.Usr || "",
+                Dibuat: item.DateCreate ? formatDateIndo(item.DateCreate) : "",
+            }));
 
-      // Mapping & Formatting Tanggal & Fields Eksplisit
-      const formattedDetail = response.data.map((row) => {
-        const isLainLain =
-          row.Kategori === "Barang Lain-lain" ||
-          (row["Item / Barang"] && String(row["Item / Barang"]).trim() !== "") ||
-          !row["Nomor SJ"];
+            const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
+            worksheet["!cols"] = getAutoColumnWidth(formattedHeader);
+            if (worksheet["!ref"]) {
+                worksheet["!autofilter"] = { ref: worksheet["!ref"] };
+            }
 
-        return {
-          "Nomor Manifest": row["Nomor Manifest"] || "",
-          Tanggal: row.Tanggal ? formatDateIndo(row.Tanggal) : "",
-          Jam: row.Jam || "",
-          Status: row.Status || "",
-          "Gudang Pengirim": row["Gudang Pengirim"] || "",
-          "Tujuan Manifest": row["Tujuan Manifest"] || "",
-          "Jenis Kirim": row["Jenis Kirim"] || "",
-          Driver: row.Driver || "",
-          "Plat Nomor": row["Plat Nomor"] || "",
-          Ekspedisi: row.Ekspedisi || "",
-          "No Resi": row["No Resi"] || "",
-          "No. SJ / Nama Barang": row["Nomor SJ"] || row["Item / Barang"] || "-",
-          "Tanggal SJ": row["Tanggal SJ"] ? formatDateIndo(row["Tanggal SJ"]) : "",
-          "Store Tujuan": [row["Kode Store SJ"], row["Nama Store SJ"]].filter(Boolean).join(" - "),
-          "No Minta Barang": row["No Minta Barang"] || "",
-          "Jml Koli": Number(row["Jml Koli"]) || 0,
-          Qty: Number(row.Qty) || 0,
-          Kategori: isLainLain ? "Barang Lain-lain" : "Barang SJ",
-          "Keterangan SJ": row["Keterangan SJ"] || "",
-          "User Create": row["User Create"] || "",
-        };
-      });
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                "Manifest Header",
+            );
+            XLSX.writeFile(workbook, "Export_Manifest_Pengiriman_Header.xlsx");
+            toast.success("File Header berhasil dibuat.");
+        } catch (error: unknown) {
+            const err = error as AxiosError<{ message?: string }>;
+            toast.error(
+                err.response?.data?.message || "Gagal membuat file Excel.",
+            );
+        }
 
-      // Setup Layout Excel
-      const title = "LAPORAN DETAIL MANIFEST PENGIRIMAN DC";
-      const dateRange = `Periode : ${formatDateIndo(filters.startDate)} s/d ${formatDateIndo(
-        filters.endDate
-      )}`;
-      const tableHeaders = Object.keys(formattedDetail[0]);
-      const tableData = formattedDetail.map((row) => Object.values(row as Record<string, unknown>));
+        // === EXPORT DETAIL ===
+    } else if (type === "detail") {
+        try {
+            toast.info("Mengambil data detail dari server...");
 
-      const excelData = [[title], [dateRange], [], tableHeaders, ...tableData];
-      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+            const response = await api.get<ManifestKirimExportDetail[]>(
+                "/manifest-kirim/export-details",
+                {
+                    params: {
+                        startDate: filters.startDate,
+                        endDate: filters.endDate,
+                        gudang: filters.gudang,
+                        tujuan: filters.tujuan,
+                        status: filters.status,
+                        search: filters.search,
+                    },
+                },
+            );
 
-      // Merge Judul
-      const merge = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
-      ];
-      worksheet["!merges"] = merge;
+            if (response.data.length === 0) {
+                toast.warning(
+                    "Tidak ada data detail untuk diekspor pada filter ini.",
+                );
+                return;
+            }
 
-      // Auto Width
-      worksheet["!cols"] = tableHeaders.map((header) => ({
-        wch: Math.max(header.length + 5, 15),
-      }));
+            toast.info("Membuat file Excel Detail...");
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Manifest Detail");
-      XLSX.writeFile(workbook, "Export_Manifest_Pengiriman_Detail.xlsx");
-      toast.success("File Detail berhasil dibuat.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      toast.error("Gagal mengekspor data detail: " + message);
+            // Mapping & Formatting Tanggal & Fields Eksplisit (1 baris per Nomor Dokumen)
+            const formattedDetail = response.data.map((row) => {
+                const docNomor = row["Nomer Dokumen"] || row["Nomor SJ"] || "";
+                const isLainLain =
+                    row.Kategori === "Barang Lain-lain" ||
+                    (row["Item / Barang"] &&
+                        String(row["Item / Barang"]).trim() !== "") ||
+                    !docNomor;
+
+                const kodeTujuan = row["Kode Tujuan"] || row["Kode Store SJ"];
+                const namaTujuan = row["Nama Tujuan"] || row["Nama Store SJ"];
+                const tglDoc = (row["Tgl Dokumen"] || row["Tanggal SJ"]) as
+                    | string
+                    | Date
+                    | undefined;
+                const tglManifest = row.Tanggal as string | Date | undefined;
+                const noMintaRef =
+                    row["No Minta / Ref"] || row["No Minta Barang"] || "";
+                const ket = row["Keterangan"] || row["Keterangan SJ"] || "";
+
+                return {
+                    "Nomor Manifest": row["Nomor Manifest"] || "",
+                    Tanggal: tglManifest ? formatDateIndo(tglManifest) : "",
+                    Jam: row.Jam || "",
+                    Status: row.Status || "",
+                    "Gudang Pengirim": row["Gudang Pengirim"] || "",
+                    "Jenis Kirim": row["Jenis Kirim"] || "",
+                    Driver: row.Driver || "",
+                    "Plat Nomor": row["Plat Nomor"] || "",
+                    Ekspedisi: row.Ekspedisi || "",
+                    "No Resi": row["No Resi"] || "",
+                    "Nomer Dokumen": docNomor || row["Item / Barang"] || "-",
+                    "Isi Dokumen": row["Isi Dokumen"] || "-",
+                    "Tgl Dokumen": tglDoc ? formatDateIndo(tglDoc) : "",
+                    "Tujuan Manifest":
+                        [kodeTujuan, namaTujuan].filter(Boolean).join(" - ") ||
+                        row["Nama Tujuan"] ||
+                        "-",
+                    "Qty (Pcs)":
+                        Number(
+                            row["Qty (Pcs)"] ??
+                                row["Total Qty Dokumen"] ??
+                                row.Qty,
+                        ) || 0,
+                    Koli:
+                        Number(
+                            row["Koli"] ??
+                                row["Koli Dokumen"] ??
+                                row["Jml Koli"],
+                        ) || 0,
+                    "Berat (Kg)":
+                        Number(row["Berat (Kg)"] ?? row["BeratKg"]) || 0,
+                    Kategori: isLainLain
+                        ? "Barang Lain-lain"
+                        : String(docNomor).toUpperCase().includes("INV")
+                        ? "Barang Invoice"
+                        : "Barang SJ",
+                    "No Minta / Ref": noMintaRef || "-",
+                    "No. Packing List": row["No Packing List"] || "-",
+                    Keterangan: ket,
+                    "User Create": row["User Create"] || "",
+                };
+            });
+
+            // Setup Sheet Excel (Header Kolom di Baris 1 dengan AutoFilter aktif)
+            const worksheet = XLSX.utils.json_to_sheet(formattedDetail);
+            worksheet["!cols"] = getAutoColumnWidth(formattedDetail);
+            if (worksheet["!ref"]) {
+                worksheet["!autofilter"] = { ref: worksheet["!ref"] };
+            }
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                "Detail Manifest",
+            );
+            XLSX.writeFile(workbook, "Export_Manifest_Pengiriman_Detail.xlsx");
+            toast.success("File Detail berhasil dibuat.");
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : "Unknown error";
+            toast.error("Gagal mengekspor data detail: " + message);
+        }
     }
-  }
 };
 
 onMounted(() => {
-  if (authStore.can(MENU_ID, "view")) {
-    fetchCabangList();
-    loadData();
-  } else {
-    toast.error("Anda tidak memiliki hak akses untuk melihat data ini.");
-    router.push("/");
-  }
+    if (authStore.can(MENU_ID, "view")) {
+        fetchCabangList();
+        loadData();
+    } else {
+        toast.error("Anda tidak memiliki hak akses untuk melihat data ini.");
+        router.push("/");
+    }
 });
 
 let debounceTimer: ReturnType<typeof setTimeout>;
 watch(
-  filters,
-  () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      loadData();
-    }, 500);
-  },
-  { deep: true }
+    filters,
+    () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            loadData();
+        }, 500);
+    },
+    { deep: true },
 );
 </script>
 
 <template>
-  <PageLayout title="Manifest Pengiriman DC" icon="mdi-truck-cargo-container">
-    <template #header-actions>
-      <v-btn
-        v-if="authStore.can(MENU_ID, 'insert')"
-        size="small"
-        color="primary"
-        prepend-icon="mdi-plus"
-        @click="createNew"
-      >
-        Baru
-      </v-btn>
-      <v-btn
-        v-if="authStore.can(MENU_ID, 'edit')"
-        size="small"
-        :disabled="!isSingleSelected"
-        prepend-icon="mdi-pencil"
-        @click="handleEdit"
-      >
-        Ubah
-      </v-btn>
-      <v-btn
-        v-if="authStore.can(MENU_ID, 'edit') && isDraftSelected"
-        size="small"
-        color="blue"
-        prepend-icon="mdi-truck-fast"
-        :disabled="!isSingleSelected"
-        @click="showKonfirmasiKirim"
-      >
-        Konfirmasi Kirim
-      </v-btn>
-      <v-btn
-        size="small"
-        color="secondary"
-        variant="outlined"
-        :disabled="!isSingleSelected"
-        prepend-icon="mdi-printer"
-        @click="handlePrintSelected"
-      >
-        Cetak
-      </v-btn>
-      <v-btn
-        v-if="authStore.can(MENU_ID, 'delete')"
-        size="small"
-        color="error"
-        :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete"
-        @click="showDeleteConfirmation"
-      >
-        Hapus
-      </v-btn>
-      <v-menu offset-y>
-        <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
-            Export
-          </v-btn>
+    <PageLayout title="Manifest Pengiriman DC" icon="mdi-truck-cargo-container">
+        <template #header-actions>
+            <v-btn
+                v-if="authStore.can(MENU_ID, 'insert')"
+                size="small"
+                color="primary"
+                prepend-icon="mdi-plus"
+                @click="createNew"
+            >
+                Baru
+            </v-btn>
+            <v-btn
+                v-if="authStore.can(MENU_ID, 'edit')"
+                size="small"
+                :disabled="!isSingleSelected"
+                prepend-icon="mdi-pencil"
+                @click="handleEdit"
+            >
+                Ubah
+            </v-btn>
+            <v-btn
+                v-if="authStore.can(MENU_ID, 'edit') && isDraftSelected"
+                size="small"
+                color="blue"
+                prepend-icon="mdi-truck-fast"
+                :disabled="!isSingleSelected"
+                @click="showKonfirmasiKirim"
+            >
+                Konfirmasi Kirim
+            </v-btn>
+            <v-btn
+                size="small"
+                color="secondary"
+                variant="outlined"
+                :disabled="!isSingleSelected"
+                prepend-icon="mdi-printer"
+                @click="handlePrintSelected"
+            >
+                Cetak
+            </v-btn>
+            <v-btn
+                v-if="authStore.can(MENU_ID, 'delete')"
+                size="small"
+                color="error"
+                :disabled="!isSingleSelected"
+                prepend-icon="mdi-delete"
+                @click="showDeleteConfirmation"
+            >
+                Hapus
+            </v-btn>
+            <v-menu offset-y>
+                <template v-slot:activator="{ props }">
+                    <v-btn
+                        size="small"
+                        color="teal"
+                        prepend-icon="mdi-file-excel"
+                        v-bind="props"
+                    >
+                        Export
+                    </v-btn>
+                </template>
+                <v-list density="compact">
+                    <v-list-item @click="exportData('header')">
+                        <v-list-item-title>Export Header</v-list-item-title>
+                    </v-list-item>
+                    <v-list-item @click="exportData('detail')">
+                        <v-list-item-title>Export Detail</v-list-item-title>
+                    </v-list-item>
+                </v-list>
+            </v-menu>
         </template>
-        <v-list density="compact">
-          <v-list-item @click="exportData('header')">
-            <v-list-item-title>Export Header</v-list-item-title>
-          </v-list-item>
-          <v-list-item @click="exportData('detail')">
-            <v-list-item-title>Export Detail</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-    </template>
 
-    <div class="browse-content">
-      <div class="filter-section">
-        <v-divider vertical class="mx-2" />
-        <v-label class="filter-label">Tanggal:</v-label>
-        <v-text-field
-          v-model="filters.startDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-        />
-        <v-label class="filter-label mx-2">s/d</v-label>
-        <v-text-field
-          v-model="filters.endDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-        />
+        <div class="browse-content">
+            <div class="filter-section">
+                <v-divider vertical class="mx-2" />
+                <v-label class="filter-label">Tanggal:</v-label>
+                <v-text-field
+                    v-model="filters.startDate"
+                    type="date"
+                    density="compact"
+                    hide-details
+                    variant="outlined"
+                />
+                <v-label class="filter-label mx-2">s/d</v-label>
+                <v-text-field
+                    v-model="filters.endDate"
+                    type="date"
+                    density="compact"
+                    hide-details
+                    variant="outlined"
+                />
 
-        <v-select
-          v-model="filters.status"
-          :items="[
-            { title: 'Semua Status', value: '' },
-            { title: 'DRAFT', value: 'DRAFT' },
-            { title: 'DIKIRIM', value: 'DIKIRIM' },
-            { title: 'SELESAI', value: 'SELESAI' },
-            { title: 'BATAL', value: 'BATAL' },
-          ]"
-          item-title="title"
-          item-value="value"
-          label="Status"
-          density="compact"
-          hide-details
-          variant="outlined"
-          class="ms-4"
-          style="max-width: 150px"
-        />
+                <v-select
+                    v-model="filters.status"
+                    :items="[
+                        { title: 'Semua Status', value: '' },
+                        { title: 'DRAFT', value: 'DRAFT' },
+                        { title: 'DIKIRIM', value: 'DIKIRIM' },
+                        { title: 'SELESAI', value: 'SELESAI' },
+                        { title: 'BATAL', value: 'BATAL' },
+                    ]"
+                    item-title="title"
+                    item-value="value"
+                    label="Status"
+                    density="compact"
+                    hide-details
+                    variant="outlined"
+                    class="ms-4"
+                    style="max-width: 150px"
+                />
 
-        <v-autocomplete
-          v-model="filters.tujuan"
-          :items="[{ kode: '', nama: 'Semua Tujuan' }, ...cabangList]"
-          :item-title="(item: unknown) => {
+                <v-autocomplete
+                    v-model="filters.tujuan"
+                    :items="[{ kode: '', nama: 'Semua Tujuan' }, ...cabangList]"
+                    :item-title="(item: unknown) => {
             const c = item as Cabang;
             return c.kode ? `${c.kode} - ${c.nama}` : c.nama;
           }"
-          item-value="kode"
-          label="Tujuan"
-          density="compact"
-          hide-details
-          clearable
-          variant="outlined"
-          class="ms-2"
-          style="min-width: 170px; max-width: 220px"
-        />
+                    item-value="kode"
+                    label="Tujuan"
+                    density="compact"
+                    hide-details
+                    clearable
+                    variant="outlined"
+                    class="ms-2"
+                    style="min-width: 170px; max-width: 220px"
+                />
 
-        <v-text-field
-          v-model="filters.search"
-          placeholder="Cari No. Manifest / Driver / Resi"
-          prepend-inner-icon="mdi-magnify"
-          density="compact"
-          hide-details
-          clearable
-          variant="outlined"
-          style="max-width: 250px"
-          class="ms-4"
-          @keyup.enter="loadData"
-        />
+                <v-text-field
+                    v-model="filters.search"
+                    placeholder="Cari No. Manifest / Driver / Resi"
+                    prepend-inner-icon="mdi-magnify"
+                    density="compact"
+                    hide-details
+                    clearable
+                    variant="outlined"
+                    style="max-width: 250px"
+                    class="ms-4"
+                    @keyup.enter="loadData"
+                />
 
-        <v-spacer />
+                <v-spacer />
 
-        <v-btn
-          class="reset-filter-btn ms-2"
-          color="error"
-          variant="tonal"
-          icon
-          title="Reset Filter"
-          @click="resetAllFilters"
-        >
-          <v-icon size="18">mdi-filter-off</v-icon>
-        </v-btn>
-
-        <v-btn
-          @click="loadData"
-          icon="mdi-refresh"
-          variant="text"
-          size="small"
-          class="ms-2"
-          title="Refresh Data"
-        />
-      </div>
-
-      <div class="table-container">
-        <AppDataTable
-          v-model="selected"
-          v-model:expanded="expanded"
-          :headers="masterHeaders"
-          :items="filteredList"
-          :loading="loading.master"
-          item-value="Nomor"
-          density="compact"
-          class="desktop-table header-browse-blue"
-          fixed-header
-          show-select
-          return-object
-          show-expand
-          :row-props="({ item }: { item: ManifestKirimHeader }) => getRowProps(item)"
-          @update:expanded="loadDetails"
-          @click:row="handleRowClick"
-        >
-          <template #headers="{ columns, isSorted, getSortIcon, toggleSort }">
-            <tr>
-              <template v-for="header in columns" :key="header.key">
-                <th
-                  v-if="['data-table-expand', 'data-table-select'].includes(header.key)"
-                  :style="{ width: header.width + 'px' }"
-                  class="resizable-header"
+                <v-btn
+                    class="reset-filter-btn ms-2"
+                    color="error"
+                    variant="tonal"
+                    icon
+                    title="Reset Filter"
+                    @click="resetAllFilters"
                 >
-                  <div class="header-content">
-                    <span>{{ header.title }}</span>
-                  </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
-                </th>
+                    <v-icon size="18">mdi-filter-off</v-icon>
+                </v-btn>
 
-                <th
-                  v-else
-                  :style="{ width: header.width + 'px' }"
-                  class="resizable-header"
-                  @click="toggleSort(header)"
+                <v-btn
+                    @click="loadData"
+                    icon="mdi-refresh"
+                    variant="text"
+                    size="small"
+                    class="ms-2"
+                    title="Refresh Data"
+                />
+            </div>
+
+            <div class="table-container">
+                <AppDataTable
+                    v-model="selected"
+                    v-model:expanded="expanded"
+                    :headers="masterHeaders"
+                    :items="filteredList"
+                    :loading="loading.master"
+                    item-value="Nomor"
+                    density="compact"
+                    class="desktop-table header-browse-blue"
+                    fixed-header
+                    show-select
+                    return-object
+                    show-expand
+                    :row-props="({ item }: { item: ManifestKirimHeader }) => getRowProps(item)"
+                    @update:expanded="loadDetails"
+                    @click:row="handleRowClick"
                 >
-                  <div class="header-content">
-                    <span>{{ header.title }}</span>
-                    <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
-
-                    <v-menu location="bottom start" :close-on-content-click="false">
-                      <template #activator="{ props }">
-                        <v-icon
-                          v-bind="props"
-                          size="16"
-                          class="ms-1"
-                          @click.stop
-                          :color="isFilterActive(header.key) ? 'blue' : ''"
-                          :icon="
-                            filterType(header.key) === 'custom'
-                              ? 'mdi-filter-cog'
-                              : filterType(header.key) === 'multi'
-                              ? 'mdi-filter-multiple'
-                              : 'mdi-filter-variant'
-                          "
-                        />
-                      </template>
-                      <v-list class="filter-menu" density="compact">
-                        <v-list-item @click="clearColumnFilter(header.key)">
-                          <v-list-item-title class="text-caption font-weight-bold text-error"
-                            >(Clear Filter)</v-list-item-title
-                          >
-                        </v-list-item>
-                        <v-divider />
-                        <v-list-item
-                          v-for="val in uniqueValues(header.key)"
-                          :key="val"
-                          @click="toggleMultiSelectValue(header.key, val)"
-                        >
-                          <template #prepend>
-                            <v-checkbox-btn
-                              :model-value="columnFilters[header.key]?.values?.includes(val)"
-                              density="compact"
-                            />
-                          </template>
-                          <v-list-item-title>{{
-                            formatFilterValue(header.key, val)
-                          }}</v-list-item-title>
-                        </v-list-item>
-                        <v-divider />
-                        <v-list-item @click="openCustomFilter(header.key)">
-                          <v-list-item-title class="text-caption text-primary"
-                            >(Custom Filter...)</v-list-item-title
-                          >
-                        </v-list-item>
-                      </v-list>
-                    </v-menu>
-                  </div>
-                  <div class="resizer" @mousedown.stop="onResizeStart($event, header)" />
-                </th>
-              </template>
-            </tr>
-          </template>
-
-          <template #[`item.data-table-expand`]="{ internalItem, toggleExpand, isExpanded }">
-            <v-btn
-              icon="mdi-chevron-down"
-              :class="{ 'rotate-180': isExpanded(internalItem) }"
-              size="x-small"
-              variant="text"
-              @click.stop="toggleExpand(internalItem)"
-            />
-          </template>
-
-          <template #[`item.Nomor`]="{ item }">
-            <strong :style="{ color: getStatusColor(getDisplayStatus(item)) }">{{
-              item.Nomor
-            }}</strong>
-          </template>
-
-          <template #[`item.Tanggal`]="{ item }">
-            {{ item.Tanggal ? format(new Date(item.Tanggal as string), "dd-MM-yyyy") : "-" }}
-          </template>
-
-          <template #[`item.Jam`]="{ item }">
-            <span class="font-weight-medium">{{ item.Jam || "-" }}</span>
-          </template>
-
-          <template #[`item.Tujuan`]="{ item }">
-            <span class="font-weight-medium">
-              {{ item.Tujuan ? [item.Tujuan, item.NamaTujuan].filter(Boolean).join(" - ") : "" }}
-            </span>
-          </template>
-
-          <template #[`item.DateCreate`]="{ item }">
-            <span class="text-caption">{{
-              item.DateCreate
-                ? format(new Date(item.DateCreate as string), "dd-MM-yyyy HH:mm")
-                : "-"
-            }}</span>
-          </template>
-
-          <template #[`item.NoResi`]="{ item }">
-            <template v-if="item.NoResi && String(item.NoResi).trim()">
-              <span class="font-weight-medium text-blue-darken-2">{{ item.NoResi }}</span>
-            </template>
-            <template v-else-if="String(item.JenisKirim || '').toUpperCase() === 'EKSPEDISI'">
-              <v-chip
-                size="x-small"
-                color="orange"
-                variant="tonal"
-                prepend-icon="mdi-alert-outline"
-                class="font-weight-medium"
-              >
-                Belum Diisi
-              </v-chip>
-            </template>
-            <template v-else>
-              <span class="text-grey">-</span>
-            </template>
-          </template>
-
-          <template #[`item.Status`]="{ item }">
-            <v-chip
-              size="x-small"
-              :color="getStatusColor(getDisplayStatus(item))"
-              class="font-weight-medium"
-            >
-              {{ getDisplayStatus(item) }}
-            </v-chip>
-          </template>
-
-          <template #expanded-row="{ columns, item }">
-            <tr>
-              <td :colspan="columns.length" class="pa-0">
-                <div class="detail-container">
-                  <div class="detail-table-wrapper">
-                    <div v-if="loadingDetails.has(item.Nomor)" class="state-container pa-4">
-                      <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                      <div class="mt-2 text-caption">Memuat detail...</div>
-                    </div>
-
-                    <v-data-table
-                      v-else-if="details[item.Nomor]"
-                      :headers="detailHeaders"
-                      :items="details[item.Nomor]"
-                      density="compact"
-                      class="detail-table"
-                      :items-per-page="-1"
-                      hide-default-footer
+                    <template
+                        #headers="{
+                            columns,
+                            isSorted,
+                            getSortIcon,
+                            toggleSort,
+                        }"
                     >
-                      <template #[`item.sjNomor`]="{ item: detail }">
-                        <span class="font-weight-medium">
-                          {{ detail.sjNomor || detail.namaBarang || "-" }}
-                        </span>
-                      </template>
+                        <tr>
+                            <template
+                                v-for="header in columns"
+                                :key="header.key"
+                            >
+                                <th
+                                    v-if="
+                                        [
+                                            'data-table-expand',
+                                            'data-table-select',
+                                        ].includes(header.key)
+                                    "
+                                    :style="{ width: header.width + 'px' }"
+                                    class="resizable-header"
+                                >
+                                    <div class="header-content">
+                                        <span>{{ header.title }}</span>
+                                    </div>
+                                    <div
+                                        class="resizer"
+                                        @mousedown.stop="
+                                            onResizeStart($event, header)
+                                        "
+                                    />
+                                </th>
 
-                      <template #[`item.sjTanggal`]="{ item: detail }">
-                        <span v-if="detail.sjTanggal">{{
-                          format(new Date(detail.sjTanggal as string), "dd-MM-yyyy")
-                        }}</span>
-                        <span v-else class="text-grey text-caption">-</span>
-                      </template>
+                                <th
+                                    v-else
+                                    :style="{ width: header.width + 'px' }"
+                                    class="resizable-header"
+                                    @click="toggleSort(header)"
+                                >
+                                    <div class="header-content">
+                                        <span>{{ header.title }}</span>
+                                        <v-icon
+                                            v-if="isSorted(header)"
+                                            size="14"
+                                            >{{ getSortIcon(header) }}</v-icon
+                                        >
 
-                      <template #[`item.storeNama`]="{ item: detail }">
-                        <span v-if="detail.storeKode && detail.storeNama">
-                          {{ detail.storeKode }} - {{ detail.storeNama }}
-                        </span>
-                        <span v-else>
-                          {{ detail.storeNama || detail.storeKode || "-" }}
-                        </span>
-                      </template>
+                                        <v-menu
+                                            location="bottom start"
+                                            :close-on-content-click="false"
+                                        >
+                                            <template #activator="{ props }">
+                                                <v-icon
+                                                    v-bind="props"
+                                                    size="16"
+                                                    class="ms-1"
+                                                    @click.stop
+                                                    :color="
+                                                        isFilterActive(
+                                                            header.key,
+                                                        )
+                                                            ? 'blue'
+                                                            : ''
+                                                    "
+                                                    :icon="
+                                                        filterType(
+                                                            header.key,
+                                                        ) === 'custom'
+                                                            ? 'mdi-filter-cog'
+                                                            : filterType(
+                                                                  header.key,
+                                                              ) === 'multi'
+                                                            ? 'mdi-filter-multiple'
+                                                            : 'mdi-filter-variant'
+                                                    "
+                                                />
+                                            </template>
+                                            <v-list
+                                                class="filter-menu"
+                                                density="compact"
+                                            >
+                                                <v-list-item
+                                                    @click="
+                                                        clearColumnFilter(
+                                                            header.key,
+                                                        )
+                                                    "
+                                                >
+                                                    <v-list-item-title
+                                                        class="text-caption font-weight-bold text-error"
+                                                        >(Clear
+                                                        Filter)</v-list-item-title
+                                                    >
+                                                </v-list-item>
+                                                <v-divider />
+                                                <v-list-item
+                                                    v-for="val in uniqueValues(
+                                                        header.key,
+                                                    )"
+                                                    :key="val"
+                                                    @click="
+                                                        toggleMultiSelectValue(
+                                                            header.key,
+                                                            val,
+                                                        )
+                                                    "
+                                                >
+                                                    <template #prepend>
+                                                        <v-checkbox-btn
+                                                            :model-value="
+                                                                columnFilters[
+                                                                    header.key
+                                                                ]?.values?.includes(
+                                                                    val,
+                                                                )
+                                                            "
+                                                            density="compact"
+                                                        />
+                                                    </template>
+                                                    <v-list-item-title>{{
+                                                        formatFilterValue(
+                                                            header.key,
+                                                            val,
+                                                        )
+                                                    }}</v-list-item-title>
+                                                </v-list-item>
+                                                <v-divider />
+                                                <v-list-item
+                                                    @click="
+                                                        openCustomFilter(
+                                                            header.key,
+                                                        )
+                                                    "
+                                                >
+                                                    <v-list-item-title
+                                                        class="text-caption text-primary"
+                                                        >(Custom
+                                                        Filter...)</v-list-item-title
+                                                    >
+                                                </v-list-item>
+                                            </v-list>
+                                        </v-menu>
+                                    </div>
+                                    <div
+                                        class="resizer"
+                                        @mousedown.stop="
+                                            onResizeStart($event, header)
+                                        "
+                                    />
+                                </th>
+                            </template>
+                        </tr>
+                    </template>
 
-                      <template #[`item.qty`]="{ item: detail }">
-                        <span class="font-weight-medium text-primary">{{ detail.qty }}</span>
-                      </template>
+                    <template
+                        #[`item.data-table-expand`]="{
+                            internalItem,
+                            toggleExpand,
+                            isExpanded,
+                        }"
+                    >
+                        <v-btn
+                            icon="mdi-chevron-down"
+                            :class="{ 'rotate-180': isExpanded(internalItem) }"
+                            size="x-small"
+                            variant="text"
+                            @click.stop="toggleExpand(internalItem)"
+                        />
+                    </template>
 
-                      <template #[`item.kategori`]="{ item: detail }">
-                        <v-chip
-                          size="x-small"
-                          :color="
-                            detail.kategori === 'Barang Lain-lain' ||
-                            (detail.namaBarang && String(detail.namaBarang).trim() !== '') ||
-                            !detail.sjNomor
-                              ? 'purple'
-                              : 'teal'
-                          "
-                          variant="tonal"
-                          class="font-weight-medium"
+                    <template #[`item.Nomor`]="{ item }">
+                        <strong
+                            :style="{
+                                color: getStatusColor(getDisplayStatus(item)),
+                            }"
+                            >{{ item.Nomor }}</strong
                         >
-                          {{
-                            detail.kategori === "Barang Lain-lain" ||
-                            (detail.namaBarang && String(detail.namaBarang).trim() !== "") ||
-                            !detail.sjNomor
-                              ? "Barang Lain-lain"
-                              : "Barang SJ"
-                          }}
+                    </template>
+
+                    <template #[`item.Tanggal`]="{ item }">
+                        {{
+                            item.Tanggal
+                                ? format(
+                                      new Date(item.Tanggal as string),
+                                      "dd-MM-yyyy",
+                                  )
+                                : "-"
+                        }}
+                    </template>
+
+                    <template #[`item.Jam`]="{ item }">
+                        <span class="font-weight-medium">{{
+                            item.Jam || "-"
+                        }}</span>
+                    </template>
+
+                    <template #[`item.Tujuan`]="{ item }">
+                        <span class="font-weight-medium">
+                            {{
+                                item.Tujuan
+                                    ? [item.Tujuan, item.NamaTujuan]
+                                          .filter(Boolean)
+                                          .join(" - ")
+                                    : ""
+                            }}
+                        </span>
+                    </template>
+
+                    <template #[`item.DateCreate`]="{ item }">
+                        <span class="text-caption">{{
+                            item.DateCreate
+                                ? format(
+                                      new Date(item.DateCreate as string),
+                                      "dd-MM-yyyy HH:mm",
+                                  )
+                                : "-"
+                        }}</span>
+                    </template>
+
+                    <template #[`item.NoResi`]="{ item }">
+                        <template
+                            v-if="item.NoResi && String(item.NoResi).trim()"
+                        >
+                            <span
+                                class="font-weight-medium text-blue-darken-2"
+                                >{{ item.NoResi }}</span
+                            >
+                        </template>
+                        <template
+                            v-else-if="
+                                String(item.JenisKirim || '').toUpperCase() ===
+                                'EKSPEDISI'
+                            "
+                        >
+                            <v-chip
+                                size="x-small"
+                                color="orange"
+                                variant="tonal"
+                                prepend-icon="mdi-alert-outline"
+                                class="font-weight-medium"
+                            >
+                                Belum Diisi
+                            </v-chip>
+                        </template>
+                        <template v-else>
+                            <span class="text-grey">-</span>
+                        </template>
+                    </template>
+
+                    <template #[`item.Status`]="{ item }">
+                        <v-chip
+                            size="x-small"
+                            :color="getStatusColor(getDisplayStatus(item))"
+                            class="font-weight-medium"
+                        >
+                            {{ getDisplayStatus(item) }}
                         </v-chip>
-                      </template>
+                    </template>
 
-                      <template #bottom></template>
-                    </v-data-table>
+                    <template #[`item.BeratKg`]="{ item }">
+                        <span class="font-weight-medium">
+                            {{
+                                Number(item.BeratKg || 0) > 0
+                                    ? Number(item.BeratKg).toLocaleString(
+                                          "id-ID",
+                                          {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                          },
+                                      ) + " Kg"
+                                    : "-"
+                            }}
+                        </span>
+                    </template>
 
-                    <div v-else class="text-center text-caption py-2">Tidak ada data detail.</div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </template>
-        </AppDataTable>
-      </div>
-    </div>
+                    <template #expanded-row="{ columns, item }">
+                        <tr>
+                            <td :colspan="columns.length" class="pa-0">
+                                <div class="detail-container">
+                                    <div class="detail-table-wrapper">
+                                        <div
+                                            v-if="
+                                                loadingDetails.has(item.Nomor)
+                                            "
+                                            class="state-container pa-4"
+                                        >
+                                            <v-progress-circular
+                                                indeterminate
+                                                color="primary"
+                                            ></v-progress-circular>
+                                            <div class="mt-2 text-caption">
+                                                Memuat detail...
+                                            </div>
+                                        </div>
 
-    <!-- Confirm Modal -->
-    <v-dialog v-model="dialog.confirm" max-width="400px" persistent>
-      <v-card>
-        <v-card-title class="text-h6 font-weight-bold">Konfirmasi</v-card-title>
-        <v-card-text>{{ confirmText }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn text @click="dialog.confirm = false">Tidak</v-btn>
-          <v-btn
-            color="primary"
-            variant="tonal"
-            @click="
-              confirmAction && confirmAction();
-              dialog.confirm = false;
-            "
-            >Ya, Lanjutkan</v-btn
-          >
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+                                        <v-data-table
+                                            v-else-if="details[item.Nomor]"
+                                            :headers="detailHeaders"
+                                            :items="details[item.Nomor]"
+                                            density="compact"
+                                            class="detail-table"
+                                            :items-per-page="-1"
+                                            hide-default-footer
+                                        >
+                                            <template
+                                                #[`item.sjNomor`]="{
+                                                    item: detail,
+                                                }"
+                                            >
+                                                <span
+                                                    class="font-weight-medium"
+                                                    :class="
+                                                        detail.kategori ===
+                                                            'Barang Lain-lain' ||
+                                                        (detail.namaBarang &&
+                                                            String(
+                                                                detail.namaBarang,
+                                                            ).trim() !== '') ||
+                                                        !detail.sjNomor
+                                                            ? 'text-purple'
+                                                            : String(
+                                                                  detail.sjNomor ||
+                                                                      '',
+                                                              )
+                                                                  .toUpperCase()
+                                                                  .includes(
+                                                                      'INV',
+                                                                  )
+                                                            ? 'text-deep-purple'
+                                                            : 'text-primary'
+                                                    "
+                                                >
+                                                    {{
+                                                        detail.sjNomor ||
+                                                        detail.namaBarang ||
+                                                        "-"
+                                                    }}
+                                                </span>
+                                            </template>
 
-    <!-- Dialog Konfirmasi Kirim (DRAFT -> DIKIRIM) -->
-    <v-dialog v-model="confirmKirimDialog" max-width="420px" persistent>
-      <v-card>
-        <v-card-title class="text-h6 font-weight-bold d-flex align-center gap-2">
-          <v-icon color="blue" class="me-2">mdi-truck-fast</v-icon>
-          Konfirmasi Pengiriman
-        </v-card-title>
-        <v-card-text>
-          <p class="mb-2">
-            Ubah status manifest
-            <strong>{{ selectedRow?.Nomor }}</strong>
-            dari
-            <v-chip size="x-small" color="grey" class="mx-1">DRAFT</v-chip>
-            menjadi
-            <v-chip size="x-small" color="blue" class="mx-1">DIKIRIM</v-chip>?
-          </p>
-          <v-alert type="warning" variant="tonal" density="compact" class="text-caption mt-2">
-            Pastikan manifest ini <strong>sudah diterima dan ditandatangani</strong> oleh driver /
-            ekspedisi di kertas cetak. Status tidak dapat dikembalikan ke DRAFT.
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn text @click="confirmKirimDialog = false" :disabled="loadingKirim">Batal</v-btn>
-          <v-btn
-            color="blue"
-            variant="flat"
-            :loading="loadingKirim"
-            prepend-icon="mdi-check"
-            @click="executeKonfirmasiKirim"
-          >
-            Ya, Konfirmasi
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+                                            <template
+                                                #[`item.sjTanggal`]="{
+                                                    item: detail,
+                                                }"
+                                            >
+                                                <span v-if="detail.sjTanggal">{{
+                                                    format(
+                                                        new Date(
+                                                            detail.sjTanggal as string,
+                                                        ),
+                                                        "dd-MM-yyyy",
+                                                    )
+                                                }}</span>
+                                                <span
+                                                    v-else
+                                                    class="text-grey text-caption"
+                                                    >-</span
+                                                >
+                                            </template>
 
-    <!-- Dialog Custom Filter -->
-    <v-dialog v-model="customFilterDialog" max-width="350px">
-      <v-card>
-        <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
-        <v-card-text>
-          <v-select
-            v-model="customFilter.operator"
-            :items="['=', '!=', '>', '>=', '<', '<=', 'contains', 'starts', 'ends']"
-            density="compact"
-            hide-details
-            class="mb-2"
-          />
-          <v-text-field
-            v-model="customFilter.value"
-            label="Nilai Filter"
-            density="compact"
-            hide-details
-            @keyup.enter="applyCustomFilter"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn text @click="customFilterDialog = false">Batal</v-btn>
-          <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-  </PageLayout>
+                                            <template
+                                                #[`item.storeNama`]="{
+                                                    item: detail,
+                                                }"
+                                            >
+                                                <span
+                                                    v-if="
+                                                        detail.storeKode &&
+                                                        detail.storeNama
+                                                    "
+                                                >
+                                                    {{ detail.storeKode }} -
+                                                    {{ detail.storeNama }}
+                                                </span>
+                                                <span v-else>
+                                                    {{
+                                                        detail.storeNama ||
+                                                        detail.storeKode ||
+                                                        "-"
+                                                    }}
+                                                </span>
+                                            </template>
+
+                                            <template
+                                                #[`item.qty`]="{ item: detail }"
+                                            >
+                                                <span
+                                                    class="font-weight-medium text-primary"
+                                                    >{{ detail.qty }}</span
+                                                >
+                                            </template>
+
+                                            <template
+                                                #[`item.kategori`]="{
+                                                    item: detail,
+                                                }"
+                                            >
+                                                <v-chip
+                                                    size="x-small"
+                                                    :color="
+                                                        detail.kategori ===
+                                                            'Barang Lain-lain' ||
+                                                        (detail.namaBarang &&
+                                                            String(
+                                                                detail.namaBarang,
+                                                            ).trim() !== '') ||
+                                                        !detail.sjNomor
+                                                            ? 'purple'
+                                                            : String(
+                                                                  detail.sjNomor ||
+                                                                      '',
+                                                              )
+                                                                  .toUpperCase()
+                                                                  .includes(
+                                                                      'INV',
+                                                                  )
+                                                            ? 'deep-purple'
+                                                            : 'primary'
+                                                    "
+                                                    variant="tonal"
+                                                    class="font-weight-medium"
+                                                >
+                                                    {{
+                                                        detail.kategori ===
+                                                            "Barang Lain-lain" ||
+                                                        (detail.namaBarang &&
+                                                            String(
+                                                                detail.namaBarang,
+                                                            ).trim() !== "") ||
+                                                        !detail.sjNomor
+                                                            ? "Barang Lain-lain"
+                                                            : String(
+                                                                  detail.sjNomor ||
+                                                                      "",
+                                                              )
+                                                                  .toUpperCase()
+                                                                  .includes(
+                                                                      "INV",
+                                                                  )
+                                                            ? "Barang Invoice"
+                                                            : "Barang SJ"
+                                                    }}
+                                                </v-chip>
+                                            </template>
+
+                                            <template #bottom></template>
+                                        </v-data-table>
+
+                                        <div
+                                            v-else
+                                            class="text-center text-caption py-2"
+                                        >
+                                            Tidak ada data detail.
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </AppDataTable>
+            </div>
+        </div>
+
+        <!-- Confirm Modal -->
+        <v-dialog v-model="dialog.confirm" max-width="400px" persistent>
+            <v-card>
+                <v-card-title class="text-h6 font-weight-bold"
+                    >Konfirmasi</v-card-title
+                >
+                <v-card-text>{{ confirmText }}</v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn text @click="dialog.confirm = false">Tidak</v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="tonal"
+                        @click="
+                            confirmAction && confirmAction();
+                            dialog.confirm = false;
+                        "
+                        >Ya, Lanjutkan</v-btn
+                    >
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <!-- Dialog Konfirmasi Kirim (DRAFT -> DIKIRIM) -->
+        <v-dialog v-model="confirmKirimDialog" max-width="420px" persistent>
+            <v-card>
+                <v-card-title
+                    class="text-h6 font-weight-bold d-flex align-center gap-2"
+                >
+                    <v-icon color="blue" class="me-2">mdi-truck-fast</v-icon>
+                    Konfirmasi Pengiriman
+                </v-card-title>
+                <v-card-text>
+                    <p class="mb-2">
+                        Ubah status manifest
+                        <strong>{{ selectedRow?.Nomor }}</strong>
+                        dari
+                        <v-chip size="x-small" color="grey" class="mx-1"
+                            >DRAFT</v-chip
+                        >
+                        menjadi
+                        <v-chip size="x-small" color="blue" class="mx-1"
+                            >DIKIRIM</v-chip
+                        >?
+                    </p>
+                    <v-alert
+                        type="warning"
+                        variant="tonal"
+                        density="compact"
+                        class="text-caption mt-2"
+                    >
+                        Pastikan manifest ini
+                        <strong>sudah diterima dan ditandatangani</strong> oleh
+                        driver / ekspedisi di kertas cetak. Status tidak dapat
+                        dikembalikan ke DRAFT.
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn
+                        text
+                        @click="confirmKirimDialog = false"
+                        :disabled="loadingKirim"
+                        >Batal</v-btn
+                    >
+                    <v-btn
+                        color="blue"
+                        variant="flat"
+                        :loading="loadingKirim"
+                        prepend-icon="mdi-check"
+                        @click="executeKonfirmasiKirim"
+                    >
+                        Ya, Konfirmasi
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <!-- Dialog Custom Filter -->
+        <v-dialog v-model="customFilterDialog" max-width="350px">
+            <v-card>
+                <v-card-title class="text-subtitle-1 font-weight-bold"
+                    >Custom Filter</v-card-title
+                >
+                <v-card-text>
+                    <v-select
+                        v-model="customFilter.operator"
+                        :items="[
+                            '=',
+                            '!=',
+                            '>',
+                            '>=',
+                            '<',
+                            '<=',
+                            'contains',
+                            'starts',
+                            'ends',
+                        ]"
+                        density="compact"
+                        hide-details
+                        class="mb-2"
+                    />
+                    <v-text-field
+                        v-model="customFilter.value"
+                        label="Nilai Filter"
+                        density="compact"
+                        hide-details
+                        @keyup.enter="applyCustomFilter"
+                    />
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn text @click="customFilterDialog = false"
+                        >Batal</v-btn
+                    >
+                    <v-btn color="primary" @click="applyCustomFilter"
+                        >Terapkan</v-btn
+                    >
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+    </PageLayout>
 </template>
 
 <style scoped>
 /* Layout Full Height */
 .browse-content {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 64px - 32px);
-  overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 64px - 32px);
+    overflow: hidden;
 }
 
 .filter-section {
-  flex-shrink: 0;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+    flex-shrink: 0;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: rgb(var(--v-theme-surface));
+    border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .table-container {
-  flex-grow: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+    flex-grow: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* Table Style */
 .desktop-table {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .desktop-table :deep(.v-table__wrapper) {
-  flex-grow: 1;
-  height: 100% !important;
+    flex-grow: 1;
+    height: 100% !important;
 }
 
 .desktop-table :deep(table) {
-  width: max-content;
-  min-width: 100%;
+    width: max-content;
+    min-width: 100%;
 }
 
 /* Header Resize */
 .resizable-header {
-  position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
-  font-weight: 700 !important;
-  text-transform: uppercase;
-  font-size: 11px !important;
-  height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
-  padding: 0 8px !important;
-  user-select: none;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  cursor: pointer;
+    position: relative;
+    background-color: #e3f2fd !important;
+    color: #0d47a1 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    font-size: 11px !important;
+    height: 40px !important;
+    border-bottom: 2px solid #1976d2 !important;
+    padding: 0 8px !important;
+    user-select: none;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
 }
 
 .header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
 }
 
 .resizer {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  cursor: col-resize;
-  z-index: 10;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    z-index: 10;
 }
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+    border-right: 2px solid #1565c0;
 }
 
 /* Detail Sticky */
 .detail-container {
-  position: sticky;
-  left: 0;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-  padding: 16px;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  justify-content: flex-start;
+    position: sticky;
+    left: 0;
+    background-color: rgb(var(--v-theme-surface));
+    border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+    padding: 16px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: flex-start;
 }
 
 .detail-table-wrapper {
-  width: 100%;
-  max-width: 1000px;
-  background-color: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-  border-radius: 4px;
-  overflow-x: auto;
+    width: 100%;
+    max-width: 1000px;
+    background-color: rgb(var(--v-theme-surface));
+    border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+    border-radius: 4px;
+    overflow-x: auto;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
-  font-size: 11px !important;
-  height: 32px !important;
+    background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+    color: rgb(var(--v-theme-on-surface)) !important;
+    font-size: 11px !important;
+    height: 32px !important;
 }
 
 .state-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .filter-menu {
-  max-height: 300px;
-  overflow-y: auto;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .reset-filter-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 6px !important;
-  background-color: rgba(211, 47, 47, 0.15) !important;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px !important;
+    background-color: rgba(211, 47, 47, 0.15) !important;
 }
 
 .reset-filter-btn:hover {
-  background-color: rgba(211, 47, 47, 0.25) !important;
+    background-color: rgba(211, 47, 47, 0.25) !important;
 }
 
 .rotate-180 {
-  transform: rotate(180deg);
+    transform: rotate(180deg);
 }
 
 @media print {
-  body * {
-    visibility: hidden !important;
-  }
-  .print-area,
-  .print-area * {
-    visibility: visible !important;
-  }
-  .print-area {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    padding: 8mm !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    margin: 0 !important;
-  }
-  .no-print,
-  .v-overlay-container {
-    display: none !important;
-  }
+    body * {
+        visibility: hidden !important;
+    }
+    .print-area,
+    .print-area * {
+        visibility: visible !important;
+    }
+    .print-area {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        padding: 8mm !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        margin: 0 !important;
+    }
+    .no-print,
+    .v-overlay-container {
+        display: none !important;
+    }
 }
 
 /* Highlight baris: EKSPEDISI tapi resi belum diisi */
 .desktop-table :deep(tr.row-resi-missing td) {
-  background-color: #fffde7 !important;
+    background-color: #fffde7 !important;
 }
 .desktop-table :deep(tr.row-resi-missing:hover td) {
-  background-color: #fff9c4 !important;
+    background-color: #fff9c4 !important;
 }
 </style>

@@ -1085,7 +1085,8 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-plus"
         @click="router.push('/transaksi/penjualan/penawaran/new')"
         >Baru</v-btn
@@ -1093,16 +1094,17 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-pencil"
         @click="editOffer"
         >Ubah</v-btn
       >
-      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="confirmDelete">Hapus</v-btn> -->
       <v-btn
         size="small"
-        color="green"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-printer"
         @click="printData(selected[0])"
         :disabled="selected.length !== 1"
@@ -1111,7 +1113,13 @@ onBeforeRouteLeave((to, from, next) => {
       </v-btn>
       <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
         <template v-slot:activator="{ props }">
-          <v-btn color="teal" size="small" prepend-icon="mdi-file-excel" v-bind="props">
+          <v-btn
+            variant="tonal"
+            class="btn-header-action"
+            size="small"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
+          >
             Export Data
           </v-btn>
         </template>
@@ -1136,7 +1144,8 @@ onBeforeRouteLeave((to, from, next) => {
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
         :disabled="!canBeClosed"
-        color="blue"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-lock-outline"
         @click="openCloseDialog"
         >Close Penawaran</v-btn
@@ -1160,7 +1169,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 120px"
+            class="periode-field"
           ></v-text-field>
           <span>s/d</span>
           <v-text-field
@@ -1169,7 +1178,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 120px"
+            class="periode-field"
           ></v-text-field>
         </div>
         <div class="d-flex align-center ga-2">
@@ -1182,8 +1191,8 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 150px"
-            :menu-props="{ class: 'compact-select-list' }"
+            class="cabang-select"
+            :menu-props="{ class: 'compact-select-list offer-filter-menu' }"
           ></v-select>
         </div>
         <div class="d-flex align-center ga-2">
@@ -1194,7 +1203,8 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 190px"
+            class="filterby-select"
+            :menu-props="{ class: 'offer-filter-menu' }"
           ></v-select>
           <v-text-field
             v-model="filterSearchValue"
@@ -1202,13 +1212,12 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 180px"
+            class="search-field offer-search-field"
             clearable
             prepend-inner-icon="mdi-magnify"
           ></v-text-field>
         </div>
         <v-btn
-          color="error"
           variant="tonal"
           prepend-icon="mdi-filter-off"
           class="btn-detail reset-filter-btn ms-2"
@@ -1771,5 +1780,268 @@ onBeforeRouteLeave((to, from, next) => {
 
 .reset-filter-btn:hover {
   background-color: rgba(211, 47, 47, 0.25) !important;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.filter-section :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.filter-label {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ RESET FILTER BUTTON MERAH ══════════════ */
+.reset-filter-btn {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+}
+
+.reset-filter-btn:hover {
+  background-color: rgba(183, 28, 28, 0.2) !important;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.resizable-header {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #ffd54f !important;
+}
+
+/* ══════════════ ROW HOVER / STRIPE MERAH ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.desktop-table :deep(tr:hover td.text-red) {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+}
+
+/* ══════════════ LEGEND BADGE ══════════════ */
+.legend-group {
+  gap: 10px;
+}
+
+.legend-open {
+  background-color: rgba(183, 28, 28, 0.08);
+  color: #b71c1c !important;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.legend-closed {
+  background-color: rgba(25, 118, 210, 0.08);
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* ══════════════ DETAIL TABLE HEADER (expanded row) ══════════════ */
+.detail-table :deep(thead tr th) {
+  background: linear-gradient(
+    135deg,
+    rgba(183, 28, 28, 0.85) 0%,
+    rgba(142, 0, 0, 0.85) 100%
+  ) !important;
+  color: #ffffff !important;
+}
+
+.detail-table-wrapper {
+  border-left: 3px solid #b71c1c !important;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+  transition: all 0.15s ease;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+  opacity: 0.4;
+}
+
+/* Nomor pagination aktif (angka 1, 2, dst) */
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════════ CHIP STATUS ══════════════ */
+.desktop-table :deep(.v-chip.text-success) {
+  background-color: rgba(46, 125, 50, 0.15) !important;
+}
+
+/* ══════════════ HEADER TABEL — PAKSA TEKS PUTIH ══════════════ */
+.desktop-table :deep(.resizable-header),
+.desktop-table :deep(.resizable-header .header-content),
+.desktop-table :deep(.resizable-header .header-content span),
+.desktop-table :deep(.resizable-header .v-icon) {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+}
+
+.desktop-table :deep(.resizable-header .header-content span) {
+  background: transparent !important;
+}
+
+/* ══════════════ OVERRIDE GLOBAL: COMBOBOX & SEARCH BAR TEMA MERAH ══════════════ */
+
+/* --- Search bar diperpanjang --- */
+.filter-section .offer-search-field.search-field {
+  min-width: 380px !important;
+  width: 420px !important;
+}
+
+/* --- Field Periode (date) --- */
+.filter-section .periode-field :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.filter-section .periode-field :deep(.v-field__outline) {
+  display: none !important; /* pakai border custom di atas, bukan outline vuetify */
+}
+
+/* --- Combobox Cabang & Filter Berdasarkan --- */
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .filterby-select :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .filterby-select :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .filterby-select :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .cabang-select :deep(.v-field--focused .v-label),
+.filter-section .filterby-select :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+/* Icon dropdown (panah bawah) jadi merah */
+.filter-section .cabang-select :deep(.v-select__menu-icon),
+.filter-section .filterby-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+/* Search field icon kaca pembesar merah + border sama seperti combobox */
+.filter-section .offer-search-field :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .offer-search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .offer-search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .offer-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+</style>
+
+<style>
+.offer-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+
+.offer-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

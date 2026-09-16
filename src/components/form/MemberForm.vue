@@ -131,8 +131,11 @@ onMounted(() => {
 <template>
   <v-dialog :model-value="true" persistent max-width="600px">
     <v-card>
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title>{{
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-icon size="20" class="ms-2 me-2">{{
+          isKaryawanMode ? "mdi-badge-account-outline" : "mdi-account-heart-outline"
+        }}</v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">{{
           isKaryawanMode ? "Form Data Karyawan" : "Form Member"
         }}</v-toolbar-title>
         <v-spacer />
@@ -167,8 +170,7 @@ onMounted(() => {
             density="compact"
             hide-details
             readonly
-            class="mb-2"
-            bg-color="grey-lighten-4"
+            class="mb-2 readonly-field"
           />
           <v-text-field
             v-model="member.nama"
@@ -177,8 +179,7 @@ onMounted(() => {
             density="compact"
             hide-details
             readonly
-            class="mb-2"
-            bg-color="grey-lighten-4"
+            class="mb-2 readonly-field"
           />
         </div>
 
@@ -254,12 +255,19 @@ onMounted(() => {
       </v-card-text>
 
       <v-divider />
-      <v-card-actions class="pa-4">
+      <v-card-actions class="pa-4 dialog-footer">
         <v-spacer />
-        <v-btn size="small" @click="$emit('close')">Batal</v-btn>
-        <v-btn size="small" color="primary" @click="saveMember" :loading="isSaving"
-          >Konfirmasi Data</v-btn
+        <v-btn size="small" variant="text" @click="$emit('close')">Batal</v-btn>
+        <v-btn
+          size="small"
+          class="btn-konfirmasi"
+          variant="flat"
+          @click="saveMember"
+          :loading="isSaving"
         >
+          <v-icon start size="14">mdi-check-circle-outline</v-icon>
+          Konfirmasi Data
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -281,5 +289,41 @@ onMounted(() => {
 .v-card-text :deep(.v-textarea),
 .v-card-text :deep(.v-select) {
   margin-bottom: 8px;
+}
+
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+
+.readonly-field :deep(.v-field) {
+  background-color: rgba(0, 0, 0, 0.025) !important;
+}
+.readonly-field :deep(input) {
+  color: rgba(0, 0, 0, 0.7) !important;
+  font-weight: 500;
+}
+
+/* Field fokus jadi merah, konsisten tema */
+.v-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+.v-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.dialog-footer {
+  background-color: #f5f5f5;
+}
+
+.btn-konfirmasi {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-konfirmasi:hover {
+  filter: brightness(1.08);
 }
 </style>

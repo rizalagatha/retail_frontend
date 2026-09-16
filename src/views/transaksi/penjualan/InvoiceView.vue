@@ -1548,7 +1548,8 @@ onBeforeRouteLeave((to, from, next) => {
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
         prepend-icon="mdi-plus"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         @click="handleNew"
       >
         Baru
@@ -1560,6 +1561,8 @@ onBeforeRouteLeave((to, from, next) => {
             v-bind="props"
             size="small"
             prepend-icon="mdi-pencil"
+            variant="tonal"
+            class="btn-header-action"
             :disabled="!isSingleSelected"
           >
             Ubah
@@ -1567,11 +1570,6 @@ onBeforeRouteLeave((to, from, next) => {
           </v-btn>
         </template>
         <v-list density="compact">
-          <!-- <v-list-item @click="handleEdit">
-            <template #prepend><v-icon size="small" icon="mdi-file-document-edit-outline" class="mr-2" /></template>
-            <v-list-item-title>Ubah Data Barang</v-list-item-title>
-          </v-list-item> -->
-
           <v-list-item @click="openChangePaymentModal">
             <template #prepend
               ><v-icon size="small" icon="mdi-cash-sync" class="mr-2 text-purple"
@@ -1590,24 +1588,23 @@ onBeforeRouteLeave((to, from, next) => {
         </v-list>
       </v-menu>
 
-      <!-- Jika invoice SUDAH locked → tombol Lihat -->
       <v-btn
         v-if="authStore.can(MENU_ID, 'view') && isLockedInvoice"
         size="small"
         prepend-icon="mdi-eye"
-        color="grey"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         @click="handleView"
       >
         Lihat
       </v-btn>
 
-      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-                @click="handleDelete">Hapus</v-btn> -->
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
-        color="green"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-printer"
         @click="openPrintOptions"
@@ -1617,7 +1614,8 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
-        color="cyan"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-truck-delivery-outline"
         @click="printData('sj')"
@@ -1626,7 +1624,13 @@ onBeforeRouteLeave((to, from, next) => {
       </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
+          >
             Export
           </v-btn>
         </template>
@@ -1650,6 +1654,7 @@ onBeforeRouteLeave((to, from, next) => {
           density="compact"
           hide-details
           variant="outlined"
+          class="periode-field"
         />
         <v-label class="mx-2">s/d</v-label>
         <v-text-field
@@ -1658,6 +1663,7 @@ onBeforeRouteLeave((to, from, next) => {
           density="compact"
           hide-details
           variant="outlined"
+          class="periode-field"
         />
         <v-select
           label="Cabang"
@@ -1668,8 +1674,8 @@ onBeforeRouteLeave((to, from, next) => {
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-4"
-          style="max-width: 200px"
+          class="ms-4 cabang-select"
+          :menu-props="{ class: 'invoice-filter-menu' }"
         />
         <v-chip
           v-if="filters.status"
@@ -1689,7 +1695,8 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="max-width: 200px"
+            class="filterby-select"
+            :menu-props="{ class: 'invoice-filter-menu' }"
           />
 
           <v-text-field
@@ -1700,11 +1707,10 @@ onBeforeRouteLeave((to, from, next) => {
             variant="outlined"
             clearable
             prepend-inner-icon="mdi-magnify"
-            class="search-field"
+            class="invoice-search-field"
           />
         </div>
         <v-btn
-          color="error"
           variant="tonal"
           prepend-icon="mdi-filter-off"
           class="btn-detail reset-filter-btn ms-2"
@@ -1713,9 +1719,13 @@ onBeforeRouteLeave((to, from, next) => {
           Reset Filter
         </v-btn>
         <v-spacer />
-        <div class="d-flex align-center ga-2 text-caption">
-          <v-icon color="yellow-darken-3" icon="mdi-square-rounded" size="small"></v-icon> Stok
-          Minus <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Lunas
+        <div class="legend-group d-flex align-center ga-2">
+          <span class="legend-badge legend-warning"
+            ><v-icon size="12">mdi-circle</v-icon> Stok Minus</span
+          >
+          <span class="legend-badge legend-danger"
+            ><v-icon size="12">mdi-circle</v-icon> Belum Lunas</span
+          >
         </div>
         <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" />
       </div>
@@ -2656,5 +2666,215 @@ onBeforeRouteLeave((to, from, next) => {
   position: sticky;
   left: 0;
   z-index: 6;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+  padding: 8px 10px;
+}
+
+/* --- Search bar diperpanjang (FIX flex-shrink total, pola sama seperti OfferView) --- */
+.filter-section .invoice-search-field {
+  flex: 0 0 380px !important;
+  width: 380px !important;
+  min-width: 380px !important;
+  max-width: 380px !important;
+  flex-shrink: 0 !important;
+}
+
+.filter-section .invoice-search-field :deep(.v-input__control) {
+  width: 100% !important;
+}
+
+.filter-section .invoice-search-field :deep(.v-field),
+.filter-section .filterby-select :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .periode-field :deep(.v-field) {
+  width: 100% !important;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .invoice-search-field :deep(.v-field__outline),
+.filter-section .filterby-select :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .periode-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .invoice-search-field :deep(.v-field--focused),
+.filter-section .filterby-select :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .periode-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .invoice-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+.filter-section .filterby-select :deep(.v-select__menu-icon),
+.filter-section .cabang-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+.filter-section .filterby-select {
+  width: 200px;
+}
+
+/* --- Reset Filter --- */
+.reset-filter-btn {
+  color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.1) !important;
+}
+.reset-filter-btn:hover {
+  background-color: rgba(183, 28, 28, 0.2) !important;
+}
+
+/* ══════════════ LEGEND BADGE ══════════════ */
+.legend-group {
+  font-size: 11px;
+}
+.legend-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.65);
+}
+.legend-warning :deep(.v-icon) {
+  color: #f9a825 !important;
+}
+.legend-danger :deep(.v-icon) {
+  color: #d32f2f !important;
+}
+
+/* ══════════════ HEADER TABEL — PAKSA TEKS PUTIH ══════════════ */
+.desktop-table :deep(.resizable-header),
+.desktop-table :deep(.resizable-header .header-content),
+.desktop-table :deep(.resizable-header .header-content span),
+.desktop-table :deep(.resizable-header .v-icon) {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+}
+
+.desktop-table :deep(.resizable-header .header-content span) {
+  background: transparent !important;
+}
+
+/* ══════════════ ROW STRIPE — selang-seling, tetap kalah dari warna semantik ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:nth-child(even) td) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+/* Baris dengan status semantik (sisa piutang/stok minus) tetap menang atas stripe */
+.desktop-table :deep(tr.row-sisa-piutang:nth-child(even) > td) {
+  background-color: rgba(var(--v-theme-error), 0.15) !important;
+}
+
+.desktop-table :deep(tr.row-stok-minus:nth-child(even) > td) {
+  background-color: rgba(var(--v-theme-warning), 0.18) !important;
+}
+
+/* ══════════════ ROW HOVER — jaga warna semantik tetap dominan ══════════════ */
+.desktop-table :deep(tbody tr:hover) {
+  filter: brightness(0.98);
+}
+
+/* ══════════════ DETAIL TABLE (expanded row) ══════════════ */
+.detail-table :deep(thead tr th) {
+  background: linear-gradient(
+    135deg,
+    rgba(183, 28, 28, 0.85) 0%,
+    rgba(142, 0, 0, 0.85) 100%
+  ) !important;
+  color: #ffffff !important;
+}
+
+.detail-table-wrapper {
+  border-left: 3px solid #b71c1c !important;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+</style>
+
+<style>
+.invoice-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.invoice-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

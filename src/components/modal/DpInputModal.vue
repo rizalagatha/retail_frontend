@@ -240,7 +240,7 @@ const onRekeningSelected = (rekening: Rekening) => {
     :max-width="hasRightPanel ? '780px' : '440px'"
   >
     <v-card class="dp-card">
-      <v-toolbar color="primary" density="compact">
+      <v-toolbar density="compact" class="modal-toolbar">
         <v-toolbar-title class="text-subtitle-1 font-weight-bold">
           <v-icon start size="18">mdi-cash-plus</v-icon>
           Input DP (Uang Muka)
@@ -418,7 +418,7 @@ const onRekeningSelected = (rekening: Rekening) => {
         <v-btn size="small" variant="text" @click="$emit('close')">Batal</v-btn>
         <v-btn
           size="small"
-          color="primary"
+          class="btn-simpan-dp"
           variant="flat"
           @click="save"
           :loading="isSaving || isPrinting"
@@ -531,6 +531,15 @@ const onRekeningSelected = (rekening: Rekening) => {
   font-size: 12px !important;
 }
 
+/* Field outline jadi merah saat fokus */
+.dp-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.dp-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
 /* ── Section label ── */
 .section-label {
   font-size: 0.72rem;
@@ -538,7 +547,7 @@ const onRekeningSelected = (rekening: Rekening) => {
   text-transform: uppercase;
   letter-spacing: 0.8px;
   color: #666;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 2px solid rgba(183, 28, 28, 0.25);
   padding-bottom: 4px;
 }
 
@@ -551,11 +560,15 @@ const onRekeningSelected = (rekening: Rekening) => {
 
 /* ── Ringkasan DP ── */
 .dp-summary {
-  background: #f5f7fa;
-  border: 1px solid #e0e0e0;
+  background: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 3px solid #b71c1c;
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 0.8rem;
+}
+.dp-summary__row--total strong.text-error {
+  color: #b71c1c !important;
 }
 .dp-summary__row {
   display: flex;
@@ -697,6 +710,23 @@ const onRekeningSelected = (rekening: Rekening) => {
   width: 40%;
   text-align: center;
   height: 50px;
+}
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+
+.btn-simpan-dp {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+.btn-simpan-dp:hover {
+  filter: brightness(1.08);
 }
 </style>
 

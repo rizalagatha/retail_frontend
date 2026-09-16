@@ -64,6 +64,12 @@ const isJenisKaosSearchVisible = ref(false);
 const isKetersediaanConfirmVisible = ref(false);
 const selectedJenisKaos = ref("");
 const itemsPerPage = ref(25);
+const focusedUkuran = ref<string | null>(null);
+
+const formatRibuan = (val: number | null): string => {
+  if (val === null || val === undefined || val === 0) return "0";
+  return new Intl.NumberFormat("id-ID").format(val);
+};
 
 // --- Header Definisi (Updated) ---
 const headers = ref<DataTableHeader[]>([
@@ -266,7 +272,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         @click="openNewDialog"
         prepend-icon="mdi-plus"
         >Baru</v-btn
@@ -274,6 +281,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="selected.length !== 1"
         @click="openEditDialog(selected[0])"
         prepend-icon="mdi-pencil"
@@ -283,6 +292,7 @@ onMounted(() => {
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"
         color="error"
+        variant="tonal"
         :disabled="selected.length !== 1"
         @click="remove"
         prepend-icon="mdi-delete"
@@ -291,6 +301,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         @click="exportData"
         prepend-icon="mdi-file-excel"
       >
@@ -313,6 +325,7 @@ onMounted(() => {
           variant="outlined"
           hide-details
           single-line
+          class="sh-search-field"
         ></v-text-field>
         <v-spacer></v-spacer>
         <v-btn @click="fetchData" icon="mdi-refresh" variant="text" size="small"></v-btn>
@@ -405,64 +418,59 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="isEditPanelVisible" persistent max-width="800px">
-      <v-card class="dialog-card">
-        <v-toolbar color="primary" density="compact">
-          <v-toolbar-title class="text-subtitle-1">{{
-            isNew ? "Tambah Setting Harga Baru" : "Ubah Setting Harga"
-          }}</v-toolbar-title>
-        </v-toolbar>
-        <v-card-text class="pa-4">
-          <v-row dense>
-            <v-col cols="8">
-              <v-text-field
-                v-model="editedItem.jenisKaos"
-                label="Jenis Kaos"
-                variant="filled"
-                density="compact"
-                readonly
-              ></v-text-field>
-            </v-col>
-            <v-col cols="4">
-              <v-radio-group
-                v-model="editedItem.custom"
-                inline
-                hide-details
-                density="compact"
-                readonly
-              >
-                <v-radio label="Custom" value="Y"></v-radio>
-                <v-radio label="Stok" value="N"></v-radio>
-              </v-radio-group>
-            </v-col>
-          </v-row>
-          <v-data-table
-            :items="editedItem.ukuranHarga"
-            :headers="[
-              { title: 'Ukuran', key: 'ukuran' },
-              { title: 'Harga', key: 'harga' },
-            ]"
-            density="compact"
-            class="desktop-table mt-4"
-            fixed-header
-            height="300px"
-          >
-            <template #[`item.harga`]="{ item }">
-              <v-text-field
-                v-model.number="item.harga"
-                type="number"
-                variant="underlined"
-                density="compact"
-                hide-details
-              />
-            </template>
-          </v-data-table>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions class="dialog-footer">
+    <v-dialog v-model="isEditPanelVisible" persistent max-width="640px">
+      <v-card class="sh-edit-card" rounded="0">
+        <div class="sh-edit-header">
+          <div>
+            <div class="sh-edit-title">
+              {{ isNew ? "Tambah setting harga" : "Ubah setting harga" }}
+            </div>
+            <div class="sh-edit-subtitle">{{ editedItem.jenisKaos }}</div>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="closeEditPanel" />
+        </div>
+
+        <div class="sh-edit-meta">
+          <span class="sh-meta-label">Tipe</span>
+          <span class="sh-meta-value">{{
+            editedItem.custom === "Y" ? "Custom" : "Stok gudang"
+          }}</span>
+        </div>
+
+        <v-divider />
+
+        <div class="sh-price-list">
+          <div class="sh-price-row sh-price-row--head">
+            <span>Ukuran</span>
+            <span>Harga</span>
+          </div>
+          <div v-for="row in editedItem.ukuranHarga" :key="row.ukuran" class="sh-price-row">
+            <span class="sh-ukuran">{{ row.ukuran }}</span>
+            <v-text-field
+              :model-value="
+                focusedUkuran === row.ukuran ? row.harga ?? '' : formatRibuan(row.harga)
+              "
+              @update:model-value="
+                (val) => (row.harga = Number(String(val).replace(/[^0-9]/g, '')) || 0)
+              "
+              @focus="focusedUkuran = row.ukuran"
+              @blur="focusedUkuran = null"
+              type="text"
+              inputmode="numeric"
+              variant="plain"
+              density="compact"
+              hide-details
+              prefix="Rp"
+              class="sh-harga-input"
+            />
+          </div>
+        </div>
+
+        <v-divider />
+        <v-card-actions class="sh-edit-actions">
           <v-spacer></v-spacer>
-          <v-btn size="small" @click="closeEditPanel">Batal</v-btn>
-          <v-btn size="small" color="primary" @click="save">Simpan</v-btn>
+          <v-btn variant="text" @click="closeEditPanel">Batal</v-btn>
+          <v-btn class="sh-save-btn" variant="flat" @click="save">Simpan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -570,5 +578,242 @@ onMounted(() => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+/* --- Search bar diperpanjang & override global (FIX flex-shrink) --- */
+.filter-section .sh-search-field {
+  flex: 0 0 420px !important;
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: 420px !important;
+  flex-shrink: 0 !important;
+}
+
+.filter-section .sh-search-field :deep(.v-input__control) {
+  width: 100% !important;
+}
+
+.filter-section .sh-search-field :deep(.v-field) {
+  width: 100% !important;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .sh-search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .sh-search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .sh-search-field :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.filter-section .sh-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.resizable-header {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.resizable-header .header-content span,
+.resizable-header .v-icon {
+  color: #ffffff !important;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #ffd54f !important;
+}
+
+/* ══════════════ ROW HOVER / STRIPE MERAH ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════════ Ubah Setting Harga — versi flat ══════════════ */
+.sh-edit-card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.sh-edit-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+}
+
+.sh-edit-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.87);
+  line-height: 1.3;
+}
+
+.sh-edit-subtitle {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+  margin-top: 2px;
+}
+
+.sh-edit-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+
+.sh-meta-label {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.sh-meta-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+
+.sh-price-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px 20px;
+}
+
+.sh-price-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sh-price-row--head {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.4);
+  padding-top: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sh-ukuran {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.sh-harga-input {
+  font-size: 13px;
+}
+
+.sh-harga-input :deep(.v-field__input) {
+  padding: 4px 0 !important;
+  min-height: unset !important;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.sh-harga-input :deep(.v-field__prefix) {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.4);
+  padding-inline-end: 4px;
+}
+
+.sh-edit-actions {
+  padding: 14px 20px;
+}
+
+.sh-save-btn {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  text-transform: none;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.sh-save-btn:hover {
+  background-color: #9a1717 !important;
 }
 </style>

@@ -66,7 +66,7 @@ const handleIgnore = () => {
     <v-card class="rounded-lg dialog-card">
       <!-- Header -->
       <v-card-title
-        class="bg-primary text-white text-h6 pa-4 d-flex justify-space-between align-center flex-shrink-0"
+        class="dialog-header-red text-white text-h6 pa-4 d-flex justify-space-between align-center flex-shrink-0"
       >
         <div>
           <v-icon start color="white">mdi-ticket-percent</v-icon>
@@ -82,8 +82,8 @@ const handleIgnore = () => {
           <v-col cols="6" class="d-flex flex-column">
             <div class="choice-card choice-card--member d-flex flex-column h-100">
               <div class="choice-title mb-3">
-                <v-icon color="primary" size="20" class="mr-1">mdi-account-star</v-icon>
-                <span class="text-primary font-weight-bold">Diskon Member</span>
+                <v-icon color="#8d1a1a" size="20" class="mr-1">mdi-account-star</v-icon>
+                <span class="member-title-text font-weight-bold">Diskon Member</span>
               </div>
               <div v-if="(diskonPersenMember || 0) > 0" class="info-block info-block--blue mb-3">
                 <div class="info-label">Diskon Level {{ customerLevel || "Standar" }}</div>
@@ -108,9 +108,8 @@ const handleIgnore = () => {
               <div class="mt-auto">
                 <v-btn
                   block
-                  color="primary"
+                  class="choice-btn btn-member"
                   variant="flat"
-                  class="choice-btn"
                   @click="emit('use-member')"
                 >
                   <v-icon start size="16">mdi-check-circle-outline</v-icon>
@@ -237,6 +236,10 @@ const handleIgnore = () => {
 .dialog-card {
   overflow: visible !important;
 }
+.dialog-header-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+}
+
 .choice-card {
   border: 1.5px solid;
   border-radius: 10px;
@@ -245,9 +248,13 @@ const handleIgnore = () => {
   box-sizing: border-box;
 }
 .choice-card--member {
-  border-color: #1976d2;
-  background-color: #f8fbff;
+  border-color: #8d1a1a;
+  background-color: #fdf5f5;
 }
+.member-title-text {
+  color: #8d1a1a;
+}
+
 .choice-card--promo {
   border-color: #e65100;
   background-color: #fff8f0;
@@ -262,8 +269,8 @@ const handleIgnore = () => {
   padding: 10px 12px;
 }
 .info-block--blue {
-  background-color: #e3f0fd;
-  border-left: 3px solid #1976d2;
+  background-color: #fbeaea;
+  border-left: 3px solid #8d1a1a;
 }
 .info-block--orange {
   background-color: #fff3e0;
@@ -292,6 +299,10 @@ const handleIgnore = () => {
   margin-top: 6px;
   color: #1b5e20;
   line-height: 1;
+}
+.btn-member {
+  background: linear-gradient(135deg, #8d1a1a 0%, #6b1414 100%) !important;
+  color: #ffffff !important;
 }
 .info-nominal--orange {
   color: #bf360c;

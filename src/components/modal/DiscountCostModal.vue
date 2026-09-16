@@ -476,8 +476,8 @@ const handleFocusDiscount = () => {
 <template>
   <v-dialog :model-value="true" persistent max-width="500px">
     <v-card>
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title>Atur Diskon Faktur & Biaya Kirim</v-toolbar-title>
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-toolbar-title class="font-weight-bold">Atur Diskon Faktur & Biaya Kirim</v-toolbar-title>
       </v-toolbar>
 
       <v-card-text class="pa-4">
@@ -529,14 +529,14 @@ const handleFocusDiscount = () => {
           </v-col>
 
           <v-col cols="12">
-            <div class="text-caption font-weight-bold text-primary mb-1">
+            <div class="text-caption font-weight-bold promo-label mb-1">
               PROMO GOOGLE MAPS REVIEW (5%)
             </div>
             <v-btn
               :color="localFooter.diskonPersen2 === 5 ? 'success' : 'blue-grey-lighten-4'"
               :variant="localFooter.diskonPersen2 === 5 ? 'flat' : 'outlined'"
               block
-              class="mb-1 font-weight-bold"
+              class="mb-1 font-weight-bold maps-btn"
               :disabled="!isEligibleForMaps"
               @click="toggleMapsPromo"
             >
@@ -587,8 +587,14 @@ const handleFocusDiscount = () => {
 
       <v-card-actions class="dialog-footer">
         <v-spacer />
-        <v-btn size="small" @click="cancel">Batal</v-btn>
-        <v-btn size="small" color="primary" @click="saveAndClose" :loading="isSaving">
+        <v-btn size="small" variant="text" @click="cancel">Batal</v-btn>
+        <v-btn
+          size="small"
+          class="btn-terapkan"
+          variant="flat"
+          @click="saveAndClose"
+          :loading="isSaving"
+        >
           Terapkan
         </v-btn>
       </v-card-actions>
@@ -638,5 +644,94 @@ const handleFocusDiscount = () => {
 
 .text-end input {
   text-align: right;
+}
+
+/* ── Toolbar merah ── */
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+  font-size: 15px;
+}
+
+/* ── Tombol Terapkan ── */
+.btn-terapkan {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-terapkan:hover {
+  filter: brightness(1.08);
+}
+
+/* ── Label promo maps: biru → merah ── */
+.promo-label {
+  color: #b71c1c !important;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+}
+
+.maps-btn.v-btn--variant-outlined {
+  border-color: rgba(183, 28, 28, 0.3) !important;
+  color: #b71c1c !important;
+}
+
+/* ── Field fokus jadi merah, konsisten dengan form utama ── */
+:deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+:deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ FONT CLEANUP ══════════════ */
+
+/* Samakan ukuran label semua field */
+:deep(.v-label) {
+  font-size: 12px !important;
+}
+
+/* Samakan ukuran isi field */
+:deep(input),
+:deep(.v-select__selection-text) {
+  font-size: 13px !important;
+  font-weight: 500;
+}
+
+/* Summary list: label kiri normal, angka kanan tegas */
+.summary-list .v-list-item {
+  padding: 0 4px !important;
+  min-height: 32px;
+}
+
+.summary-list :deep(.v-list-item-title) {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.68);
+  font-weight: 500;
+}
+
+.summary-list :deep(.v-list-item__append) {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.summary-list .summary-total {
+  min-height: 44px;
+}
+
+.summary-list .summary-total :deep(.v-list-item-title) {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.summary-list .summary-total :deep(.v-list-item__append) span {
+  color: #b71c1c;
+}
+
+/* Baris "Diskon Faktur" - beri warna merah tipis biar jadi penanda pengurang */
+.summary-list .v-list-item:nth-child(2) :deep(.v-list-item__append) {
+  color: #b71c1c;
 }
 </style>

@@ -81,10 +81,13 @@ const openDpSearch = () => {
 <template>
   <v-dialog :model-value="true" persistent max-width="800px">
     <v-card>
-      <v-toolbar color="teal" density="compact">
-        <v-toolbar-title>Rincian Uang Muka (DP)</v-toolbar-title>
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-toolbar-title class="font-weight-bold">
+          <v-icon start size="18">mdi-cash-multiple</v-icon>
+          Rincian Uang Muka (DP)
+        </v-toolbar-title>
         <v-spacer />
-        <v-btn icon="mdi-close" @click="$emit('close')"></v-btn>
+        <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
 
       <v-card-text class="pa-0">
@@ -97,46 +100,18 @@ const openDpSearch = () => {
           fixed-header
         >
           <template #[`item.nomor`]="{ item }">
-            <v-text-field
-              :model-value="item.nomor"
-              variant="underlined"
-              density="compact"
-              hide-details
-              readonly
-              filled
-            />
+            <div class="dp-cell dp-cell--bold">{{ item.nomor }}</div>
           </template>
           <template #[`item.tanggal`]="{ item }">
-            <v-text-field
-              :model-value="item.tanggal || '-'"
-              variant="underlined"
-              density="compact"
-              hide-details
-              readonly
-              filled
-              class="text-center"
-            />
+            <div class="dp-cell text-center">{{ item.tanggal || "-" }}</div>
           </template>
           <template #[`item.jenis`]="{ item }">
-            <v-text-field
-              :model-value="item.jenis"
-              variant="underlined"
-              density="compact"
-              hide-details
-              readonly
-              filled
-            />
+            <v-chip size="x-small" color="red-darken-2" variant="flat" class="font-weight-bold">
+              {{ item.jenis }}
+            </v-chip>
           </template>
           <template #[`item.nominal`]="{ item }">
-            <v-text-field
-              :model-value="formatRupiah(item.nominal)"
-              variant="underlined"
-              density="compact"
-              hide-details
-              class="text-end"
-              readonly
-              filled
-            />
+            <div class="dp-cell dp-cell--nominal text-end">{{ formatRupiah(item.nominal) }}</div>
           </template>
           <template #[`item.actions`]="{ item }">
             <v-btn
@@ -204,5 +179,64 @@ const openDpSearch = () => {
 /* Style agar input terlihat jelas bisa diklik */
 .search-input :deep(input) {
   cursor: pointer;
+}
+
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+.modal-toolbar :deep(.v-btn) {
+  color: #ffffff !important;
+}
+
+.desktop-table {
+  max-height: 400px;
+}
+
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 10.5px !important;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+/* Sel readonly - bukan field, biar gak keliatan editable */
+.dp-cell {
+  font-size: 12px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.dp-cell--bold {
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.9);
+}
+.dp-cell--nominal {
+  font-weight: 700;
+  justify-content: flex-end;
+  color: #b71c1c;
+}
+.text-center {
+  justify-content: center;
+}
+.text-end {
+  justify-content: flex-end;
+}
+
+/* Search field row - fokus merah */
+.search-input :deep(input) {
+  cursor: pointer;
+}
+.search-input :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
 }
 </style>

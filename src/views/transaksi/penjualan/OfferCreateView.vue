@@ -12,6 +12,7 @@ import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
 import { useCustomerVisit } from "@/composables/useCustomerVisit";
 import { useFreeGift } from "@/composables/useFreeGift";
+import logoUrl from "@/assets/logo.png";
 
 import PageLayout from "@/components/PageLayout.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
@@ -512,9 +513,6 @@ const tableHeaders: TableHeader[] = [
   { title: "Diskon Rp", key: "diskonRp", width: "50px", align: "end" },
   { title: "Total", key: "total", align: "end", width: "90px" },
   { title: "No. Pengajuan", key: "noPengajuanHarga", width: "90px" },
-  // Perhatian: Ada key 'barcode' ganda di snippet Anda.
-  // Jika ini kolom berbeda, sebaiknya key-nya dibedakan, misal 'barcode2'.
-  { title: "Barcode", key: "barcode_scan", width: "70px" },
   { title: "Actions", key: "actions", sortable: false, width: "40px" },
 ];
 
@@ -2550,6 +2548,7 @@ onMounted(async () => {
         <div class="desktop-form-section footer-summary-section">
           <v-row dense align="center" no-gutters>
             <v-col cols="auto" class="d-flex ga-2 align-center">
+              <!-- tombol2 tetap sama -->
               <v-tooltip text="Input DP (Uang Muka)" location="top">
                 <template #activator="{ props }">
                   <v-btn
@@ -2562,7 +2561,6 @@ onMounted(async () => {
                   />
                 </template>
               </v-tooltip>
-
               <v-tooltip text="Atur Diskon & Biaya Faktur" location="top">
                 <template #activator="{ props }">
                   <v-btn
@@ -2575,7 +2573,6 @@ onMounted(async () => {
                   />
                 </template>
               </v-tooltip>
-
               <v-tooltip text="Lihat Rincian DP Terlampir" location="top">
                 <template #activator="{ props }">
                   <v-btn
@@ -2592,52 +2589,34 @@ onMounted(async () => {
 
             <v-spacer></v-spacer>
 
-            <v-col cols="12" md="6" lg="5">
-              <v-list density="compact" class="pa-0 bg-transparent">
-                <v-list-item v-if="footer.diskonRp > 0" class="px-0 min-h-0">
-                  <v-list-item-title class="text-caption text-error font-weight-bold"
-                    >Total Diskon</v-list-item-title
+            <v-col cols="12" md="7" lg="6">
+              <div class="summary-block">
+                <div class="summary-line" v-if="footer.diskonRp > 0">
+                  <span class="summary-label">Total Diskon</span>
+                  <span class="summary-value text-error"
+                    >- {{ formatRupiah(footer.diskonRp) }}</span
                   >
-                  <template #append>
-                    <span class="text-caption text-error font-weight-bold"
-                      >- {{ formatRupiah(footer.diskonRp) }}</span
-                    >
-                  </template>
-                </v-list-item>
+                </div>
+                <div class="summary-line">
+                  <span class="summary-label">Grand Total</span>
+                  <span class="summary-value">{{ formatRupiah(footer.grandTotal) }}</span>
+                </div>
+                <div class="summary-line" v-if="footer.totalDp > 0">
+                  <span class="summary-label text-teal">Uang Muka (DP)</span>
+                  <span class="summary-value text-teal">- {{ formatRupiah(footer.totalDp) }}</span>
+                </div>
 
-                <v-list-item class="px-0 min-h-0">
-                  <v-list-item-title class="text-caption">Grand Total</v-list-item-title>
-                  <template #append>
-                    <span class="text-subtitle-1 font-weight-bold">{{
-                      formatRupiah(footer.grandTotal)
-                    }}</span>
-                  </template>
-                </v-list-item>
-
-                <v-list-item v-if="footer.totalDp > 0" class="px-0 min-h-0">
-                  <v-list-item-title class="text-caption text-teal font-weight-bold"
-                    >Uang Muka (DP)</v-list-item-title
-                  >
-                  <template #append>
-                    <span class="text-caption text-teal font-weight-bold"
-                      >- {{ formatRupiah(footer.totalDp) }}</span
-                    >
-                  </template>
-                </v-list-item>
-
-                <v-list-item class="px-0 border-t mt-1 pt-1">
-                  <v-list-item-title class="text-subtitle-2 font-weight-bold"
-                    >Sisa Bayar</v-list-item-title
-                  >
-                  <template #append>
-                    <span class="text-h6 font-weight-black text-primary">{{
-                      formatRupiah(footer.belumDibayar)
-                    }}</span>
-                  </template>
-                </v-list-item>
-              </v-list>
+                <div class="sisa-bayar-box">
+                  <span class="sisa-bayar-label">Sisa Bayar</span>
+                  <span class="sisa-bayar-value">{{ formatRupiah(footer.belumDibayar) }}</span>
+                </div>
+              </div>
             </v-col>
           </v-row>
+        </div>
+
+        <div class="brand-footer">
+          <img :src="logoUrl" alt="Logo Toko" class="brand-logo" />
         </div>
       </div>
 
@@ -2711,13 +2690,23 @@ onMounted(async () => {
           fixed-header
           :items-per-page="-1"
         >
+          <template #no-data>
+            <div class="empty-state">
+              <v-icon icon="mdi-cart-outline" size="48" class="mb-2" color="grey-lighten-1" />
+              <div class="text-body-2 text-medium-emphasis">
+                Belum ada barang. Klik <strong>Cari Produk</strong> atau scan barcode untuk mulai.
+              </div>
+            </div>
+          </template>
           <template #[`item.kode`]="{ item, index }">
             <v-text-field
               v-model="item.kode"
               variant="underlined"
               density="compact"
               hide-details
-              placeholder="F1/F2..."
+              placeholder="Cari produk..."
+              append-inner-icon="mdi-magnify"
+              @click:append-inner="openProductSearch(index)"
               @keydown="handleKodeKeydown($event, index)"
             ></v-text-field>
           </template>
@@ -2739,16 +2728,7 @@ onMounted(async () => {
           </template>
 
           <template #[`item.stok`]="{ item }">
-            <v-text-field
-              :model-value="item.stok"
-              variant="underlined"
-              density="compact"
-              hide-details
-              readonly
-              single-line
-              class="text-right"
-              :disabled="!item.kode"
-            ></v-text-field>
+            <div class="stok-readonly-cell">{{ item.kode ? item.stok : "" }}</div>
           </template>
 
           <template #[`item.jumlah`]="{ item }">
@@ -2846,11 +2826,13 @@ onMounted(async () => {
               variant="underlined"
               density="compact"
               hide-details
-              placeholder="F1..."
+              placeholder="No. Pengajuan"
+              append-inner-icon="mdi-magnify"
+              @click:append-inner="openPriceProposalSearch(index)"
               @keydown.f1.prevent="openPriceProposalSearch(index)"
-            >
-            </v-text-field>
+            ></v-text-field>
           </template>
+
           <template #[`body.append`]>
             <tr class="qty-footer-row">
               <td
@@ -3096,12 +3078,22 @@ onMounted(async () => {
 
 /* Pastikan section kanan punya flex layout */
 .right-column.desktop-form-section {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* Penting */
   overflow: hidden;
-  /* Penting */
+  background-color: rgba(183, 28, 28, 0.05);
+  border: 1px solid rgba(183, 28, 28, 0.18);
+}
+
+.right-column.desktop-form-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 20%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Tabel harus mengisi sisa ruang dan tidak scroll body-nya sendiri */
@@ -3123,6 +3115,15 @@ onMounted(async () => {
   /* Scroll ada di sini */
   position: relative;
   /* Penting untuk sticky */
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.06);
 }
 
 /* --- 2. PERBAIKAN TOTAL QTY (STICKY BOTTOM) --- */
@@ -3138,11 +3139,8 @@ onMounted(async () => {
 /* Background row total harus solid agar baris di bawahnya tidak tembus saat di-scroll */
 .qty-footer-row td {
   background-color: rgb(var(--v-theme-surface)) !important;
-  /* Ikut tema (Putih/Hitam) */
-  border-top: 3px solid #0d47a1 !important;
-  /* Border pemisah tebal biru */
-  color: #0d47a1 !important;
-  /* Teks Biru */
+  border-top: 3px solid #b71c1c !important;
+  color: #b71c1c !important;
   font-weight: 900;
   font-size: 14px;
   padding: 0 16px;
@@ -3151,18 +3149,15 @@ onMounted(async () => {
 
 /* --- 3. PERBAIKAN HEADER (TETAP BIRU) --- */
 .desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
-  /* [FIX] Paksa Biru Tua */
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
   color: #ffffff !important;
-  /* [FIX] Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
   border-bottom: none !important;
   z-index: 6;
-  /* Header di atas footer */
 }
 
 /* --- Lain-lain (Tetap Pertahankan) --- */
@@ -3172,7 +3167,7 @@ onMounted(async () => {
   gap: 16px;
   height: 100%;
   overflow: hidden;
-  background-color: transparent;
+  background-color: rgba(183, 28, 28, 0.06);
 }
 
 .left-column,
@@ -3187,23 +3182,19 @@ onMounted(async () => {
 .desktop-form-section {
   padding: 12px 16px;
   border-radius: 8px;
-  background-color: rgb(var(--v-theme-surface));
+  background-color: rgba(183, 28, 28, 0.09);
   color: rgb(var(--v-theme-on-surface));
 }
 
 .left-column .desktop-form-section.header-section {
-  background-color: var(--bg-panel-left);
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background-color: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
 }
 
 .left-column .desktop-form-section.footer-section {
   background-color: rgba(var(--v-theme-warning), 0.05);
   border: 1px solid rgba(var(--v-theme-warning), 0.2);
-}
-
-.right-column.desktop-form-section {
-  background-color: var(--bg-panel-right);
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 /* Fix Input Transparan di Header */
@@ -3230,6 +3221,74 @@ onMounted(async () => {
   font-size: 1.1rem !important;
   padding-top: 10px !important;
   color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+.summary-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.summary-label {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  font-weight: 600;
+}
+
+.summary-value {
+  font-weight: 800;
+  font-size: 16px;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* Kotak Sisa Bayar - dipisah tegas dari rincian di atasnya */
+.sisa-bayar-box {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #b71c1c;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.sisa-bayar-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.sisa-bayar-value {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.brand-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 12px 4px 0;
+  opacity: 0.55;
+}
+
+.brand-logo {
+  max-width: 90px;
+  max-height: 50px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: grayscale(15%);
 }
 
 /* Scrollable Cell & Scanner */
@@ -3259,14 +3318,47 @@ onMounted(async () => {
 }
 
 .footer-summary-section {
+  position: relative;
+  overflow: hidden;
   padding: 10px 16px;
-  border: 1px solid rgba(var(--v-theme-warning), 0.3);
-  border-radius: 8px;
-  background-color: rgba(var(--v-theme-warning), 0.05) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  border-left: 4px solid #b71c1c;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(183, 28, 28, 0.08) 0%, rgba(142, 0, 0, 0.03) 100%);
   min-height: 80px;
-  /* Jaga tinggi agar konsisten */
   display: flex;
   align-items: center;
+}
+
+.footer-summary-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(183, 28, 28, 0.06) 1px, transparent 1px);
+  background-size: 12px 12px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.footer-summary-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+.footer-summary-section .text-h6.text-primary {
+  color: #b71c1c !important;
+}
+
+.stok-readonly-cell {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  padding-right: 12px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 /* Jarak antar tombol ikon */
@@ -3297,8 +3389,8 @@ onMounted(async () => {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
-  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
-  box-shadow: 0 8px 25px -5px rgba(38, 208, 206, 0.4);
+  background: linear-gradient(135deg, #8e0000 0%, #d32f2f 100%);
+  box-shadow: 0 8px 25px -5px rgba(211, 47, 47, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
 }
@@ -3377,12 +3469,41 @@ onMounted(async () => {
   padding-top: 4px !important;
 }
 
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 1px solid rgba(183, 28, 28, 0.15);
+  background-color: rgb(var(--v-theme-surface));
+  font-size: 12px;
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page) {
+  margin-right: auto;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-select) {
+  border-radius: 6px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn) {
+  border-radius: 6px !important;
+  min-width: 32px !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: transparent;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: rgba(183, 28, 28, 0.08);
+  color: #b71c1c;
+}
+
 .free-gift-banner {
   position: relative;
   overflow: hidden;
   border-radius: 12px;
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  box-shadow: 0 8px 20px -4px rgba(56, 239, 125, 0.4);
+  background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
+  box-shadow: 0 8px 20px -4px rgba(255, 82, 82, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.25);
   animation: giftBannerEntrance 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -3463,7 +3584,7 @@ onMounted(async () => {
 }
 .scan-gift-btn {
   flex-shrink: 0;
-  color: #11998e !important;
+  color: #b71c1c !important;
   font-weight: 700;
   animation: giftBtnPulse 2s infinite;
 }
@@ -3486,7 +3607,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 16px 16px 16px 20px;
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
 }
 .header-icon-circle {
   flex-shrink: 0;
@@ -3581,5 +3702,49 @@ onMounted(async () => {
   100% {
     left: 200%;
   }
+}
+
+.desktop-table :deep(.v-field__append-inner) {
+  display: flex;
+  align-items: center;
+}
+
+.desktop-table :deep(.v-field__append-inner .v-icon) {
+  font-size: 18px;
+  color: #b71c1c;
+  background-color: rgba(183, 28, 28, 0.08);
+  border-radius: 6px;
+  padding: 5px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.desktop-table :deep(.v-field__append-inner .v-icon:hover) {
+  background-color: rgba(183, 28, 28, 0.18);
+  transform: scale(1.05);
+}
+
+.desktop-table :deep(.v-field__append-inner .v-icon:active) {
+  transform: scale(0.95);
+}
+
+.desktop-table :deep(.v-field--variant-underlined .v-field__outline__start),
+.desktop-table :deep(.v-field--variant-underlined .v-field__outline__end) {
+  display: none;
+}
+
+.desktop-table :deep(.v-field--variant-underlined.v-field--focused .v-field__outline:after) {
+  border-color: #b71c1c !important;
+  border-width: 2px !important;
+}
+
+.desktop-table :deep(td:has(.v-field__append-inner .v-icon)) {
+  position: relative;
+}
+
+.desktop-table :deep(td:has(.v-field__append-inner .v-icon):hover) {
+  background-color: rgba(183, 28, 28, 0.03);
 }
 </style>

@@ -68,8 +68,11 @@ onMounted(loadItems);
 <template>
   <v-dialog :model-value="true" @update:model-value="$emit('close')" max-width="1200px" persistent>
     <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">Bantuan - Pilih Pengajuan Harga</v-toolbar-title>
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-icon icon="mdi-file-document-outline" class="ms-2 me-1" size="20"></v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+          >Pilih Pengajuan Harga</v-toolbar-title
+        >
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
@@ -81,7 +84,7 @@ onMounted(loadItems);
           variant="outlined"
           density="compact"
           clearable
-          class="mb-4 flex-shrink-0"
+          class="mb-4 flex-shrink-0 search-input"
           hide-details
           autofocus
         ></v-text-field>
@@ -95,9 +98,44 @@ onMounted(loadItems);
           fixed-header
           :items-per-page="-1"
         >
+          <template #loading>
+            <div class="loading-state">
+              <v-progress-circular indeterminate color="#b71c1c" size="32" width="3" class="mb-3" />
+              <div class="text-caption text-medium-emphasis">Memuat data pengajuan harga...</div>
+            </div>
+          </template>
+
+          <template #no-data>
+            <div class="empty-state">
+              <v-icon
+                :icon="search ? 'mdi-file-search-outline' : 'mdi-file-document-outline'"
+                size="48"
+                class="mb-2"
+                color="grey-lighten-1"
+              />
+              <div v-if="search" class="text-body-2 text-medium-emphasis">
+                Tidak ada pengajuan harga yang cocok dengan
+                <strong>"{{ search }}"</strong>.
+              </div>
+              <div v-else class="text-body-2 text-medium-emphasis">
+                Belum ada pengajuan harga untuk customer ini.
+              </div>
+              <v-btn
+                v-if="search"
+                variant="text"
+                size="small"
+                color="#b71c1c"
+                class="mt-2"
+                @click="search = ''"
+              >
+                Hapus pencarian
+              </v-btn>
+            </div>
+          </template>
+
           <template #item="{ item }">
-            <tr @click="selectItem(item)" style="cursor: pointer">
-              <td>{{ item.nomor }}</td>
+            <tr @click="selectItem(item)" class="proposal-row">
+              <td class="font-weight-bold">{{ item.nomor }}</td>
               <td>{{ format(new Date(item.tanggal), "dd/MM/yyyy") }}</td>
               <td>{{ item.customer }}</td>
               <td>{{ item.jenisKaos }}</td>
@@ -114,6 +152,37 @@ onMounted(loadItems);
 <style scoped>
 .dialog-card {
   font-size: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+
+.modal-toolbar :deep(.v-btn) {
+  color: #ffffff !important;
+}
+
+.search-input :deep(.v-field) {
+  border-radius: 8px;
+}
+
+.search-input :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.search-input :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.search-input :deep(.v-icon) {
+  color: rgba(183, 28, 28, 0.7);
 }
 
 .desktop-table {
@@ -124,5 +193,41 @@ onMounted(loadItems);
 .desktop-table :deep(th) {
   padding: 0 8px !important;
   height: 28px !important;
+}
+
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 10.5px !important;
+  border-bottom: none !important;
+}
+
+.proposal-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+}
+
+.desktop-table :deep(tbody tr:active) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+
+.empty-state,
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
 }
 </style>

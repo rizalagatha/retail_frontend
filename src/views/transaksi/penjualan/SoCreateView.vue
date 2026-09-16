@@ -1159,17 +1159,18 @@ const calculateTotals = async () => {
 
   // ========================================================================
   // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon (SOP Baru)
+  // [DISESUAIKAN] Basis P1 sekarang mengikuti DiscountCostModal:
+  // dihitung dari TOTAL BRUTO SEMUA ITEM (totalSoBruto), bukan
+  // newTotalDiscountable (yang exclude JASA/ongkir/desain).
   // ========================================================================
   let baseNominalDiscount = 0;
 
-  // Tentukan Base Discount (Diskon Dasar: P1 atau Rupiah Manual/Promo)
   const diskonP1 = Number(footer.value.diskonPersen1) || 0;
 
   if (diskonP1 > 0) {
-    // Jika ada Diskon Member (P1), gunakan P1 sebagai dasar
-    baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+    // [UBAH] basis pakai totalSoBruto, sama seperti modal
+    baseNominalDiscount = (diskonP1 / 100) * totalSoBruto;
   } else {
-    // Jika P1 = 0, berarti diskon berasal dari Promo Bulanan atau Input Manual Rp
     baseNominalDiscount = baseManualDiscountRp.value;
   }
 

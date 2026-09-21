@@ -7,7 +7,7 @@ import api from "@/services/api";
 import { format, subDays, parseISO } from "date-fns";
 import type { AxiosError } from "axios";
 import PageLayout from "@/components/PageLayout.vue";
-import * as XLSX from "xlsx";
+import type { Borders, Row, Workbook } from "exceljs";
 import AppDataTable from "@/components/AppDataTable.vue";
 
 // --- Tipe Data ---
@@ -69,6 +69,28 @@ interface BarangExportDetail {
   "Nama Barang": string;
   [key: string]: unknown;
 }
+
+// --- Export Excel (ExcelJS, format sama dengan SoView) ---
+interface ColDef {
+  header: string;
+  key: string;
+  width: number;
+  align: "left" | "center" | "right";
+  fmt?: string;
+}
+
+const borderThin: Partial<Borders> = {
+  top: { style: "thin" },
+  left: { style: "thin" },
+  bottom: { style: "thin" },
+  right: { style: "thin" },
+};
+const borderMedium: Partial<Borders> = {
+  top: { style: "medium" },
+  left: { style: "thin" },
+  bottom: { style: "medium" },
+  right: { style: "thin" },
+};
 
 // --- Inisialisasi ---
 const router = useRouter();
@@ -347,104 +369,252 @@ const getRowTextColor = (item: MasterItem) => {
   return "";
 };
 
-// Helper Format Tanggal
-const formatDateIndo = (dateString: string | Date | null | undefined) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
+const styleHeaderRow = (row: Row) => {
+  row.height = 22;
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = borderThin;
+  });
 };
 
-// Helper Auto Width Columns
-const getAutoColumnWidth = (data: Record<string, unknown>[]) => {
-  if (data.length === 0) return [];
-  return Object.keys(data[0]).map((key) => ({
-    wch: Math.max(key.length + 5, 15),
-  }));
-};
-
-// --- 2. Fungsi Export Data ---
-const exportData = async (type: "header" | "detail") => {
-  const fileName =
-    type === "header" ? "Export_BarangDC_Header.xlsx" : "Export_BarangDC_Detail.xlsx";
-
-  // === EXPORT HEADER ===
-  if (type === "header") {
-    try {
-      toast.info("Mengambil data header dari server...");
-
-      const response = await api.get<BarangExportHeader[]>("/barang-dc/export-headers", {
-        params: filters,
-      });
-
-      if (response.data.length === 0) {
-        toast.warning("Tidak ada data header.");
-        return;
-      }
-
-      toast.info("Membuat file Excel Header...");
-
-      // Mapping & Formatting
-      const formattedHeader = response.data.map((item) => ({
-        ...item,
-        // Format Tanggal
-        DateCreate: item.DateCreate ? formatDateIndo(item.DateCreate) : "",
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(formattedHeader);
-
-      // Auto Width
-      worksheet["!cols"] = getAutoColumnWidth(formattedHeader);
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Barang DC Header");
-      XLSX.writeFile(workbook, fileName);
-
-      toast.success("Header berhasil diekspor.");
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Gagal mengekspor data header."));
-    }
-
-    // === EXPORT DETAIL ===
-  } else if (type === "detail") {
-    try {
-      toast.info("Mengambil data detail dari server...");
-
-      const response = await api.get<BarangExportDetail[]>("/barang-dc/export-details", {
-        params: filters,
-      });
-
-      if (response.data.length === 0) {
-        toast.warning("Tidak ada data detail.");
-        return;
-      }
-
-      toast.info("Membuat file Excel Detail...");
-
-      // Karena detail ini tidak ada kolom tanggal (berdasarkan query service),
-      // kita langsung pakai datanya, tapi tetap bisa kita map jika mau memastikan format number.
-      // Namun query SQL sudah rapi, jadi langsung saja.
-
-      const worksheet = XLSX.utils.json_to_sheet(response.data);
-
-      // Auto Width
-      worksheet["!cols"] = getAutoColumnWidth(response.data);
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Barang DC Detail");
-      XLSX.writeFile(workbook, fileName);
-
-      toast.success("Detail berhasil diekspor.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      toast.error("Gagal mengekspor data detail: " + message);
-    }
+const formatTgl = (v: unknown) => {
+  if (!v) return "-";
+  try {
+    return format(parseISO(String(v)), "dd/MM/yyyy");
+  } catch {
+    return "-";
   }
 };
+
+const downloadWorkbook = async (workbook: Workbook, fileName: string) => {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// === EXPORT HEADER ===
+const exportHeaderData = async () => {
+  toast.info("Mengambil data header dari server...");
+  try {
+    const response = await api.get<BarangExportHeader[]>("/barang-dc/export-headers", {
+      params: filters,
+    });
+    if (!response.data?.length) return toast.warning("Tidak ada data header.");
+
+    toast.info("Membuat file Excel Header...");
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Barang DC Header");
+
+    const cols: ColDef[] = [
+      { header: "Kode", key: "Kode", width: 22, align: "left" },
+      { header: "Nama Barang", key: "Nama Barang", width: 50, align: "left" },
+      { header: "Kategori", key: "Kategori", width: 16, align: "left" },
+      { header: "Tgl Buat", key: "DateCreate", width: 13, align: "center" },
+      { header: "Otomatis", key: "Otomatis", width: 10, align: "center" },
+      { header: "Log Stok", key: "AdaStok", width: 10, align: "center" },
+      { header: "Status", key: "Status", width: 12, align: "center" },
+    ];
+
+    sheet.columns = cols.map((c) => ({ width: c.width }));
+    styleHeaderRow(sheet.addRow(cols.map((c) => c.header)));
+
+    // Warna baris sama dengan grid: PASIF = merah, tanpa log stok = biru
+    const getRowBg = (item: BarangExportHeader): string | undefined => {
+      if (item.Status === "PASIF") return "FFFFEBEE";
+      if (item.AdaStok === "N") return "FFE3F2FD";
+      return undefined;
+    };
+
+    response.data.forEach((item) => {
+      const rowBg = getRowBg(item);
+      const values = cols.map((c) =>
+        c.key === "DateCreate"
+          ? formatTgl(item.DateCreate)
+          : (item[c.key] as string | number | undefined) ?? ""
+      );
+
+      const row = sheet.addRow(values);
+      row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const col = cols[colNum - 1];
+        cell.border = borderThin;
+        cell.alignment = { horizontal: col?.align ?? "left", vertical: "middle" };
+        if (rowBg) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
+        }
+        if (col?.key === "Status") {
+          cell.font = {
+            bold: true,
+            color: { argb: item.Status === "PASIF" ? "FFC62828" : "FF2E7D32" },
+          };
+        }
+        if (col?.key === "AdaStok" && item.AdaStok === "N") {
+          cell.font = { bold: true, color: { argb: "FF1565C0" } };
+        }
+      });
+    });
+
+    sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+    await downloadWorkbook(
+      workbook,
+      `Export_BarangDC_Header_${filters.startDate}_${filters.endDate}.xlsx`
+    );
+    toast.success("File Header berhasil diekspor.");
+  } catch (err) {
+    console.error(err);
+    toast.error(getErrorMessage(err, "Gagal mengekspor data header."));
+  }
+};
+
+// === EXPORT DETAIL ===
+const exportDetailData = async () => {
+  toast.info("Mengambil data detail dari server...");
+  try {
+    const response = await api.get<BarangExportDetail[]>("/barang-dc/export-details", {
+      params: filters,
+    });
+    if (!response.data?.length) return toast.warning("Tidak ada data detail.");
+
+    toast.info("Membuat file Excel Detail...");
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    type DetailRow = Record<string, string | number | null | undefined>;
+    const data = response.data as DetailRow[];
+
+    // ── Sheet 1: Detail per ukuran ─────────────────────
+    const sheet1 = workbook.addWorksheet("Barang DC Detail");
+
+    const cols: ColDef[] = [
+      { header: "Kode Barang", key: "Kode Barang", width: 22, align: "left" },
+      { header: "Nama Barang", key: "Nama Barang", width: 50, align: "left" },
+      { header: "Ukuran", key: "Ukuran", width: 10, align: "center" },
+      { header: "Barcode", key: "Barcode", width: 20, align: "left" },
+      { header: "HPP", key: "HPP", width: 14, align: "right", fmt: "#,##0" },
+      { header: "Harga Jual", key: "Harga Jual", width: 14, align: "right", fmt: "#,##0" },
+      { header: "Status", key: "Status", width: 12, align: "center" },
+    ];
+    // Kolom identitas hanya tampil di baris pertama tiap kode barang
+    const identityKeys = new Set(["Kode Barang", "Nama Barang", "Status"]);
+
+    sheet1.columns = cols.map((c) => ({ width: c.width }));
+    styleHeaderRow(sheet1.addRow(cols.map((c) => c.header)));
+
+    const kodeColors: Record<string, string> = {};
+    let toggle = false;
+    let prevKode = "";
+
+    data.forEach((row) => {
+      const kode = String(row["Kode Barang"] ?? "");
+      if (!(kode in kodeColors)) {
+        kodeColors[kode] = toggle ? "FFF3F8FD" : "FFFAFAFA";
+        toggle = !toggle;
+      }
+      const isNewKode = kode !== prevKode;
+      prevKode = kode;
+
+      const values = cols.map((c) => {
+        if (identityKeys.has(c.key) && !isNewKode) return "";
+        const v = row[c.key];
+        // Barcode dipaksa string supaya tidak berubah jadi notasi ilmiah
+        if (c.key === "Barcode") return v == null ? "" : String(v);
+        return v ?? "";
+      });
+
+      const dataRow = sheet1.addRow(values);
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const col = cols[colNum - 1];
+        cell.border = {
+          left: { style: "thin" },
+          right: { style: "thin" },
+          bottom: { style: "thin" },
+          top: isNewKode ? { style: "medium" } : { style: "thin" },
+        };
+        cell.alignment = { horizontal: col?.align ?? "left", vertical: "middle" };
+        if (col?.fmt) cell.numFmt = col.fmt;
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: kodeColors[kode] } };
+      });
+    });
+
+    // ── Sheet 2: Ringkasan per Kode Barang ─────────────
+    const sheet2 = workbook.addWorksheet("Ringkasan per Kode");
+
+    const sumCols: ColDef[] = [
+      { header: "Kode Barang", key: "kode", width: 22, align: "left" },
+      { header: "Nama Barang", key: "nama", width: 50, align: "left" },
+      { header: "Total Ukuran", key: "total", width: 14, align: "right", fmt: "#,##0" },
+      { header: "Status", key: "status", width: 12, align: "center" },
+    ];
+
+    sheet2.columns = sumCols.map((c) => ({ width: c.width }));
+    styleHeaderRow(sheet2.addRow(sumCols.map((c) => c.header)));
+
+    const grouped = new Map<string, { first: DetailRow; total: number }>();
+    data.forEach((row) => {
+      const kode = String(row["Kode Barang"] ?? "");
+      const grp = grouped.get(kode);
+      if (grp) grp.total += 1;
+      else grouped.set(kode, { first: row, total: 1 });
+    });
+
+    let grandUkuran = 0;
+    grouped.forEach((grp, kode) => {
+      grandUkuran += grp.total;
+      const row = sheet2.addRow([
+        kode,
+        grp.first["Nama Barang"] ?? "",
+        grp.total,
+        grp.first["Status"] ?? "",
+      ]);
+      row.eachCell({ includeEmpty: true }, (cell, i) => {
+        cell.border = borderThin;
+        cell.alignment = { horizontal: sumCols[i - 1]?.align ?? "left", vertical: "middle" };
+        if (sumCols[i - 1]?.fmt) cell.numFmt = sumCols[i - 1].fmt!;
+      });
+    });
+
+    // Grand total
+    const totalRowNum = sheet2.rowCount + 1;
+    const gtRow = sheet2.addRow(["GRAND TOTAL :", "", grandUkuran, `${grouped.size} barang`]);
+    sheet2.mergeCells(`A${totalRowNum}:B${totalRowNum}`);
+    gtRow.height = 22;
+    gtRow.eachCell({ includeEmpty: true }, (cell, i) => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = borderMedium;
+      cell.alignment = { horizontal: sumCols[i - 1]?.align ?? "right", vertical: "middle" };
+      if (sumCols[i - 1]?.fmt) cell.numFmt = sumCols[i - 1].fmt!;
+    });
+
+    sheet1.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+    sheet2.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+    await downloadWorkbook(
+      workbook,
+      `Export_BarangDC_Detail_${filters.startDate}_${filters.endDate}.xlsx`
+    );
+    toast.success("File Detail berhasil diekspor (2 sheet).");
+  } catch (err) {
+    console.error(err);
+    toast.error(getErrorMessage(err, "Gagal mengekspor data detail."));
+  }
+};
+
+// Dispatcher supaya template tidak perlu diubah
+const exportData = (type: "header" | "detail") =>
+  type === "header" ? exportHeaderData() : exportDetailData();
 
 onMounted(fetchMasterData);
 watch(

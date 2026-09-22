@@ -9,7 +9,8 @@ import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import StoreSearchModal from "@/components/lookup/StoreSearchModal.vue";
-import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue"; // Kita reuse modal ini
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 import type { AxiosError } from "axios";
 
 // --- Tipe Data ---
@@ -29,11 +30,6 @@ interface Item {
   jumlah: number;
   barcode: string;
   harga?: number;
-}
-interface Product {
-  kode: string;
-  nama: string;
-  ukuran: string;
 }
 
 interface ProductDetail {
@@ -69,8 +65,8 @@ const header = reactive<Header>({
 const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const dialog = reactive({ storeSearch: false, productSearch: false });
-const isMultiSelectProduct = ref(false);
+const dialog = reactive({ storeSearch: false });
+const isProductPanelVisible = ref(false);
 const activeRowIndex = ref(0);
 const scannedBarcode = ref("");
 const dialogConfirm = reactive({
@@ -117,19 +113,19 @@ const onStoreSelected = (store: { kode: string; nama: string }) => {
   dialog.storeSearch = false;
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number) => {
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti;
-  dialog.productSearch = true;
+  isProductPanelVisible.value = true;
 };
 
-const onProductsSelected = async (selectedProducts: Product[]) => {
-  dialog.productSearch = false;
-
-  // filter produk yang belum ada di items
-  const productsToAdd = selectedProducts.filter(
+const onPanelProductsAdded = async (selections: ProductPanelSelection[]) => {
+  const productsToAdd = selections.filter(
     (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
   );
+
+  if (productsToAdd.length === 0 && selections.length > 0) {
+    return toast.info("Semua produk yang dipilih sudah ada di daftar.");
+  }
 
   try {
     const detailPromises = productsToAdd.map((p) =>
@@ -145,7 +141,12 @@ const onProductsSelected = async (selectedProducts: Product[]) => {
       jumlah: 1,
     })) as Item[];
 
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 1, ...newItems);
+    } else {
+      items.value.push(...newItems);
+    }
     addNewRow();
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message: string }>;
@@ -230,6 +231,7 @@ const resetForm = () => {
 };
 
 const closeForm = () => {
+  markAsSaved(); // konfirmasi lokal sudah didapat, cegah guard global protes lagi
   router.push({ name: "MutasiKirim" });
 };
 
@@ -302,16 +304,9 @@ const handleBarcodeScan = async () => {
 };
 
 const handleProductKeydown = (e: KeyboardEvent, index: number) => {
-  switch (e.key) {
-    case "F1":
-      e.preventDefault();
-      openProductSearch(index, false);
-      break;
-
-    case "F2":
-      e.preventDefault();
-      openProductSearch(index, true);
-      break;
+  if (e.key === "F1" || e.key === "F2") {
+    e.preventDefault();
+    openProductSearch(index);
   }
 };
 
@@ -368,6 +363,14 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-package-variant-closed">
     <template #header-actions>
+      <v-btn
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        @click="isProductPanelVisible = true"
+      >
+        Cari Produk
+      </v-btn>
       <v-btn
         size="small"
         prepend-icon="mdi-content-save"
@@ -470,7 +473,9 @@ onMounted(async () => {
               variant="underlined"
               density="compact"
               hide-details
-              placeholder="F1/F2..."
+              placeholder="Cari produk..."
+              append-inner-icon="mdi-magnify"
+              @click:append-inner="openProductSearch(index)"
               @keydown="handleProductKeydown($event, index)"
             />
           </template>
@@ -511,13 +516,10 @@ onMounted(async () => {
       @close="dialog.storeSearch = false"
       @store-selected="onStoreSelected"
     />
-    <MintaBarangSearchModal
-      v-if="dialog.productSearch"
-      source="mutasi-kirim"
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
       :gudang="authStore.user?.cabang || ''"
-      :multi="isMultiSelectProduct"
-      @close="dialog.productSearch = false"
-      @products-selected="onProductsSelected"
+      @products-added="onPanelProductsAdded"
     />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>

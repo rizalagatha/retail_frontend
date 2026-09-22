@@ -656,7 +656,8 @@ onMounted(() => {
     <template #header-actions>
       <v-btn
         size="small"
-        color="secondary"
+        variant="tonal"
+        class="btn-header-action"
         @click="testPrinter"
         :loading="isPrinting"
         :disabled="isPrinting || isSaving"
@@ -670,13 +671,26 @@ onMounted(() => {
         size="small"
         @click="save"
         :loading="isSaving"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-content-save"
       >
         Simpan & Cetak
       </v-btn>
-      <v-btn size="small" @click="resetForm" prepend-icon="mdi-refresh">Baru</v-btn>
-      <v-btn size="small" @click="router.push('/daftar/cetak-barcode')" prepend-icon="mdi-close"
+      <v-btn
+        size="small"
+        variant="tonal"
+        class="btn-header-action"
+        @click="resetForm"
+        prepend-icon="mdi-refresh"
+        >Baru</v-btn
+      >
+      <v-btn
+        size="small"
+        variant="tonal"
+        class="btn-header-action"
+        @click="router.push('/daftar/cetak-barcode')"
+        prepend-icon="mdi-close"
         >Tutup</v-btn
       >
     </template>
@@ -725,10 +739,10 @@ onMounted(() => {
                 inline
                 hide-details
                 density="compact"
-                class="mt-n1"
+                class="mt-n1 radio-group-red"
               >
-                <v-radio label="Kaosan" value="Kaosan" color="primary"></v-radio>
-                <v-radio label="Reszo" value="Reszo" color="primary"></v-radio>
+                <v-radio label="Kaosan" value="Kaosan" color="#b71c1c"></v-radio>
+                <v-radio label="Reszo" value="Reszo" color="#b71c1c"></v-radio>
               </v-radio-group>
             </v-col>
 
@@ -736,13 +750,18 @@ onMounted(() => {
 
             <v-col cols="12">
               <v-label class="mb-2 text-caption text-medium-emphasis">Opsi Cetak</v-label>
-              <v-radio-group v-model="selectedPrinter" hide-details density="compact" class="mt-n1">
-                <v-radio label="XP-360B (Layout A)" value="XP-360B" color="primary"></v-radio>
-                <v-radio label="360B (Layout B)" value="360B" color="primary"></v-radio>
+              <v-radio-group
+                v-model="selectedPrinter"
+                hide-details
+                density="compact"
+                class="mt-n1 radio-group-red"
+              >
+                <v-radio label="XP-360B (Layout A)" value="XP-360B" color="#b71c1c"></v-radio>
+                <v-radio label="360B (Layout B)" value="360B" color="#b71c1c"></v-radio>
                 <v-radio
                   label="Postek C168/200s (3 Kolom)"
                   value="POSTEK"
-                  color="primary"
+                  color="#b71c1c"
                 ></v-radio>
               </v-radio-group>
             </v-col>
@@ -753,7 +772,7 @@ onMounted(() => {
                 density="compact"
                 hide-details
                 class="mt-n2"
-                color="primary"
+                color="#b71c1c"
               ></v-checkbox>
             </v-col>
           </v-row>
@@ -781,7 +800,7 @@ onMounted(() => {
             :headers="tableHeaders"
             :items="items"
             density="compact"
-            class="desktop-table header-browse-blue"
+            class="desktop-table"
             fixed-header
             height="100%"
             :items-per-page="-1"
@@ -853,7 +872,7 @@ onMounted(() => {
 
     <v-dialog v-model="isPrintPreviewVisible" max-width="600px" scrollable>
       <v-card>
-        <v-toolbar color="primary" density="compact">
+        <v-toolbar class="toolbar-red" density="compact">
           <v-toolbar-title>Pratinjau Cetak Barcode</v-toolbar-title>
           <v-spacer></v-spacer>
           <v-btn icon="mdi-close" @click="closePreview"></v-btn>
@@ -902,7 +921,12 @@ onMounted(() => {
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="closePreview">Tutup</v-btn>
-          <v-btn color="primary" @click="triggerBrowserPrint" prepend-icon="mdi-printer">
+          <v-btn
+            class="btn-primary-red"
+            variant="flat"
+            @click="triggerBrowserPrint"
+            prepend-icon="mdi-printer"
+          >
             Cetak via Browser
           </v-btn>
         </v-card-actions>
@@ -1031,6 +1055,83 @@ onMounted(() => {
 
 .v-text-field :deep(input) {
   color: rgb(var(--v-theme-on-surface));
+}
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ PANEL KIRI AKSEN MERAH ══════════════ */
+.left-column .desktop-form-section {
+  border-left: 4px solid #b71c1c;
+  background-color: rgba(183, 28, 28, 0.03);
+}
+
+/* ══════════════ RADIO GROUP MERAH ══════════════ */
+.radio-group-red :deep(.v-selection-control__input .v-icon) {
+  color: rgba(183, 28, 28, 0.5);
+}
+
+.radio-group-red :deep(.v-selection-control--dirty .v-icon) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ SCANNER FIELD FOKUS MERAH ══════════════ */
+.scanner-wrapper :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.desktop-table :deep(thead tr th span),
+.desktop-table :deep(thead tr th .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.05) !important;
+}
+
+/* ══════════════ DIALOG PREVIEW CETAK — TOOLBAR MERAH ══════════════ */
+.toolbar-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+.toolbar-red :deep(.v-toolbar-title),
+.toolbar-red :deep(.v-btn) {
+  color: #ffffff !important;
 }
 </style>
 

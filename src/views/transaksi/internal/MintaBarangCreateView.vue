@@ -10,7 +10,8 @@ import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import { format, parseISO } from "date-fns";
 import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
-import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 import { AxiosError } from "axios";
 import axios from "axios";
 
@@ -27,16 +28,6 @@ interface FormHeader {
   customer: Customer | null;
   keterangan: string;
   gudang?: { kode: string; nama?: string };
-}
-
-interface Product {
-  kode: string;
-  nama: string;
-  ukuran?: string;
-  stok?: number;
-  harga?: number;
-  barcode?: string;
-  // tambahkan properti lain sesuai API
 }
 
 interface Item {
@@ -148,8 +139,7 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const isSoSearchVisible = ref(false);
 const isCustomerSearchVisible = ref(false);
-const isProductSearchVisible = ref(false);
-const isMultiSelectProduct = ref(false);
+const isProductPanelVisible = ref(false);
 const activeRowIndex = ref(0);
 const isConfirmDialogVisible = ref(false);
 const confirmText = ref("");
@@ -194,47 +184,46 @@ const resetForm = () => {
   markAsSaved();
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number) => {
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti;
-  isProductSearchVisible.value = true;
+  isProductPanelVisible.value = true;
 };
 
-const onProductsSelected = (selectedProducts: Product[]) => {
-  isProductSearchVisible.value = false;
-  if (!selectedProducts || selectedProducts.length === 0) return;
-
-  // Saring produk duplikat yang sudah ada di grid
-  const productsToAdd = selectedProducts.filter(
-    (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
-  );
-
-  if (productsToAdd.length === 0) {
-    toast.info("Semua produk yang dipilih sudah ada di dalam daftar.");
-    if (!items.value.some((item) => !item.kode)) {
-      addNewRow();
+const onPanelProductsAdded = (selections: ProductPanelSelection[]) => {
+  selections.forEach((sel) => {
+    // Cek duplikat kode+ukuran — kalau sudah ada, tambahkan qty-nya saja
+    const existing = items.value.find(
+      (item) => item.kode === sel.kode && item.ukuran === sel.ukuran
+    );
+    if (existing) {
+      existing.jumlah = (existing.jumlah || 0) + sel.jumlah;
+      return;
     }
-    return;
-  }
 
-  // Ubah produk terpilih menjadi format item untuk grid
-  // Tidak perlu API call tambahan karena semua data (stok, harga) sudah ada
-  const newItems = productsToAdd.map((product) => ({
-    ...product, // Salin semua properti dari produk (kode, nama, ukuran, stok, harga, barcode)
-    id: Date.now() + Math.random(),
-    jumlah: 1, // Atur jumlah awal
-    // Set nilai default untuk kolom lain jika perlu
-    stokmin: 0,
-    stokmax: 0,
-    sudahminta: 0,
-    sj: 0,
-    mino: 0,
-  }));
+    const newItem: Item = {
+      id: Date.now() + Math.random(),
+      kode: sel.kode,
+      nama: sel.nama,
+      ukuran: sel.ukuran || "-",
+      stok: sel.stok || 0,
+      harga: sel.harga || 0,
+      jumlah: sel.jumlah,
+      barcode: sel.barcode || sel.kode,
+      stokmin: 0,
+      stokmax: 0,
+      sudahminta: 0,
+      sj: 0,
+      mino: 0,
+    };
 
-  // Ganti baris kosong saat ini dengan item-item baru
-  items.value.splice(activeRowIndex.value, 1, ...newItems);
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+  });
 
-  // Tambahkan baris kosong baru di akhir
   addNewRow();
 };
 
@@ -501,16 +490,9 @@ const handleBarcodeScan = async () => {
 };
 
 const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
-  switch (e.key) {
-    case "F1":
-      e.preventDefault();
-      openProductSearch(index, false);
-      break;
-
-    case "F2":
-      e.preventDefault();
-      openProductSearch(index, true);
-      break;
+  if (e.key === "F1" || e.key === "F2") {
+    e.preventDefault();
+    openProductSearch(index);
   }
 };
 
@@ -601,6 +583,14 @@ const loadFromAutomasi = async (ids: string[]) => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-playlist-plus">
     <template #header-actions>
+      <v-btn
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        @click="isProductPanelVisible = true"
+      >
+        Cari Produk
+      </v-btn>
       <v-btn
         size="small"
         prepend-icon="mdi-content-save"
@@ -746,7 +736,9 @@ const loadFromAutomasi = async (ids: string[]) => {
                 variant="underlined"
                 density="compact"
                 hide-details
-                placeholder="F1/F2..."
+                placeholder="Cari produk..."
+                append-inner-icon="mdi-magnify"
+                @click:append-inner="openProductSearch(index)"
                 @keydown="handleKodeKeydown($event, index)"
               />
             </template>
@@ -812,13 +804,10 @@ const loadFromAutomasi = async (ids: string[]) => {
       @close="isCustomerSearchVisible = false"
       @customer-selected="onCustomerSelected"
     />
-    <MintaBarangSearchModal
-      v-if="isProductSearchVisible"
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
       :gudang="authStore.user?.cabang || ''"
-      :multi="true"
-      source="minta-barang"
-      @close="isProductSearchVisible = false"
-      @products-selected="onProductsSelected"
+      @products-added="onPanelProductsAdded"
     />
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>

@@ -17,8 +17,11 @@ import "./styles/desktop-theme.css";
 // (2) Impor Ikon Material Design (opsional tapi direkomendasikan)
 import "@mdi/font/css/materialdesignicons.css";
 
-import Toast from "vue-toastification";
+import Toast, { useToast } from "vue-toastification";
 import "vue-toastification/dist/index.css";
+
+// (PWA) Registrasi service worker + notifikasi update
+import { registerSW } from "virtual:pwa-register";
 
 // [PERBAIKAN 1]: Ubah import menggunakan vue-gtag-next
 import VueGtag, { trackRouter } from "vue-gtag-next";
@@ -80,6 +83,23 @@ app.use(Toast, {
   closeButton: "button",
   icon: true,
   rtl: false,
+});
+
+// (PWA) Daftarkan service worker. Kalau ada versi baru ter-deploy,
+// tampilkan toast supaya user bisa refresh untuk update.
+const toast = useToast();
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    toast.info("Versi baru tersedia. Klik untuk memuat ulang.", {
+      timeout: false,
+      closeOnClick: false,
+      onClick: () => updateSW(true),
+    });
+  },
+  onOfflineReady() {
+    toast.success("Aplikasi siap dipakai secara offline.");
+  },
 });
 
 // [PERBAIKAN 2]: Setup GA4 khusus untuk subdomain tracking

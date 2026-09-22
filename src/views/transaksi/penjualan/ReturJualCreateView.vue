@@ -102,6 +102,11 @@ const { markAsSaved } = useUnsavedChanges();
 const MENU_ID = "29";
 const isEditMode = computed(() => !!route.params.nomor);
 const pageTitle = computed(() => (isEditMode.value ? "Ubah Retur Jual" : "Buat Retur Jual"));
+const KODE_CUSTOMER_BEBAS_QTY_RETUR = "K0100351";
+
+const isQtyLimitBypassed = computed(() => {
+  return header.customer?.kode === KODE_CUSTOMER_BEBAS_QTY_RETUR;
+});
 
 // [PERBAIKAN] Definisi Initial State
 const initialHeaderState: Header = {
@@ -166,7 +171,7 @@ const onInvoiceSelected = async (invoice: { nomor: string; tanggal: string }) =>
   const isKPR = authStore.user?.cabang === "KPR";
 
   // Flag pembukaan akses sementara untuk K10
-  const isTemporaryOpen = authStore.user?.cabang === "K01" && new Date() < new Date("2026-09-20");
+  const isTemporaryOpen = authStore.user?.cabang === "K01" && new Date() < new Date("2026-09-30");
 
   // Jika bukan KON, bukan K10 (temporary), dan invoice > 1 hari, maka blokir
   if (!isKON && !isKPR && !isTemporaryOpen && hariSejakInvoice > 1) {
@@ -361,7 +366,12 @@ const handleBarcodeScan = async () => {
   if (existingItem) {
     const newQty = (existingItem.jumlah || 0) + 1;
     // Validasi jumlah retur tidak melebihi qty invoice
-    if (header.invoice && newQty > existingItem.qtyInv - existingItem.sudah) {
+    // [BEBAS] Customer K0100351 dikecualikan dari validasi ini
+    if (
+      header.invoice &&
+      !isQtyLimitBypassed.value &&
+      newQty > existingItem.qtyInv - existingItem.sudah
+    ) {
       toast.error("Jumlah retur melebihi jumlah yang dapat diretur dari invoice.");
     } else {
       existingItem.jumlah = newQty;
@@ -782,7 +792,11 @@ watch(
               class="text-end"
               density="compact"
               hide-details
-              :rules="[(v) => v <= item.qtyInv - item.sudah || `Maks: ${item.qtyInv - item.sudah}`]"
+              :rules="
+                isQtyLimitBypassed
+                  ? []
+                  : [(v) => v <= item.qtyInv - item.sudah || `Maks: ${item.qtyInv - item.sudah}`]
+              "
               min="0"
             />
           </template>

@@ -2956,10 +2956,10 @@ const preventPaste = (e: ClipboardEvent) => {
 };
 
 const handleBarcodeScanVerify = async () => {
-  const barcode = scannedBarcode.value;
+  const barcode = scannedBarcode.value.trim();
   if (!barcode) return;
 
-  const matchingItems = items.value.filter((i) => i.barcode === barcode && i.kode);
+  const matchingItems = items.value.filter((i) => String(i.barcode).trim() === barcode && i.kode);
 
   // KASUS A: Barcode belum ada di grid sama sekali → tambah barang
   // (tetap pakai barcode SKU-level, jalur ini di luar scope serialisasi)

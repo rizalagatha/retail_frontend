@@ -67,6 +67,8 @@ interface OfferHeader {
   level: string;
   keterangan: string;
   alasan: string;
+  tanggalCloseManual: string;
+  lamaHari: number | null;
   created: string;
   alasanClose: string;
   noINV: string;
@@ -168,11 +170,13 @@ const tableHeaders = ref<DataTableHeader[]>([
   { title: "Telepon", key: "telp", width: 120 },
   { title: "Level", key: "level", width: 150 },
   { title: "Keterangan", key: "keterangan", width: 250 },
+  { title: "Tanggal Close Manual", key: "tanggalCloseManual", width: 150, align: "center" },
   { title: "Alasan Close", key: "alasan", width: 250 },
   { title: "User", key: "created", width: 120 },
   { title: "User Modified", key: "userModified", width: 150 },
   { title: "Date Modified", key: "dateModified", width: 160 },
   { title: "Status", key: "status", align: "center", width: 120 },
+  { title: "Lama Hari", key: "lamaHari", align: "center", width: 100 },
 ]);
 
 const detailHeaders = [
@@ -295,8 +299,7 @@ const resetAllFilters = () => {
 const noFilterColumns = ["data-table-select", "data-table-expand"];
 
 const formatFilterValue = (key: string, val: string | number | undefined | null): string => {
-  // Kolom tanggal → format dd/MM/yyyy
-  if (["tanggal", "tempo", "dateModified", "tanggalSO"].includes(key)) {
+  if (["tanggal", "tempo", "dateModified", "tanggalSO", "tanggalCloseManual"].includes(key)) {
     if (!val) return "-";
     if (typeof val === "string" || typeof val === "number") {
       try {
@@ -306,8 +309,6 @@ const formatFilterValue = (key: string, val: string | number | undefined | null)
       }
     }
   }
-
-  // Default fallback
   return String(val ?? "-");
 };
 
@@ -587,6 +588,13 @@ const exportHeaderData = async () => {
       { header: "Telepon", key: "telp", width: 14, align: "left" as const },
       { header: "Level", key: "level", width: 18, align: "left" as const },
       { header: "Keterangan", key: "keterangan", width: 30, align: "left" as const },
+      {
+        header: "Tgl Close Manual",
+        key: "tanggalCloseManual",
+        width: 16,
+        align: "center" as const,
+      },
+      { header: "Lama Hari", key: "lamaHari", width: 10, align: "center" as const },
       { header: "Alasan Close", key: "alasan", width: 25, align: "left" as const },
       { header: "User", key: "created", width: 12, align: "center" as const },
       { header: "User Modified", key: "userModified", width: 14, align: "center" as const },
@@ -618,7 +626,12 @@ const exportHeaderData = async () => {
 
       const values = cols.map((c) => {
         if (c.key === "_status") return status;
-        if (c.key === "tanggal" || c.key === "tanggalSO" || c.key === "tempo") {
+        if (
+          c.key === "tanggal" ||
+          c.key === "tanggalSO" ||
+          c.key === "tempo" ||
+          c.key === "tanggalCloseManual"
+        ) {
           const v = item[c.key as keyof OfferHeader];
           return v ? format(new Date(String(v)), "dd/MM/yyyy") : "-";
         }
@@ -1376,7 +1389,10 @@ onBeforeRouteLeave((to, from, next) => {
             <td :class="getRowTextColor(item)">
               <template
                 v-if="
-                  header.key === 'tanggal' || header.key === 'tempo' || header.key === 'tanggalSO'
+                  header.key === 'tanggal' ||
+                  header.key === 'tempo' ||
+                  header.key === 'tanggalSO' ||
+                  header.key === 'tanggalCloseManual'
                 "
               >
                 {{ item[header.key] ? format(new Date(item[header.key]), "dd/MM/yyyy") : "-" }}
@@ -1405,6 +1421,17 @@ onBeforeRouteLeave((to, from, next) => {
 
               <template v-else-if="header.key === 'userModified'">
                 {{ item.userModified || "-" }}
+              </template>
+              <template v-else-if="header.key === 'lamaHari'">
+                <v-chip
+                  v-if="item.lamaHari !== null && item.lamaHari !== undefined"
+                  size="x-small"
+                  :color="item.lamaHari > 14 ? 'error' : item.lamaHari > 7 ? 'warning' : 'success'"
+                  variant="tonal"
+                >
+                  {{ item.lamaHari }} hari
+                </v-chip>
+                <span v-else>-</span>
               </template>
               <template v-else>
                 {{ item[header.key] }}

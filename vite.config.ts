@@ -64,6 +64,16 @@ export default defineConfig({
         // Jangan precache asset gambar produk yang berat (public/images, 139MB)
         globPatterns: ["**/*.{js,css,html,ico,svg}"],
         globIgnores: ["**/manual-program.pdf"],
+        // PENTING: jangan biarkan SW mengarahkan navigasi ke index.html (SPA fallback)
+        // untuk request yang sebenarnya menuju file/API, bukan halaman app.
+        // Tanpa ini, klik link gambar/PDF/file lain akan malah menampilkan
+        // halaman 404 versi Vue Router, bukan file aslinya.
+        navigateFallbackDenylist: [
+          /^\/api\//, // semua endpoint backend, termasuk /api/uploads/*
+          /^\/images\//,
+          /^\/uploads\//,
+          /\.[a-zA-Z0-9]{2,5}$/, // fallback umum: URL apapun yang berakhiran ekstensi file
+        ],
         runtimeCaching: [
           {
             // Data API: selalu coba jaringan dulu (data retail harus real-time),

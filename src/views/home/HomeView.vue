@@ -1803,31 +1803,24 @@ const fetchActivePromos = async () => {
     const promoApril = promos.find((p) => p.pro_nomor === "PRO-2026-002");
     const promoMaret = promos.find((p) => p.pro_nomor === "PRO-2026-001");
 
-    // --- 1. PRIORITAS 1: PROMO MEI (PRO-2026-004) ---
     if (promoMei) {
       promoMessages.push(
         `🎉 PROMO MEI : Potongan Rp 12.500 tiap kelipatan belanja Rp 250.000 (S&K Berlaku)!`
       );
-    } // --- 1. PRIORITAS 2 : PROMO APRIL (PRO-2026-002) ---
-    else if (promoApril) {
+    } else if (promoApril) {
       promoMessages.push(
         `🎉 PROMO APRIL : Potongan Rp 12.500 tiap kelipatan belanja Rp 250.000 (S&K Berlaku)!`
       );
-    }
-    // --- 2. PRIORITAS 2: PROMO MARET (PRO-2026-001) ---
-    else if (promoMaret) {
+    } else if (promoMaret) {
       promoMessages.push(
         `🎉 PROMO MARET : Potongan Rp 20.000 tiap kelipatan belanja Rp 200.000! • Beli Kaos Reguler tembus 600rb GRATIS Sticker DTF A6 (berlaku kelipatan kaos)!`
       );
-    }
-    // --- 3. FALLBACK: PROMO LAINNYA ---
-    else {
+    } else {
       const promoReguler = promos.find(
         (p) => p.pro_judul.toUpperCase().includes("REGULER") || p.pro_totalrp > 0
       );
 
       if (promoReguler) {
-        // Asumsi fungsi formatRupiah sudah ada/diimport
         promoMessages.push(
           `🔥 PROMO AKTIF: Potongan Rp ${formatRupiah(
             promoReguler.pro_disrp
@@ -1839,14 +1832,18 @@ const fetchActivePromos = async () => {
     // Pesan default jika tidak ada promo aktif
     if (promoMessages.length === 0) {
       promoMessages.push(
-        "Selamat Datang di Kaosan Retail Management System • Cek koleksi terbaru kami sekarang!"
+        `SELAMAT DATANG DI ${
+          authStore.userCabangInvNama || "KAOSAN"
+        } RETAIL MANAGEMENT SYSTEM • CEK KOLEKSI TERBARU KAMI SEKARANG!`
       );
     }
 
     promoText.value = promoMessages.join(" • ");
   } catch (error) {
     console.error("Gagal memuat promo:", error);
-    promoText.value = "Selamat Datang di Kaosan Retail Management System";
+    promoText.value = `Selamat Datang di ${
+      authStore.userCabangInvNama || "Kaosan"
+    } Retail Management System`;
   } finally {
     isLoadingPromo.value = false;
   }

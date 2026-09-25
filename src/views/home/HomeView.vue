@@ -11,6 +11,8 @@ import axios from "axios";
 import type { AxiosError } from "axios";
 
 import logoUrl from "@/assets/logo.png";
+import LogoRezso from "@/assets/rezso.jpg";
+import LogoKiddify from "@/assets/kiddify.png";
 import bannerImage from "@/assets/banner-image.jpg";
 import storeBg from "@/assets/store-bg.jpg";
 import api from "@/services/api";
@@ -1045,6 +1047,19 @@ const userPlaceId = ref("");
 const userLat = ref("");
 const userLong = ref("");
 
+const dashboardLogo = computed(() => {
+  const kode = authStore.user?.cabang;
+  if (kode === "K04") return LogoRezso;
+  if (kode === "KF1") return LogoKiddify;
+  return logoUrl;
+});
+
+const welcomeTitle = computed(() => {
+  return authStore.userCabangInvNama
+    ? `SELAMAT DATANG DI ${authStore.userCabangInvNama}`
+    : "SELAMAT DATANG DI KAOSAN.OFFICIAL";
+});
+
 // --- STATE KAOSAN AI ---
 const showAiDialog = ref(false);
 
@@ -1939,8 +1954,8 @@ const fetchUserBranchInfo = async () => {
     const data = response.data;
 
     userPlaceId.value = data.gdg_place_id || "";
-    userLat.value = data.gdg_lat || ""; // Ambil Lat
-    userLong.value = data.gdg_long || ""; // Ambil Long
+    userLat.value = data.gdg_lat || "";
+    userLong.value = data.gdg_long || "";
   } catch (error) {
     console.error("Gagal memuat info cabang:", error);
   }
@@ -2825,11 +2840,11 @@ onUnmounted(() => {
               <!-- Kiri: logo + teks -->
               <div class="d-flex align-center">
                 <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
-                  <v-img :src="logoUrl" alt="Kaosan Logo" />
+                  <v-img :src="dashboardLogo" alt="Logo Cabang" />
                 </v-avatar>
                 <div>
                   <h1 class="text-h3 font-weight-bold text-white text-shadow mb-1">
-                    Selamat Datang di Kaosan
+                    {{ welcomeTitle }}
                   </h1>
                   <p class="text-subtitle-1 text-white opacity-90 mb-0 font-weight-light">
                     Retail Management System • {{ currentTime }}

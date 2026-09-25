@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/authStore";
 import logo from "@/assets/logo.png";
+import logoRezso from "@/assets/rezso.jpg";
+import logoKiddify from "@/assets/kiddify.png";
 import { usePasswordDialog } from "@/composables/usePasswordDialog";
 import { useWhatsAppDialog } from "@/composables/useWhatsappDialog";
 import { useBufferStockDialog } from "@/composables/useBufferStockDialog";
@@ -34,7 +36,14 @@ interface NavItem {
 // Stores and composables
 const authStore = useAuthStore();
 const router = useRouter();
-const logoSrc = logo as string;
+const logoSrc = computed(() => {
+  const kode = authStore.userCabang;
+  if (kode === "K04") return logoRezso;
+  if (kode === "KF1") return logoKiddify;
+  return logo;
+});
+
+const brandTitle = computed(() => authStore.userCabangInvNama || "Kaosan");
 const { smAndDown } = useDisplay();
 
 // Component state
@@ -723,10 +732,10 @@ onUnmounted(() => {
     ></v-app-bar-nav-icon>
     <RouterLink to="/" class="logo-section">
       <v-avatar size="32" class="logo-avatar">
-        <v-img :src="logoSrc" alt="Kaosan Logo" cover />
+        <v-img :src="logoSrc" alt="Logo Cabang" cover />
       </v-avatar>
       <div class="brand-info">
-        <span class="brand-title">Kaosan</span>
+        <span class="brand-title">{{ brandTitle }}</span>
         <span class="brand-subtitle d-none d-sm-flex">Retail Management System</span>
       </div>
     </RouterLink>

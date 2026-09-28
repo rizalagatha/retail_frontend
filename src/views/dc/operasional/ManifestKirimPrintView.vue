@@ -634,16 +634,24 @@ onMounted(() => {
 
 <style scoped>
 @media print {
+  @page {
+    size: auto;
+    margin: 0 !important;
+  }
   body {
-    margin: 0;
+    margin: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
   .print-page {
     padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
   }
   .print-area {
-    padding: 5mm !important;
+    padding: 6mm 8mm !important;
+    box-sizing: border-box;
+    width: 100%;
   }
 }
 

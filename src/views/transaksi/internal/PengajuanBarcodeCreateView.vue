@@ -8,7 +8,8 @@ import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
-import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 import StickerSearchModal from "@/components/lookup/StickerSearchModal.vue";
 import type { AxiosError } from "axios";
 import axios from "axios";
@@ -131,8 +132,8 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const isApproved = ref(false);
 
-const dialogs = reactive({ productSearch: false, stickerSearch: false, confirm: false });
-const isMultiSelectProduct = ref(false);
+const dialogs = reactive({ stickerSearch: false, confirm: false });
+const isProductPanelVisible = ref(false);
 const activeRowIndex = ref(0);
 // const activeParentKode = ref('');
 const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
@@ -271,10 +272,10 @@ const removeStickerRow = (id: number) => {
   stickers.value = stickers.value.filter((s) => s.id !== id);
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number) => {
+  if (hasApprovalRights.value || isApproved.value || !canSave.value) return;
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti;
-  dialogs.productSearch = true;
+  isProductPanelVisible.value = true;
 };
 
 const calculateHargaDtf = () => {
@@ -287,14 +288,12 @@ const calculateHargaDtf = () => {
   });
 };
 
-const onProductsSelected = async (selectedProducts: ProductDetail[]) => {
-  dialogs.productSearch = false;
-
-  const productsToAdd = selectedProducts.filter(
+const onPanelProductsAdded = async (selections: ProductPanelSelection[]) => {
+  const productsToAdd = selections.filter(
     (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
   );
 
-  if (productsToAdd.length === 0 && selectedProducts.length > 0) {
+  if (productsToAdd.length === 0 && selections.length > 0) {
     return toast.info("Semua produk yang dipilih sudah ada di daftar.");
   }
 
@@ -315,18 +314,23 @@ const onProductsSelected = async (selectedProducts: ProductDetail[]) => {
       ukuran: res.data.ukuran,
       stok: res.data.stok,
       harga: res.data.harga,
-      hargaDtf: 0, // ✅ tambahkan ini
+      hargaDtf: 0,
       jenis: "",
       ket: "",
       jumlah: 1,
       diskon: 0,
       hargabaru: 0,
       kodebaru: "",
-      imageUrl: null, // <-- TAMBAHKAN INI
+      imageUrl: null,
       fileObject: null,
     }));
 
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 1, ...newItems);
+    } else {
+      items.value.push(...newItems);
+    }
     addNewRow();
   } catch (error) {
     toast.error("Gagal memuat detail produk.");
@@ -688,16 +692,9 @@ const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
     return;
   }
 
-  switch (e.key) {
-    case "F1":
-      e.preventDefault();
-      openProductSearch(index, false);
-      break;
-
-    case "F2":
-      e.preventDefault();
-      openProductSearch(index, true);
-      break;
+  if (e.key === "F1" || e.key === "F2") {
+    e.preventDefault();
+    openProductSearch(index);
   }
 };
 
@@ -760,6 +757,15 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-barcode-scan">
     <template #header-actions>
+      <v-btn
+        v-if="canSave && !hasApprovalRights && !isApproved"
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        @click="openProductSearch(activeRowIndex)"
+      >
+        Cari Produk
+      </v-btn>
       <v-btn
         v-if="canSave"
         size="small"
@@ -828,7 +834,11 @@ onMounted(async () => {
                 <v-text-field
                   v-model="item.kode"
                   variant="underlined"
-                  placeholder="F1/F2..."
+                  placeholder="Cari produk..."
+                  :append-inner-icon="
+                    hasApprovalRights || isApproved || !canSave ? undefined : 'mdi-magnify'
+                  "
+                  @click:append-inner="openProductSearch(index)"
                   @keydown="handleKodeKeydown($event, index)"
                   :readonly="hasApprovalRights || isApproved || !canSave"
                 />
@@ -965,7 +975,9 @@ onMounted(async () => {
                   variant="underlined"
                   density="compact"
                   hide-details
-                  placeholder="F1..."
+                  placeholder="Cari stiker..."
+                  :append-inner-icon="hasApprovalRights ? undefined : 'mdi-magnify'"
+                  @click:append-inner="openStickerSearch(index)"
                   @keydown.f1.prevent="openStickerSearch(index)"
                   :readonly="hasApprovalRights"
                 />
@@ -1018,13 +1030,10 @@ onMounted(async () => {
       accept="image/*"
     />
 
-    <MintaBarangSearchModal
-      v-if="dialogs.productSearch"
-      source="pengajuan-barcode"
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
       :gudang="authStore.user?.cabang || ''"
-      :multi="isMultiSelectProduct"
-      @close="dialogs.productSearch = false"
-      @products-selected="onProductsSelected"
+      @products-added="onPanelProductsAdded"
     />
     <StickerSearchModal
       v-if="dialogs.stickerSearch"

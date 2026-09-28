@@ -128,13 +128,20 @@ onMounted(async () => {
 <template>
   <v-dialog :model-value="true" persistent max-width="900px">
     <v-card class="dialog-card">
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">Tambah Customer Baru</v-toolbar-title>
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-icon size="20" class="toolbar-icon">mdi-account-plus-outline</v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+          >Tambah Customer Baru</v-toolbar-title
+        >
       </v-toolbar>
       <v-card-text class="pa-4">
         <v-container>
           <v-row>
             <v-col cols="12" md="6">
+              <div class="section-label mb-2">
+                <v-icon size="13" class="mr-1">mdi-card-account-details-outline</v-icon>
+                Data Utama
+              </div>
               <v-text-field
                 v-model="editedItem.kode"
                 label="Kode"
@@ -246,6 +253,10 @@ onMounted(async () => {
               </v-radio-group>
             </v-col>
             <v-col cols="12" md="6">
+              <div class="section-label mb-2">
+                <v-icon size="13" class="mr-1">mdi-receipt-text-outline</v-icon>
+                Limit & Data NPWP
+              </div>
               <v-text-field
                 v-model.number="editedItem.limitTrans"
                 label="Limit Transaksi"
@@ -295,8 +306,11 @@ onMounted(async () => {
       </v-card-text>
       <v-card-actions class="dialog-footer">
         <v-spacer />
-        <v-btn size="small" @click="emit('close')">Batal</v-btn>
-        <v-btn size="small" color="primary" @click="save" :loading="isSaving">Simpan</v-btn>
+        <v-btn size="small" variant="text" @click="emit('close')">Batal</v-btn>
+        <v-btn size="small" class="btn-simpan" variant="flat" @click="save" :loading="isSaving">
+          <v-icon start size="14">mdi-content-save</v-icon>
+          Simpan
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -310,6 +324,11 @@ onMounted(async () => {
 
 .dialog-footer {
   background-color: #f5f5f5;
+}
+
+.toolbar-icon {
+  margin-left: 12px;
+  margin-right: 8px;
 }
 
 /* Mengatur font untuk label (Nama, Alamat, dll.) */
@@ -343,5 +362,50 @@ onMounted(async () => {
 
 .dialog-card :deep(.v-list-item-subtitle) {
   font-size: 10px !important;
+}
+
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  padding-bottom: 4px;
+}
+
+.dialog-footer {
+  background-color: #f5f5f5;
+}
+
+.btn-simpan {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-simpan:hover {
+  filter: brightness(1.08);
+}
+
+/* Field fokus jadi merah, konsisten dengan tema */
+.dialog-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+.dialog-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+/* Combobox kota — dropdown item hover juga merah */
+.dialog-card :deep(.v-list-item--active) {
+  background-color: rgba(183, 28, 28, 0.08) !important;
 }
 </style>

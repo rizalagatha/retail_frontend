@@ -1159,17 +1159,18 @@ const calculateTotals = async () => {
 
   // ========================================================================
   // [KUNCI PERBAIKAN] 2. Penentuan Jalur Diskon (SOP Baru)
+  // [DISESUAIKAN] Basis P1 sekarang mengikuti DiscountCostModal:
+  // dihitung dari TOTAL BRUTO SEMUA ITEM (totalSoBruto), bukan
+  // newTotalDiscountable (yang exclude JASA/ongkir/desain).
   // ========================================================================
   let baseNominalDiscount = 0;
 
-  // Tentukan Base Discount (Diskon Dasar: P1 atau Rupiah Manual/Promo)
   const diskonP1 = Number(footer.value.diskonPersen1) || 0;
 
   if (diskonP1 > 0) {
-    // Jika ada Diskon Member (P1), gunakan P1 sebagai dasar
-    baseNominalDiscount = (diskonP1 / 100) * newTotalDiscountable;
+    // [UBAH] basis pakai totalSoBruto, sama seperti modal
+    baseNominalDiscount = (diskonP1 / 100) * totalSoBruto;
   } else {
-    // Jika P1 = 0, berarti diskon berasal dari Promo Bulanan atau Input Manual Rp
     baseNominalDiscount = baseManualDiscountRp.value;
   }
 
@@ -2955,32 +2956,22 @@ const preventPaste = (e: ClipboardEvent) => {
 };
 
 const handleBarcodeScanVerify = async () => {
-  const barcode = scannedBarcode.value;
+  const barcode = scannedBarcode.value.trim();
   if (!barcode) return;
 
-  // Kumpulkan semua baris yang barcodenya cocok
-  const matchingItems = items.value.filter((i) => i.barcode === barcode && i.kode);
+  const matchingItems = items.value.filter((i) => String(i.barcode).trim() === barcode && i.kode);
 
-  // =========================================================================
-  // [BARU - KASUS A]: Barcode belum ada di grid sama sekali → scan berfungsi
-  // sebagai "tambah barang", menggantikan kebutuhan F1/F2 manual biar SC
-  // tidak salah pilih kode. Tidak butuh SO tersimpan karena belum ada proses mutasi.
-  // =========================================================================
+  // KASUS A: Barcode belum ada di grid sama sekali → tambah barang
+  // (tetap pakai barcode SKU-level, jalur ini di luar scope serialisasi)
   if (matchingItems.length === 0) {
     await addItemByBarcode(barcode);
     scannedBarcode.value = "";
     return;
   }
 
-  // =========================================================================
-  // [KUNCI 1 - DIPERTAHANKAN]: Pastikan SO sudah disimpan dan punya nomor
-  // sebelum di-scan untuk VERIFIKASI/MUTASI. Guard ini sekarang hanya berlaku
-  // untuk barang yang SUDAH ADA di grid (proses verify), bukan proses tambah baru.
-  // =========================================================================
+  // KASUS B: SO belum tersimpan → verify/mutasi belum relevan, scan
+  // cuma nambah qty manual (SAMA seperti sebelumnya)
   if (!header.value.nomor) {
-    // [BARU - KASUS B]: SO belum tersimpan tapi barangnya sudah ada di grid —
-    // verify/mutasi belum relevan (belum ada nomor SO), jadi scan berfungsi
-    // sebagai tambah qty saja, bukan diblokir total seperti sebelumnya.
     const item = matchingItems[0];
 
     if (STICKER_DTF_LOCKED_KODE.includes(item.kode) && (item.stok || 0) <= 0) {
@@ -2996,16 +2987,40 @@ const handleBarcodeScanVerify = async () => {
     return;
   }
 
-  // Prioritaskan mencari baris yang Qty Scanned-nya MASIH KURANG dari Qty Order
+  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs) — SO sudah
+  // tersimpan, jadi mutasi bisa langsung dieksekusi backend
+  try {
+    const response = await api.post("/so-form/auto-mutasi-scan", {
+      nomor_so: header.value.nomor,
+      unit_serial: barcode,
+    });
+    const { kode, ukuran } = response.data;
+    const item = items.value.find((i) => i.kode === kode && i.ukuran === ukuran);
+    if (item) {
+      item.scannedQty = (item.scannedQty || 0) + 1;
+      item.isReady = item.scannedQty >= (item.jumlah || 0);
+      item.mutatedQty = (item.mutatedQty || 0) + 1;
+      item.isMutated = true;
+      item.stok = Math.max(0, (item.stok || 0) - 1);
+      addAdjustmentLog(item.kode, item.ukuran, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
+      toast.success(`${item.nama} terverifikasi & dimutasi (${item.scannedQty}/${item.jumlah})`);
+    }
+    scannedBarcode.value = "";
+    return;
+  } catch (unitError) {
+    // Selain 404 (bukan sekadar "bukan unit_serial"), itu error beneran
+    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
+      toast.error(unitError.response?.data?.message || "Gagal melakukan mutasi otomatis.");
+      scannedBarcode.value = "";
+      return;
+    }
+    // 404 → bukan unit_serial, lanjut ke jalur lama (barcode SKU-level)
+  }
+
+  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
   const item = matchingItems.find((i) => Number(i.scannedQty || 0) < Number(i.jumlah || 0));
 
-  // Jika semua baris sudah terpenuhi
   if (!item) {
-    // =========================================================================
-    // [BARU - KASUS C]: Semua baris match sudah full verified — satu-satunya
-    // kasus ambigu (niatnya tambah qty baru atau salah scan?), jadi baru di
-    // sini konfirmasi dipakai, bukan di jalur utama.
-    // =========================================================================
     showConfirmation(() => {
       addItemByBarcode(barcode);
     }, `${matchingItems[0].nama} sudah terverifikasi penuh (Ready). Tambah qty baru untuk barang ini?`);
@@ -3029,30 +3044,23 @@ const handleBarcodeScanVerify = async () => {
   }
 
   if (current < target) {
-    // =========================================================================
-    // [KUNCI 2 - DIPERTAHANKAN]: TEMBAK API AUTO-MUTASI KE BACKEND SECARA REAL-TIME
-    // =========================================================================
     try {
       await api.post("/so-form/auto-mutasi-scan", {
         nomor_so: header.value.nomor,
         kode_barang: item.kode,
         ukuran: item.ukuran,
-        qty: 1, // Mutasi 1 per 1 sesuai scan
+        qty: 1,
       });
 
-      // Jika sukses API-nya (Trigger DB berhasil jalan), baru update tampilan di layar
       item.scannedQty = current + 1;
       item.isReady = item.scannedQty >= target;
-
-      // Langsung gembok barisnya karena sudah resmi dimutasi di DB
       item.mutatedQty = (item.mutatedQty || 0) + 1;
       item.isMutated = true;
-
       item.stok = Math.max(0, (item.stok || 0) - 1);
 
       addAdjustmentLog(item.kode, item.ukuran, 1, "SCAN", "Verifikasi & Auto-Mutasi fisik barang");
       toast.success(`${item.nama} terverifikasi & dimutasi (${item.scannedQty}/${target})`);
-    } catch (error: unknown) {
+    } catch (error) {
       if (axios.isAxiosError(error)) {
         toast.error(
           error.response?.data?.message || "Gagal melakukan mutasi otomatis ke database."
@@ -3061,7 +3069,6 @@ const handleBarcodeScanVerify = async () => {
         toast.error("Terjadi kesalahan saat menghubungi server.");
       }
     }
-    // =========================================================================
   } else {
     toast.warning("Qty Ready sudah memenuhi atau melebihi jumlah Order di semua baris.");
   }
@@ -3904,7 +3911,8 @@ const stopAndOpenPriceProposal = (index: number) => {
       <v-spacer></v-spacer>
       <v-btn
         size="small"
-        color="primary"
+        class="btn-simpan-so"
+        variant="flat"
         prepend-icon="mdi-content-save"
         @click="save"
         :loading="isSaving"
@@ -3996,6 +4004,10 @@ const stopAndOpenPriceProposal = (index: number) => {
               </v-row>
             </div>
           </template>
+          <div class="field-section-label">
+            <v-icon size="14" class="mr-1">mdi-file-document-outline</v-icon>
+            Dokumen
+          </div>
           <v-row dense>
             <v-col cols="5">
               <v-text-field
@@ -4009,6 +4021,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
+                class="search-field"
               />
             </v-col>
             <v-col cols="7">
@@ -4018,17 +4031,20 @@ const stopAndOpenPriceProposal = (index: number) => {
                 filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
+            <v-col cols="6">
+              <v-text-field
                 label="Nomor"
                 v-model="header.nomor"
                 readonly
                 filled
                 density="compact"
                 hide-details
-            /></v-col>
+                class="readonly-field nomor-field"
+              />
+            </v-col>
             <v-col cols="6">
               <v-text-field
                 label="Tanggal"
@@ -4044,6 +4060,36 @@ const stopAndOpenPriceProposal = (index: number) => {
             </v-col>
             <v-col cols="6">
               <v-text-field
+                label="Dateline"
+                v-model="header.dateline"
+                type="date"
+                variant="outlined"
+                density="compact"
+                hide-details
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field
+                label="Sales Counter"
+                v-model="header.salesCounter"
+                readonly
+                @click="openSalesCounterSearch"
+                variant="outlined"
+                density="compact"
+                hide-details
+                append-inner-icon="mdi-magnify"
+                class="search-field"
+              />
+            </v-col>
+          </v-row>
+
+          <div class="field-section-label mt-3">
+            <v-icon size="14" class="mr-1">mdi-account-outline</v-icon>
+            Customer
+          </div>
+          <v-row dense>
+            <v-col cols="12">
+              <v-text-field
                 label="Customer"
                 :disabled="!!header.penawaran"
                 :model-value="
@@ -4055,6 +4101,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
+                class="search-field"
               >
                 <template #prepend-inner>
                   <v-btn
@@ -4069,15 +4116,6 @@ const stopAndOpenPriceProposal = (index: number) => {
                 </template>
               </v-text-field>
             </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Dateline"
-                v-model="header.dateline"
-                type="date"
-                variant="outlined"
-                density="compact"
-                hide-details
-            /></v-col>
             <v-col cols="12">
               <v-text-field
                 label="Alamat"
@@ -4086,9 +4124,10 @@ const stopAndOpenPriceProposal = (index: number) => {
                 filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
-            <v-col cols="6">
+            <v-col cols="7">
               <v-text-field
                 label="Kota / Telp"
                 :model-value="
@@ -4098,19 +4137,32 @@ const stopAndOpenPriceProposal = (index: number) => {
                 filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
-            <v-col cols="6">
-              <v-text-field
-                label="Level"
-                v-model="header.levelNama"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
+            <v-col cols="5">
+              <div class="level-chip-wrapper">
+                <div class="level-chip-label">Level</div>
+                <v-chip
+                  v-if="header.levelNama"
+                  size="small"
+                  color="red-darken-2"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ header.levelNama }}
+                </v-chip>
+                <span v-else class="text-caption text-medium-emphasis">-</span>
+              </div>
             </v-col>
-            <v-col cols="6" v-if="!header.isMarketplace">
+          </v-row>
+
+          <div class="field-section-label mt-3">
+            <v-icon size="14" class="mr-1">mdi-cog-outline</v-icon>
+            Pengaturan Transaksi
+          </div>
+          <v-row dense>
+            <v-col cols="12" v-if="!header.isMarketplace">
               <v-text-field
                 label="No. Penawaran"
                 v-model="header.penawaran"
@@ -4120,23 +4172,13 @@ const stopAndOpenPriceProposal = (index: number) => {
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
+                class="search-field"
                 clearable
                 @click:clear="header.penawaran = ''"
               />
             </v-col>
-            <v-col cols="6">
-              <v-text-field
-                label="Sales Counter"
-                v-model="header.salesCounter"
-                readonly
-                @click="openSalesCounterSearch"
-                variant="outlined"
-                density="compact"
-                hide-details
-                append-inner-icon="mdi-magnify"
-              />
-            </v-col>
-            <v-col cols="2">
+
+            <v-col cols="4">
               <v-text-field
                 label="TOP"
                 v-model.number="header.top"
@@ -4145,17 +4187,6 @@ const stopAndOpenPriceProposal = (index: number) => {
                 density="compact"
                 hide-details
                 class="text-end"
-              />
-            </v-col>
-            <v-col cols="6">
-              <v-text-field
-                label="Tempo/Tgl"
-                v-model="header.tempo"
-                type="date"
-                readonly
-                filled
-                density="compact"
-                hide-details
               />
             </v-col>
             <v-col cols="4">
@@ -4169,14 +4200,28 @@ const stopAndOpenPriceProposal = (index: number) => {
                 class="text-end"
               />
             </v-col>
-            <v-col cols="12"
-              ><v-text-field
+            <v-col cols="4">
+              <v-text-field
+                label="Tempo/Tgl"
+                v-model="header.tempo"
+                type="date"
+                readonly
+                filled
+                density="compact"
+                hide-details
+                class="readonly-field"
+              />
+            </v-col>
+
+            <v-col cols="12">
+              <v-text-field
                 label="Keterangan"
                 v-model="header.keterangan"
                 variant="outlined"
                 density="compact"
                 hide-details
-            /></v-col>
+              />
+            </v-col>
             <v-col cols="4" v-if="!header.isMarketplace">
               <v-text-field
                 label="Promo"
@@ -4187,6 +4232,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                 hide-details
                 placeholder="F1..."
                 readonly
+                class="search-field promo-field"
               >
                 <template #append-inner>
                   <v-icon
@@ -4208,9 +4254,11 @@ const stopAndOpenPriceProposal = (index: number) => {
                 readonly
                 filled
                 hide-details
+                class="readonly-field"
               />
             </v-col>
           </v-row>
+
           <v-input
             :label="memberLabel"
             :append-inner-icon="isReadonly ? '' : 'mdi-pencil'"
@@ -4253,7 +4301,7 @@ const stopAndOpenPriceProposal = (index: number) => {
       <!-- Kolom Kanan -->
       <div class="right-column">
         <div class="desktop-form-section scanner-section mb-2">
-          <v-row dense align="center">
+          <v-row dense align="center" no-gutters>
             <v-col cols="12" md="6">
               <v-text-field
                 v-model="scannedBarcode"
@@ -4270,14 +4318,19 @@ const stopAndOpenPriceProposal = (index: number) => {
               />
             </v-col>
 
-            <v-col cols="12" md="6" class="d-flex ga-2 justify-end">
-              <!-- <v-btn
-                color="deep-orange-darken-2"
-                @click="goToMutasiPesanan"
-                :disabled="!header.nomor || !hasReadyItems"
-              >kan
-                Mutasikan ke Stok Pesanan
-              </v-btn> -->
+            <v-col cols="12" md="6" class="d-flex ga-2 justify-end align-center">
+              <v-tooltip
+                v-if="items.some((i) => i.isMutated)"
+                text="Item dengan tanda gembok terbuka sudah dimutasi ke stok pesanan dan tidak bisa diubah lagi."
+                location="bottom"
+              >
+                <template #activator="{ props }">
+                  <v-chip v-bind="props" size="small" variant="tonal" class="locked-info-chip">
+                    <v-icon start size="14">mdi-lock-open-variant</v-icon>
+                    Ada item termutasi
+                  </v-chip>
+                </template>
+              </v-tooltip>
 
               <v-btn
                 v-if="authStore.user?.cabang === 'KDC'"
@@ -4295,18 +4348,6 @@ const stopAndOpenPriceProposal = (index: number) => {
         <!-- Wrapper untuk bagian yang bisa scroll -->
         <div class="scrollable-content">
           <div class="desktop-form-section main-grid-section">
-            <v-alert
-              v-if="items.some((i) => i.isMutated)"
-              type="info"
-              variant="tonal"
-              density="compact"
-              class="text-caption flex-grow-1 ma-0"
-              prepend-icon="mdi-information-outline"
-            >
-              Item bertanda <v-icon size="small">mdi-lock-open-variant</v-icon> terkunci karena
-              sudah mutasi.
-            </v-alert>
-
             <v-slide-y-transition>
               <div v-if="freeGift.freeGiftQuota.available" class="free-gift-banner mb-3">
                 <div class="banner-shine"></div>
@@ -4526,19 +4567,20 @@ const stopAndOpenPriceProposal = (index: number) => {
                 <v-row dense align="center" no-gutters>
                   <v-col>
                     <v-text-field
-                      class="so-dtf-field"
+                      class="so-dtf-field search-field"
                       v-model="item.noSoDtf"
                       variant="underlined"
                       density="compact"
                       hide-details
-                      placeholder="F1..."
+                      placeholder="Cari SO DTF..."
+                      append-inner-icon="mdi-magnify"
                       @mousedown.stop
                       @click.stop
+                      @click:append-inner.stop="stopAndOpenSoDtf(index)"
                       @keydown.f1.stop.prevent="stopAndOpenSoDtf(index)"
                     />
                   </v-col>
 
-                  <!-- Tombol untuk grid jasa custom -->
                   <v-col cols="auto" v-if="item.isCustomOrder">
                     <v-btn
                       icon="mdi-plus-circle"
@@ -4554,14 +4596,16 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.noPengajuanHarga`]="{ item, index }">
                 <v-text-field
-                  class="pengajuan-field"
+                  class="pengajuan-field search-field"
                   v-model="item.noPengajuanHarga"
                   variant="underlined"
                   density="compact"
                   hide-details
-                  placeholder="F1..."
+                  placeholder="Cari pengajuan..."
+                  append-inner-icon="mdi-magnify"
                   @mousedown.stop
                   @click.stop
+                  @click:append-inner.stop="stopAndOpenPriceProposal(index)"
                   @keydown.f1.stop.prevent="stopAndOpenPriceProposal(index)"
                 >
                 </v-text-field>
@@ -5025,6 +5069,14 @@ const stopAndOpenPriceProposal = (index: number) => {
   grid-template-columns: 450px 1fr;
   height: calc(100vh - 120px);
   transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.left-column .desktop-form-section.header-section {
+  background-color: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
 }
 
 .form-grid-container.hide-left {
@@ -5045,6 +5097,11 @@ const stopAndOpenPriceProposal = (index: number) => {
   transform: translateX(-20px);
 }
 
+.btn-simpan-so {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
 .left-column {
   display: flex;
   flex-direction: column;
@@ -5062,6 +5119,7 @@ const stopAndOpenPriceProposal = (index: number) => {
   min-height: 0;
   overflow: hidden;
   height: 100%;
+  position: relative;
 }
 
 .scrollable-content {
@@ -5085,9 +5143,22 @@ const stopAndOpenPriceProposal = (index: number) => {
 .main-grid-section {
   flex-grow: 1;
   min-height: 0;
+  position: relative;
+  background-color: rgba(183, 28, 28, 0.03);
+  border: 1px solid rgba(183, 28, 28, 0.12);
+  border-radius: 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.main-grid-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 20%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .main-grid-section .v-data-table {
@@ -5191,7 +5262,7 @@ const stopAndOpenPriceProposal = (index: number) => {
 
   background-color: rgb(var(--v-theme-surface));
   padding: 10px 16px;
-  border-top: 2px solid #1976d2;
+  border-top: 3px solid #b71c1c;
 
   z-index: 105;
   /* lebih tinggi dari table scroll */
@@ -5207,6 +5278,8 @@ const stopAndOpenPriceProposal = (index: number) => {
   /* cegah ikut scroll horizontal */
   position: sticky;
   left: 0;
+
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.04) 0%, rgb(var(--v-theme-surface)) 100%);
 }
 
 .so-sticky-footer .footer-col {
@@ -5239,6 +5312,7 @@ const stopAndOpenPriceProposal = (index: number) => {
   font-weight: 900;
   text-align: right;
   font-size: 17px;
+  color: #b71c1c;
 }
 
 .v-data-table .v-input input {
@@ -5249,9 +5323,11 @@ const stopAndOpenPriceProposal = (index: number) => {
   position: sticky;
   flex-shrink: 0;
   padding: 8px 12px;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.2);
+  border-left: 4px solid #b71c1c;
+  background: linear-gradient(135deg, rgba(183, 28, 28, 0.05) 0%, rgba(142, 0, 0, 0.02) 100%);
 }
 
 .summary-totals {
@@ -5298,6 +5374,11 @@ const stopAndOpenPriceProposal = (index: number) => {
 .summary-discount .v-list-item-title,
 .summary-discount span {
   font-size: 0.85rem;
+  color: #b71c1c !important;
+}
+
+.summary-belum-bayar .text-error {
+  color: #b71c1c !important;
 }
 
 .summary-total {
@@ -5315,17 +5396,22 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
-  /* Biru Tua */
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
   color: #ffffff !important;
-  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
   border-bottom: none !important;
-  /* Supaya lebih rapi */
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.05);
 }
 
 /* Tambahan Style untuk Mode MP */
@@ -5351,17 +5437,18 @@ const stopAndOpenPriceProposal = (index: number) => {
   position: relative;
   border-radius: 16px;
   overflow: hidden;
-  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
   /* Royal Mystic */
   box-shadow: 0 10px 25px -5px rgba(38, 208, 206, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
   transition: all 0.3s ease;
+  background: linear-gradient(135deg, #8e0000 0%, #d32f2f 100%);
+  box-shadow: 0 10px 25px -5px rgba(183, 28, 28, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 /* Style Khusus Grand Opening */
 .promo-card.grand-opening-style {
-  background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%) !important;
-  box-shadow: 0 10px 25px -5px rgba(221, 36, 118, 0.5) !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #ff512f 100%) !important;
+  box-shadow: 0 10px 25px -5px rgba(183, 28, 28, 0.5) !important;
   border: 1px solid rgba(255, 215, 0, 0.3) !important;
 }
 
@@ -5484,7 +5571,16 @@ const stopAndOpenPriceProposal = (index: number) => {
 .scanner-section {
   z-index: 10;
   background: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-border-color), 0.1);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 8px;
+}
+
+.locked-info-chip {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 600;
+  font-size: 11.5px;
+  cursor: help;
 }
 
 .verify-scanner-field :deep(input) {
@@ -5565,8 +5661,8 @@ const stopAndOpenPriceProposal = (index: number) => {
   position: relative;
   overflow: hidden;
   border-radius: 12px;
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  box-shadow: 0 8px 20px -4px rgba(56, 239, 125, 0.4);
+  background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
+  box-shadow: 0 8px 20px -4px rgba(255, 82, 82, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.25);
   animation: giftBannerEntrance 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -5647,10 +5743,14 @@ const stopAndOpenPriceProposal = (index: number) => {
 }
 .scan-gift-btn {
   flex-shrink: 0;
-  color: #11998e !important;
+  color: #b71c1c !important;
   font-weight: 700;
   animation: giftBtnPulse 2s infinite;
 }
+.verify-scanner-field :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
 @keyframes giftBtnPulse {
   0% {
     box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
@@ -5670,7 +5770,7 @@ const stopAndOpenPriceProposal = (index: number) => {
   align-items: center;
   gap: 12px;
   padding: 16px 16px 16px 20px;
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
 }
 .header-icon-circle {
   flex-shrink: 0;
@@ -5737,6 +5837,180 @@ const stopAndOpenPriceProposal = (index: number) => {
 .log-table :deep(.v-chip) {
   font-size: 10px !important;
   height: 20px !important;
+}
+
+/* ══════════════ PAGINATION TABEL UTAMA (Items per page) ══════════════ */
+
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+  font-size: 12px;
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+  transition: all 0.15s ease;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+  opacity: 0.4;
+}
+
+/* ══════════════ ALERT INFO "Item terkunci karena mutasi" ══════════════ */
+
+.main-grid-section :deep(.v-alert--variant-tonal.v-theme--light) {
+  border-left: 3px solid rgba(183, 28, 28, 0.4);
+}
+
+/* ══════════════ SECTION LABELS ══════════════ */
+.field-section-label {
+  display: flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+/* ══════════════ SEARCH FIELD: ICON JADI TOMBOL JELAS ══════════════ */
+.search-field :deep(.v-field) {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+.search-field :deep(.v-field__append-inner) {
+  display: flex;
+  align-items: center;
+}
+
+.search-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #b71c1c;
+  border-radius: 6px;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.search-field:hover :deep(.v-field__append-inner .v-icon) {
+  background-color: #8e0000;
+  transform: scale(1.05);
+}
+
+.search-field :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.so-dtf-field .v-field__append-inner .v-icon),
+.desktop-table :deep(.pengajuan-field .v-field__append-inner .v-icon) {
+  font-size: 15px;
+  color: #ffffff;
+  background-color: #b71c1c;
+  border-radius: 5px;
+  padding: 3px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.desktop-table :deep(.so-dtf-field .v-field__append-inner .v-icon:hover),
+.desktop-table :deep(.pengajuan-field .v-field__append-inner .v-icon:hover) {
+  background-color: #8e0000;
+}
+
+/* ══════════════ READONLY FIELD: BUKAN KELIHATAN EDITABLE ══════════════ */
+.readonly-field :deep(.v-field) {
+  background-color: rgba(0, 0, 0, 0.025) !important;
+  box-shadow: none !important;
+}
+
+.readonly-field :deep(input) {
+  color: rgba(0, 0, 0, 0.7) !important;
+  font-weight: 500;
+}
+
+.nomor-field :deep(input) {
+  font-weight: 800 !important;
+  color: #b71c1c !important;
+  letter-spacing: 0.3px;
+}
+
+/* ══════════════ LEVEL SEBAGAI CHIP, BUKAN TEXT FIELD POLOS ══════════════ */
+.level-chip-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.level-chip-label {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* ══════════════ PROMO FIELD SEDIKIT DITONJOLKAN ══════════════ */
+.promo-field :deep(.v-field) {
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.promo-field :deep(input) {
+  font-weight: 700;
+  color: #b71c1c;
+}
+
+/* ══════════════ MEMBER INPUT BUTTON: SEDIKIT LEBIH HIDUP ══════════════ */
+.custom-input-button {
+  border: 1.5px dashed rgba(183, 28, 28, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.custom-input-button:hover {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-color: rgba(183, 28, 28, 0.5);
+}
+
+.custom-input-button.border-error {
+  border: 1.5px solid #b71c1c;
+  border-style: solid;
+  background-color: rgba(183, 28, 28, 0.05);
 }
 
 /* ===== RESPONSIVE MEDIA QUERIES ===== */

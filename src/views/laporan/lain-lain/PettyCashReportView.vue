@@ -27,6 +27,11 @@ interface DetailNota {
   [key: string]: unknown; // Mengizinkan properti lain jika ada tanpa error
 }
 
+interface KategoriSummary {
+  kategori: string | null;
+  total: number | string;
+}
+
 const MENU_ID = "603";
 const toast = useToast();
 const loading = ref(false);
@@ -38,10 +43,23 @@ const filter = reactive({
   cabang: "",
 });
 
+const activeTab = ref("bukubesar");
+
+const totalSemuaKategori = computed(() =>
+  reportData.value.summary_kategori.reduce((sum, k) => sum + Number(k.total || 0), 0)
+);
+
+const getKategoriPercent = (total: number) => {
+  const grand = totalSemuaKategori.value;
+  if (!grand) return 0;
+  return Math.round((total / grand) * 1000) / 10; // 1 desimal
+};
+
 const reportData = ref({
   limit_saldo: 0,
   saldo_awal: 0,
-  mutasi: [] as MutasiItem[], // <-- [FIX] Gunakan interface MutasiItem
+  mutasi: [] as MutasiItem[],
+  summary_kategori: [] as KategoriSummary[],
 });
 
 // --- STATE UNTUK PREVIEW NOTA ---
@@ -251,6 +269,59 @@ const exportToExcel = () => {
   }
 };
 
+const exportKategoriToExcel = () => {
+  if (reportData.value.summary_kategori.length === 0) {
+    toast.warning("Tidak ada data kategori untuk diekspor.");
+    return;
+  }
+
+  try {
+    toast.info("Membuat file Excel...");
+
+    const cabangName =
+      cabangOptions.value.find((c) => c.kode === filter.cabang)?.nama || filter.cabang;
+    const title = "LAPORAN PETTY CASH PER KATEGORI BIAYA";
+    const infoCabang = `Cabang  : [${filter.cabang}] ${cabangName}`;
+    const infoPeriode = `Periode : ${format(new Date(filter.startDate), "dd/MM/yyyy")} s/d ${format(
+      new Date(filter.endDate),
+      "dd/MM/yyyy"
+    )}`;
+
+    const tableHeaders = ["KATEGORI BIAYA", "TOTAL NOMINAL", "PERSENTASE"];
+    const tableData = reportData.value.summary_kategori.map((k) => [
+      k.kategori || "(Tanpa Kategori)",
+      Number(k.total),
+      `${getKategoriPercent(Number(k.total))}%`,
+    ]);
+    tableData.push(["GRAND TOTAL", totalSemuaKategori.value, "100%"]);
+
+    const excelData = [[title], [infoCabang], [infoPeriode], [], tableHeaders, ...tableData];
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
+    ];
+
+    worksheet["!cols"] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Per Kategori");
+
+    const fileName = `PettyCash_PerKategori_${filter.cabang}_${format(
+      new Date(filter.startDate),
+      "yyyyMMdd"
+    )}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast.success("File Laporan berhasil dibuat.");
+  } catch (error) {
+    toast.error("Gagal mengekspor data Excel.");
+    console.error(error);
+  }
+};
+
 watch(
   filter,
   () => {
@@ -271,8 +342,12 @@ onMounted(() => {
         color="success"
         size="small"
         prepend-icon="mdi-microsoft-excel"
-        :disabled="processedMutasi.length === 0"
-        @click="exportToExcel"
+        :disabled="
+          activeTab === 'bukubesar'
+            ? processedMutasi.length === 0
+            : reportData.summary_kategori.length === 0
+        "
+        @click="activeTab === 'bukubesar' ? exportToExcel() : exportKategoriToExcel()"
       >
         Export Excel
       </v-btn>
@@ -328,125 +403,248 @@ onMounted(() => {
         </v-row>
       </v-card>
 
-      <v-row v-if="filter.cabang" class="mb-2">
-        <v-col cols="12" md="4">
-          <v-card color="red-darken-4" theme="dark" class="pa-3 text-center rounded-lg elevation-2">
-            <div class="text-caption font-weight-bold text-uppercase">PLAFON MODAL (TETAP)</div>
-            <div class="text-h6 font-weight-black">{{ formatRupiah(reportData.limit_saldo) }}</div>
-          </v-card>
-        </v-col>
-        <v-col cols="12" md="4">
-          <v-card
-            color="blue-darken-3"
-            theme="dark"
-            class="pa-3 text-center rounded-lg elevation-2"
-          >
-            <div class="text-caption font-weight-bold text-uppercase">
-              SALDO AWAL ({{ format(new Date(filter.startDate), "dd/MM/yyyy") }})
-            </div>
-            <div class="text-h6 font-weight-black">{{ formatRupiah(reportData.saldo_awal) }}</div>
-          </v-card>
-        </v-col>
-        <v-col cols="12" md="4">
-          <v-card
-            color="teal-darken-3"
-            theme="dark"
-            class="pa-3 text-center rounded-lg elevation-2"
-          >
-            <div class="text-caption font-weight-bold text-uppercase">
-              SALDO AKHIR ({{ format(new Date(filter.endDate), "dd/MM/yyyy") }})
-            </div>
-            <div class="text-h6 font-weight-black">
-              {{
-                formatRupiah(
-                  processedMutasi.length > 0
-                    ? processedMutasi[processedMutasi.length - 1].running_balance
-                    : reportData.saldo_awal
-                )
-              }}
-            </div>
-          </v-card>
-        </v-col>
-      </v-row>
+      <v-tabs v-model="activeTab" class="mb-4" density="compact" color="primary">
+        <v-tab value="bukubesar">
+          <v-icon start size="18">mdi-book-open-variant</v-icon>
+          Buku Besar
+        </v-tab>
+        <v-tab value="kategori">
+          <v-icon start size="18">mdi-chart-pie</v-icon>
+          Per Kategori Biaya
+        </v-tab>
+      </v-tabs>
 
-      <div class="table-container border mt-2">
-        <table class="w-100 report-table">
-          <thead>
-            <tr>
-              <th width="80" class="text-center">TANGGAL</th>
-              <th width="140">REF. DOKUMEN</th>
-              <th width="160">KATEGORI BIAYA</th>
-              <th>KETERANGAN</th>
-              <th width="90" class="text-center">STATUS</th>
-              <th width="100" class="text-right">DEBET (+)</th>
-              <th width="100" class="text-right">KREDIT (-)</th>
-              <th width="120" class="text-right bg-blue-lighten-5">SALDO AKHIR</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="!filter.cabang && processedMutasi.length === 0">
-              <td colspan="8" class="text-center pa-4 text-grey">
-                Pilih cabang untuk melihat data mutasi.
-              </td>
-            </tr>
-            <tr v-if="filter.cabang" class="bg-grey-lighten-3 font-weight-bold">
-              <td class="text-center">{{ format(new Date(filter.startDate), "dd/MM/yyyy") }}</td>
-              <td colspan="6" class="text-right text-grey-darken-2">
-                SALDO AWAL SEBELUM PERIODE INI
-              </td>
-              <td class="text-right font-weight-black bg-blue-lighten-5 text-primary">
-                {{ formatRupiah(reportData.saldo_awal) }}
-              </td>
-            </tr>
-            <tr v-for="(m, i) in processedMutasi" :key="i">
-              <td class="text-center">{{ format(new Date(m.tanggal), "dd/MM/yyyy") }}</td>
+      <v-window v-model="activeTab">
+        <!-- ═══════════════ TAB 1: BUKU BESAR (konten yang sudah ada) ═══════════════ -->
+        <v-window-item value="bukubesar">
+          <v-row v-if="filter.cabang" class="mb-2">
+            <v-col cols="12" md="4">
+              <v-card
+                color="red-darken-4"
+                theme="dark"
+                class="pa-3 text-center rounded-lg elevation-2"
+              >
+                <div class="text-caption font-weight-bold text-uppercase">PLAFON MODAL (TETAP)</div>
+                <div class="text-h6 font-weight-black">
+                  {{ formatRupiah(reportData.limit_saldo) }}
+                </div>
+              </v-card>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-card
+                color="blue-darken-3"
+                theme="dark"
+                class="pa-3 text-center rounded-lg elevation-2"
+              >
+                <div class="text-caption font-weight-bold text-uppercase">
+                  SALDO AWAL ({{ format(new Date(filter.startDate), "dd/MM/yyyy") }})
+                </div>
+                <div class="text-h6 font-weight-black">
+                  {{ formatRupiah(reportData.saldo_awal) }}
+                </div>
+              </v-card>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-card
+                color="teal-darken-3"
+                theme="dark"
+                class="pa-3 text-center rounded-lg elevation-2"
+              >
+                <div class="text-caption font-weight-bold text-uppercase">
+                  SALDO AKHIR ({{ format(new Date(filter.endDate), "dd/MM/yyyy") }})
+                </div>
+                <div class="text-h6 font-weight-black">
+                  {{
+                    formatRupiah(
+                      processedMutasi.length > 0
+                        ? processedMutasi[processedMutasi.length - 1].running_balance
+                        : reportData.saldo_awal
+                    )
+                  }}
+                </div>
+              </v-card>
+            </v-col>
+          </v-row>
 
-              <td class="font-weight-bold">
-                <span
-                  v-if="m.nomor_bukti && m.nomor_bukti.includes('.PC.')"
-                  class="text-primary text-decoration-underline cursor-pointer"
-                  @click="openPreview(m.nomor_bukti)"
-                  title="Klik untuk melihat struk/nota"
+          <div class="table-container border mt-2">
+            <table class="w-100 report-table">
+              <thead>
+                <tr>
+                  <th width="80" class="text-center">TANGGAL</th>
+                  <th width="140">REF. DOKUMEN</th>
+                  <th width="160">KATEGORI BIAYA</th>
+                  <th>KETERANGAN</th>
+                  <th width="90" class="text-center">STATUS</th>
+                  <th width="100" class="text-right">DEBET (+)</th>
+                  <th width="100" class="text-right">KREDIT (-)</th>
+                  <th width="120" class="text-right bg-blue-lighten-5">SALDO AKHIR</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!filter.cabang && processedMutasi.length === 0">
+                  <td colspan="8" class="text-center pa-4 text-grey">
+                    Pilih cabang untuk melihat data mutasi.
+                  </td>
+                </tr>
+                <tr v-if="filter.cabang" class="bg-grey-lighten-3 font-weight-bold">
+                  <td class="text-center">
+                    {{ format(new Date(filter.startDate), "dd/MM/yyyy") }}
+                  </td>
+                  <td colspan="6" class="text-right text-grey-darken-2">
+                    SALDO AWAL SEBELUM PERIODE INI
+                  </td>
+                  <td class="text-right font-weight-black bg-blue-lighten-5 text-primary">
+                    {{ formatRupiah(reportData.saldo_awal) }}
+                  </td>
+                </tr>
+                <tr v-for="(m, i) in processedMutasi" :key="i">
+                  <td class="text-center">{{ format(new Date(m.tanggal), "dd/MM/yyyy") }}</td>
+
+                  <td class="font-weight-bold">
+                    <span
+                      v-if="m.nomor_bukti && m.nomor_bukti.includes('.PC.')"
+                      class="text-primary text-decoration-underline cursor-pointer"
+                      @click="openPreview(m.nomor_bukti)"
+                      title="Klik untuk melihat struk/nota"
+                    >
+                      {{ m.nomor_bukti }}
+                    </span>
+                    <span v-else class="text-primary">{{ m.nomor_bukti }}</span>
+                  </td>
+
+                  <td class="text-grey-darken-2">
+                    <span v-if="m.kategori">
+                      <span v-if="m.pcv" class="font-weight-black text-black"
+                        >PCV {{ m.pcv }}:
+                      </span>
+                      {{ m.kategori }}
+                    </span>
+                    <span v-else class="text-grey">-</span>
+                  </td>
+
+                  <td>{{ m.keterangan || "-" }}</td>
+                  <td class="text-center">
+                    <v-chip
+                      v-if="m.status_ref"
+                      size="small"
+                      :color="getStatusColor(m.status_ref)"
+                      class="font-weight-bold text-caption px-2"
+                      variant="flat"
+                    >
+                      {{ m.status_ref }}
+                    </v-chip>
+                    <span v-else class="text-grey">-</span>
+                  </td>
+                  <td class="text-right text-success font-weight-bold">
+                    {{ m.tipe === "DEBET" ? formatRupiah(Number(m.nominal)) : "-" }}
+                  </td>
+                  <td class="text-right text-error font-weight-bold">
+                    {{ m.tipe === "KREDIT" ? formatRupiah(Number(m.nominal)) : "-" }}
+                  </td>
+                  <td class="text-right font-weight-black bg-blue-lighten-5">
+                    {{ formatRupiah(m.running_balance) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </v-window-item>
+
+        <!-- ═══════════════ TAB 2: PER KATEGORI (BARU) ═══════════════ -->
+        <v-window-item value="kategori">
+          <div v-if="!filter.cabang" class="text-center pa-8 text-grey">
+            Pilih cabang untuk melihat ringkasan kategori.
+          </div>
+
+          <template v-else>
+            <v-row class="mb-2">
+              <v-col cols="12" md="4">
+                <v-card
+                  color="deep-purple-darken-2"
+                  theme="dark"
+                  class="pa-3 text-center rounded-lg elevation-2"
                 >
-                  {{ m.nomor_bukti }}
-                </span>
-                <span v-else class="text-primary">{{ m.nomor_bukti }}</span>
-              </td>
-
-              <td class="text-grey-darken-2">
-                <span v-if="m.kategori">
-                  <span v-if="m.pcv" class="font-weight-black text-black">PCV {{ m.pcv }}: </span>
-                  {{ m.kategori }}
-                </span>
-                <span v-else class="text-grey">-</span>
-              </td>
-
-              <td>{{ m.keterangan || "-" }}</td>
-              <td class="text-center">
-                <v-chip
-                  v-if="m.status_ref"
-                  size="small"
-                  :color="getStatusColor(m.status_ref)"
-                  class="font-weight-bold text-caption px-2"
-                  variant="flat"
+                  <div class="text-caption font-weight-bold text-uppercase">
+                    TOTAL PENGELUARAN PERIODE INI
+                  </div>
+                  <div class="text-h6 font-weight-black">
+                    {{ formatRupiah(totalSemuaKategori) }}
+                  </div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-card
+                  color="blue-grey-darken-2"
+                  theme="dark"
+                  class="pa-3 text-center rounded-lg elevation-2"
                 >
-                  {{ m.status_ref }}
-                </v-chip>
-                <span v-else class="text-grey">-</span>
-              </td>
-              <td class="text-right text-success font-weight-bold">
-                {{ m.tipe === "DEBET" ? formatRupiah(Number(m.nominal)) : "-" }}
-              </td>
-              <td class="text-right text-error font-weight-bold">
-                {{ m.tipe === "KREDIT" ? formatRupiah(Number(m.nominal)) : "-" }}
-              </td>
-              <td class="text-right font-weight-black bg-blue-lighten-5">
-                {{ formatRupiah(m.running_balance) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                  <div class="text-caption font-weight-bold text-uppercase">JUMLAH KATEGORI</div>
+                  <div class="text-h6 font-weight-black">
+                    {{ reportData.summary_kategori.length }}
+                  </div>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-card
+                  color="teal-darken-3"
+                  theme="dark"
+                  class="pa-3 text-center rounded-lg elevation-2"
+                >
+                  <div class="text-caption font-weight-bold text-uppercase">KATEGORI TERBESAR</div>
+                  <div class="text-subtitle-1 font-weight-black text-truncate">
+                    {{ reportData.summary_kategori[0]?.kategori || "-" }}
+                  </div>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <div class="table-container border mt-2">
+              <table class="w-100 report-table">
+                <thead>
+                  <tr>
+                    <th width="50" class="text-center">#</th>
+                    <th>KATEGORI BIAYA</th>
+                    <th width="160" class="text-right">TOTAL NOMINAL</th>
+                    <th width="110" class="text-right">PERSENTASE</th>
+                    <th width="200">PROPORSI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="reportData.summary_kategori.length === 0">
+                    <td colspan="5" class="text-center pa-4 text-grey">
+                      Tidak ada data pengeluaran pada periode ini.
+                    </td>
+                  </tr>
+                  <tr v-for="(k, i) in reportData.summary_kategori" :key="i">
+                    <td class="text-center text-grey">{{ i + 1 }}</td>
+                    <td class="font-weight-bold">{{ k.kategori || "(Tanpa Kategori)" }}</td>
+                    <td class="text-right font-weight-bold text-error">
+                      {{ formatRupiah(Number(k.total)) }}
+                    </td>
+                    <td class="text-right">{{ getKategoriPercent(Number(k.total)) }}%</td>
+                    <td>
+                      <div class="proporsi-bar-track">
+                        <div
+                          class="proporsi-bar-fill"
+                          :style="{ width: getKategoriPercent(Number(k.total)) + '%' }"
+                        ></div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot v-if="reportData.summary_kategori.length > 0">
+                  <tr class="bg-grey-lighten-3 font-weight-black">
+                    <td colspan="2" class="text-right">GRAND TOTAL</td>
+                    <td class="text-right text-error">{{ formatRupiah(totalSemuaKategori) }}</td>
+                    <td class="text-right">100%</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </template>
+        </v-window-item>
+      </v-window>
     </div>
 
     <v-dialog v-model="preview.show" max-width="600px">
@@ -564,5 +762,18 @@ onMounted(() => {
 }
 .cursor-pointer:hover {
   color: #1565c0 !important;
+}
+.proporsi-bar-track {
+  width: 100%;
+  height: 8px;
+  background-color: #eeeeee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.proporsi-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7e57c2, #5e35b1);
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 </style>

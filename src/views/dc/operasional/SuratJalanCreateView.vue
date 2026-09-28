@@ -31,6 +31,7 @@ interface Item {
   jumlah: number;
   barcode: string;
   isBahan?: boolean;
+  unitSerial?: string | null;
 }
 
 interface ItemResponse {
@@ -63,6 +64,7 @@ interface PackingListSourceItem {
   minta: number | string;
   jumlah: number | string;
   barcode: string;
+  unitSerial?: string | null;
 }
 
 interface PackingListSelection {
@@ -353,6 +355,7 @@ const loadItemsFromPackingList = async (nomorPL: string) => {
       harga: item.harga,
       hpp: item.hpp,
       kategori: item.kategori,
+      unitSerial: item.unitSerial || null,
     }));
 
     addNewRow();
@@ -813,6 +816,7 @@ onMounted(async () => {
             </template>
             <template #[`item.jumlah`]="{ item }">
               <v-text-field
+                v-if="!item.unitSerial"
                 v-model.number="item.jumlah"
                 type="number"
                 variant="underlined"
@@ -820,6 +824,9 @@ onMounted(async () => {
                 hide-details
                 class="text-right"
               />
+              <div v-else class="text-right font-weight-bold">
+                {{ item.jumlah }}
+              </div>
             </template>
             <template #[`item.actions`]="{ item }">
               <v-btn

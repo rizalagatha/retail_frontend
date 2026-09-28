@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/authStore";
 import logo from "@/assets/logo.png";
+import logoRezso from "@/assets/rezso.jpg";
+import logoKiddify from "@/assets/kiddify.png";
 import { usePasswordDialog } from "@/composables/usePasswordDialog";
 import { useWhatsAppDialog } from "@/composables/useWhatsappDialog";
 import { useBufferStockDialog } from "@/composables/useBufferStockDialog";
@@ -34,7 +36,14 @@ interface NavItem {
 // Stores and composables
 const authStore = useAuthStore();
 const router = useRouter();
-const logoSrc = logo as string;
+const logoSrc = computed(() => {
+  const kode = authStore.userCabang;
+  if (kode === "K04") return logoRezso;
+  if (kode === "KF1") return logoKiddify;
+  return logo;
+});
+
+const brandTitle = computed(() => authStore.userCabangInvNama || "Kaosan");
 const { smAndDown } = useDisplay();
 
 // Component state
@@ -723,10 +732,10 @@ onUnmounted(() => {
     ></v-app-bar-nav-icon>
     <RouterLink to="/" class="logo-section">
       <v-avatar size="32" class="logo-avatar">
-        <v-img :src="logoSrc" alt="Kaosan Logo" cover />
+        <v-img :src="logoSrc" alt="Logo Cabang" cover />
       </v-avatar>
       <div class="brand-info">
-        <span class="brand-title">Kaosan</span>
+        <span class="brand-title">{{ brandTitle }}</span>
         <span class="brand-subtitle d-none d-sm-flex">Retail Management System</span>
       </div>
     </RouterLink>
@@ -889,9 +898,9 @@ onUnmounted(() => {
                   :cols="12 / (menu.sections?.length || 1)"
                   class="section-col"
                 >
-                  <div class="section-header bg-primary-lighten-5">
-                    <v-icon :icon="section.icon" size="18" class="section-icon text-primary" />
-                    <h4 class="section-title text-primary">{{ section.title }}</h4>
+                  <div class="section-header">
+                    <v-icon :icon="section.icon" size="18" class="section-icon" />
+                    <h4 class="section-title">{{ section.title }}</h4>
                   </div>
 
                   <v-list density="compact" class="section-list">
@@ -1090,7 +1099,7 @@ onUnmounted(() => {
           </template>
 
           <template v-for="section in menu.sections" :key="section.title">
-            <v-list-subheader class="font-weight-bold text-primary mt-2">{{
+            <v-list-subheader class="font-weight-bold mt-2" style="color: #b71c1c">{{
               section.title
             }}</v-list-subheader>
             <template
@@ -1158,7 +1167,7 @@ onUnmounted(() => {
 <style scoped>
 /* Main navbar styling */
 .desktop-navbar {
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-bottom: 2px solid rgba(183, 28, 28, 0.35) !important;
   background-color: rgba(var(--v-theme-surface), 0.85) !important;
   backdrop-filter: blur(12px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1178,6 +1187,7 @@ onUnmounted(() => {
   border-radius: 8px;
   transition: background-color 0.2s ease;
   margin-right: 24px;
+  background-color: rgba(183, 28, 28, 0.05);
 }
 
 .logo-section:hover {
@@ -1197,7 +1207,7 @@ onUnmounted(() => {
 .brand-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: rgb(var(--v-theme-primary));
+  color: #b71c1c;
   letter-spacing: -0.03em;
   line-height: 1.2;
 }
@@ -1229,13 +1239,13 @@ onUnmounted(() => {
 }
 
 .nav-button:hover {
-  background-color: rgba(var(--v-theme-primary), 0.08);
-  color: rgb(var(--v-theme-primary));
+  background-color: rgba(183, 28, 28, 0.08);
+  color: #b71c1c;
 }
 
 .nav-button.v-btn--active {
-  background-color: rgba(var(--v-theme-primary), 0.12);
-  color: rgb(var(--v-theme-primary));
+  background-color: rgba(183, 28, 28, 0.12);
+  color: #b71c1c;
 }
 
 .nav-button .v-icon {
@@ -1275,8 +1285,8 @@ onUnmounted(() => {
 .nav-list-item:hover,
 .section-list-item:hover,
 .user-menu-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.06);
-  color: rgb(var(--v-theme-primary));
+  background-color: rgba(183, 28, 28, 0.06);
+  color: #b71c1c;
 }
 
 .nav-list-item.sub,
@@ -1310,13 +1320,14 @@ onUnmounted(() => {
   align-items: center;
   padding: 8px 12px;
   margin-bottom: 8px;
-  background: rgba(var(--v-theme-primary), 0.06);
+  background: rgba(183, 28, 28, 0.06);
   border-radius: 6px;
-  border-left: 3px solid rgb(var(--v-theme-primary));
+  border-left: 3px solid #b71c1c;
 }
 
 .section-icon {
   margin-right: 8px;
+  color: #b71c1c !important;
 }
 
 .section-title {
@@ -1324,6 +1335,7 @@ onUnmounted(() => {
   font-weight: 600;
   margin: 0;
   letter-spacing: -0.01em;
+  color: #b71c1c;
 }
 
 /* User menu styling */
@@ -1337,7 +1349,7 @@ onUnmounted(() => {
 }
 
 .user-button:hover {
-  background-color: rgba(var(--v-theme-primary), 0.06);
+  background-color: rgba(183, 28, 28, 0.06);
 }
 
 .user-avatar {
@@ -1368,7 +1380,7 @@ onUnmounted(() => {
 
 .user-profile-item {
   padding: 12px 16px;
-  background-color: rgba(var(--v-theme-primary), 0.05);
+  background-color: rgba(183, 28, 28, 0.05);
 }
 
 .user-profile-name {

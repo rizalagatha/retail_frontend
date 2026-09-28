@@ -9,6 +9,7 @@ interface User {
   nama: string;
   cabang: string;
   cabangNama: string;
+  cabangInvNama: string;
   canApproveCorrection?: boolean;
   canApprovePrice?: boolean;
   canApproveRefund?: boolean;
@@ -52,6 +53,7 @@ export const useAuthStore = defineStore("auth", () => {
     JSON.parse(localStorage.getItem("userPermissions") || "[]")
   );
   const isSessionExpired = ref(false);
+  const cabangInvNama = ref<string>("");
 
   // --- GETTERS ---
   // Cara mudah untuk mendapatkan data turunan dari state
@@ -63,6 +65,7 @@ export const useAuthStore = defineStore("auth", () => {
   const userInitial = computed(() => userName.value.charAt(0).toUpperCase());
   const userCabang = computed(() => user.value?.cabang || "-");
   const userCabangNama = computed(() => user.value?.cabangNama || "");
+  const userCabangInvNama = computed(() => user.value?.cabangInvNama || "");
   const allowedMenus = computed(() => {
     return permissions.value.filter((p) => p.view).map((p) => p.id.toString()); // convert number ke string untuk match dengan menuId di router
   });
@@ -117,6 +120,10 @@ export const useAuthStore = defineStore("auth", () => {
 
   // --- ACTIONS ---
   // Fungsi untuk mengubah state
+
+  function setCabangInvNama(nama: string) {
+    cabangInvNama.value = nama;
+  }
 
   // Aksi yang dipanggil setelah login berhasil
   function setLoginData(loginResponse: LoginResponse) {
@@ -193,6 +200,9 @@ export const useAuthStore = defineStore("auth", () => {
     userInitial,
     userCabang,
     userCabangNama,
+    userCabangInvNama,
+    cabangInvNama,
+    setCabangInvNama,
     isTokenExpired,
     notifications,
     setLoginData,

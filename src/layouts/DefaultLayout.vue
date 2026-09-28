@@ -1811,7 +1811,11 @@ onUnmounted(() => {
 <style scoped>
 /* [PERBAIKAN DARK MODE] Gunakan var border agar tidak terang di dark mode */
 .border-top {
-  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-top: 2px solid rgba(183, 28, 28, 0.25);
+}
+
+.d-flex.align-center.ga-1 span[class*="text-primary"] {
+  color: #b71c1c !important;
 }
 
 .border {

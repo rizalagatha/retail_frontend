@@ -72,6 +72,7 @@ interface Item {
   isJasa?: boolean;
   isFreeGift?: boolean;
   isHargaKhusus?: boolean;
+  unitSerial?: string;
 }
 interface LinkedDp {
   nomor: string;
@@ -718,6 +719,16 @@ const onDiskonSaved = (data: {
     // Jika hanya ongkir/biaya platform yang berubah
     applyChanges();
   }
+};
+
+const clearInvoicePromo = () => {
+  header.nomorPromo = "";
+  header.namaPromo = "";
+  header.diskonRp = 0;
+  header.diskonPersen1 = 0;
+  lastSuggestedPromo.value = "MANUAL_AUTH";
+  calculateTotals();
+  toast.info("Promo dihapus.");
 };
 
 const handleItemDiscountChange = (item: Item) => {
@@ -2696,13 +2707,11 @@ const updateMemberInfo = (customer: Customer | null) => {
 };
 
 const handleBarcodeScan = async () => {
-  // 1. Cek Promo 005 (Scan non-aktif)
   if (header.nomorPromo === "PRO-2025-005") {
-    audioError.play().catch(() => {}); // Bunyi Error
+    audioError.play().catch(() => {});
     return toast.error("Scan barcode non-aktif saat promo ini. Gunakan F1/F2.");
   }
 
-  // 2. Cek Customer
   if (!header.customer.kode) {
     audioError.play().catch(() => {});
     return toast.error("Pilih customer terlebih dahulu sebelum scan!");
@@ -2711,12 +2720,69 @@ const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // [TAMBAHAN] Bersihkan barcode dari angka nol di depan untuk pencarian lokal di array 'items'
-  const cleanedBarcode = barcode.replace(/^0+/, "");
   isScanning.value = true;
 
+  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs)
   try {
-    // A. Cek apakah barang sudah ada di list (Increment Qty)
+    const res = await api.get(`/invoice-form/lookup/unit-for-sale/${barcode}`, {
+      params: { gudang: header.gudang.kode },
+    });
+    const unit = res.data;
+
+    const currentLevel = String(header.customer.level_kode || "1").trim();
+    let basePrice = unit.harga;
+    if (currentLevel === "5") basePrice = unit.harga3;
+    const isPromoActive = header.nomorPromo === "PRO-2025-005";
+    const finalPrice = isPromoActive ? 33333 : basePrice;
+
+    const newItem: Item = {
+      id: Date.now(),
+      kode: unit.kode,
+      nama: unit.nama,
+      ukuran: unit.ukuran,
+      stok: 0, // sudah pasti tersedia karena validasi status DI_TOKO di backend
+      harga: finalPrice,
+      jumlah: 1,
+      diskonPersen: 0,
+      diskonRp: 0,
+      total: finalPrice,
+      barcode: unit.barcode,
+      qtyso: 0,
+      kategori: unit.kategori || "",
+      hpp: unit.hpp,
+      terhitungPromo: isPromoActive,
+      _isHargaEditable: !isPromoActive,
+      unitSerial: unit.unitSerial, // BARU
+    };
+
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+    if (emptyRowIndex !== -1) {
+      items.value.splice(emptyRowIndex, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+    addNewRow();
+    jumpToLastPage();
+    audioSuccess.play().catch(() => {});
+    toast.success(`OK: ${unit.nama}`);
+    scannedBarcode.value = "";
+    return;
+  } catch (unitError) {
+    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
+      audioError.play().catch(() => {});
+      toast.error(unitError.response?.data?.message || "Gagal memproses QR.");
+      scannedBarcode.value = "";
+      isScanning.value = false;
+      nextTick(() => barcodeInputRef.value?.focus());
+      return;
+    }
+    // 404 → bukan unit_serial baru, lanjut ke jalur lama di bawah
+  }
+
+  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
+  const cleanedBarcode = barcode.replace(/^0+/, "");
+
+  try {
     const existingItem = items.value.find((item) => {
       if (!item.kode) return false;
       const itemBarcode = String(item.barcode || "").replace(/^0+/, "");
@@ -2726,23 +2792,18 @@ const handleBarcodeScan = async () => {
     if (existingItem) {
       existingItem.jumlah += 1;
       jumpToLastPage();
-
-      // Feedback Sukses
       audioSuccess.play().catch(() => {});
       toast.info(`+1 ${existingItem.nama}`);
-
       scannedBarcode.value = "";
-      return; // Selesai, masuk finally
+      return;
     }
 
-    // B. Jika belum ada, Cari ke API
     const response = await api.get(`/invoice-form/by-barcode/${barcode}`, {
       params: { gudang: header.gudang.kode },
     });
 
     const product = response.data;
 
-    // --- Logic penentuan harga (Copy dari kode lama Anda) ---
     const emptyRowIndex = items.value.findIndex((item) => !item.kode);
     const currentLevel = String(header.customer.level_kode || "1").trim();
     let basePrice = Number(product.harga || 0);
@@ -2755,7 +2816,6 @@ const handleBarcodeScan = async () => {
     const isPromoActive = header.nomorPromo === "PRO-2025-005";
     const finalPrice = isPromoActive ? 33333 : basePrice;
     const isEditable = !isPromoActive;
-    // --------------------------------------------------------
 
     const newItem = {
       id: Date.now(),
@@ -2783,32 +2843,20 @@ const handleBarcodeScan = async () => {
 
     addNewRow();
     jumpToLastPage();
-
-    // Feedback Sukses
     audioSuccess.play().catch(() => {});
     toast.success(`OK: ${product.nama}`);
     scannedBarcode.value = "";
-  } catch (error: unknown) {
-    // Feedback Error
+  } catch (error) {
     audioError.play().catch(() => {});
-
     if (axios.isAxiosError(error) && error.response) {
       toast.error(error.response.data?.message || `Barcode ${barcode} tidak valid.`);
     } else {
       toast.error(`Barcode ${barcode} tidak valid.`);
     }
-
-    // Select text agar user bisa langsung ganti tanpa hapus manual
-    nextTick(() => {
-      barcodeInputRef.value?.select();
-    });
+    nextTick(() => barcodeInputRef.value?.select());
   } finally {
     isScanning.value = false;
-
-    // [PENTING] Kembalikan fokus ke input scanner
-    nextTick(() => {
-      barcodeInputRef.value?.focus();
-    });
+    nextTick(() => barcodeInputRef.value?.focus());
   }
 };
 
@@ -3423,7 +3471,8 @@ watch(
       </v-btn>
       <v-btn
         v-if="isEditMode"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         size="small"
         prepend-icon="mdi-content-save"
         :disabled="isLockedFsk"
@@ -3513,6 +3562,10 @@ watch(
               </v-sheet>
             </v-col>
           </v-row>
+          <div class="field-section-label">
+            <v-icon size="14" class="mr-1">mdi-file-document-outline</v-icon>
+            Dokumen
+          </div>
           <v-row dense>
             <v-col cols="6">
               <v-text-field
@@ -3520,8 +3573,8 @@ watch(
                 v-model="header.nomor"
                 readonly
                 density="compact"
-                filled
                 hide-details
+                class="readonly-field nomor-field"
               />
             </v-col>
             <v-col cols="6">
@@ -3529,7 +3582,7 @@ watch(
                 label="Tanggal"
                 v-model="header.tanggal"
                 type="date"
-                variant="filled"
+                variant="outlined"
                 density="compact"
                 hide-details
                 :readonly="isReadonly"
@@ -3540,9 +3593,9 @@ watch(
                 label="Kode Cabang"
                 :model-value="header.gudang.kode"
                 density="compact"
-                filled
+                readonly
                 hide-details
-                :readonly="isReadonly"
+                class="readonly-field"
               />
             </v-col>
             <v-col cols="8">
@@ -3550,48 +3603,57 @@ watch(
                 label="Nama Cabang"
                 :model-value="header.gudang.nama"
                 density="compact"
-                filled
+                readonly
                 hide-details
-                :readonly="isReadonly"
+                class="readonly-field"
               />
             </v-col>
-            <v-col cols="6">
+            <v-col cols="7">
               <v-text-field
                 :label="referenceLabel"
                 v-model="header.nomorSo"
                 :readonly="isReadonly"
-                :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'"
                 density="compact"
                 hide-details
                 clearable
                 :clear-icon="isReadonly ? '' : 'mdi-close'"
+                :prepend-inner-icon="isReadonly ? '' : 'mdi-magnify'"
+                class="search-field so-ref-field"
                 @click="
                   !isReadonly && (isKpr ? (dialogs.sjSearch = true) : (dialogs.soSearch = true))
                 "
                 @click:clear.prevent="!isReadonly && handleClearSo()"
               />
             </v-col>
-            <v-col cols="6">
+            <v-col cols="5">
               <v-text-field
                 :label="referenceDateLabel"
                 :model-value="
                   header.tanggalSo ? format(parseISO(header.tanggalSo), 'dd-MM-yyyy') : ''
                 "
                 readonly
-                variant="filled"
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
+          </v-row>
+
+          <div class="field-section-label mt-3">
+            <v-icon size="14" class="mr-1">mdi-account-outline</v-icon>
+            Customer
+          </div>
+          <v-row dense>
             <v-col cols="4">
               <v-text-field
-                label=" Kode Customer"
+                label="Kode Customer"
                 :model-value="header.customer.kode"
                 density="compact"
                 :readonly="isReadonly"
                 @click="!isReadonly && (dialogs.customerSearch = true)"
                 prepend-inner-icon="mdi-magnify"
                 hide-details
+                class="search-field"
               />
             </v-col>
             <v-col cols="8">
@@ -3624,42 +3686,44 @@ watch(
                 label="Alamat"
                 v-model="header.customer.alamat"
                 readonly
-                filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
-            <v-col cols="6">
+            <v-col cols="7">
               <v-text-field
-                label="Kota"
-                v-model="header.customer.kota"
+                label="Kota / Telepon"
+                :model-value="`${header.customer.kota || ''} / ${header.customer.telp || ''}`"
                 readonly
-                filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
+            <v-col cols="5">
+              <div class="level-chip-wrapper">
+                <div class="level-chip-label">Level</div>
+                <v-chip
+                  v-if="header.customer.level"
+                  size="small"
+                  color="red-darken-2"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ header.customer.level }}
+                </v-chip>
+                <span v-else class="text-caption text-medium-emphasis">-</span>
+              </div>
+            </v-col>
+          </v-row>
+
+          <div class="field-section-label mt-3">
+            <v-icon size="14" class="mr-1">mdi-cog-outline</v-icon>
+            Pengaturan Transaksi
+          </div>
+          <v-row dense>
             <v-col cols="6">
-              <v-text-field
-                label="Telepon"
-                v-model="header.customer.telp"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="6">
-              <v-text-field
-                label="Level"
-                v-model="header.customer.level"
-                readonly
-                filled
-                density="compact"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="3">
               <v-text-field
                 label="TOP"
                 v-model.number="header.top"
@@ -3668,18 +3732,19 @@ watch(
                 density="compact"
                 variant="outlined"
                 hide-details
+                prepend-inner-icon="mdi-calendar-clock-outline"
                 :readonly="isReadonly"
               />
             </v-col>
-            <v-col cols="3">
+            <v-col cols="6">
               <v-text-field
                 label="Tgl. Jatuh Tempo"
                 v-model="header.tanggalTempo"
                 type="date"
                 density="compact"
                 readonly
-                filled
                 hide-details
+                class="readonly-field"
               />
             </v-col>
             <v-col cols="12">
@@ -3690,6 +3755,7 @@ watch(
                 variant="outlined"
                 density="compact"
                 hide-details
+                prepend-inner-icon="mdi-account-tie-outline"
                 :readonly="isReadonly"
               />
             </v-col>
@@ -3698,21 +3764,33 @@ watch(
                 label="Promo"
                 v-model="header.nomorPromo"
                 @click="!isReadonly && (dialogs.promoSearch = true)"
-                prepend-inner-icon="mdi-magnify"
+                prepend-inner-icon="mdi-ticket-percent-outline"
                 density="compact"
                 hide-details
                 placeholder="F1 atau klik..."
                 :readonly="isReadonly"
-              />
+                class="search-field promo-field"
+              >
+                <template #append-inner>
+                  <v-icon
+                    v-if="header.nomorPromo && !isReadonly"
+                    size="small"
+                    color="error"
+                    @click.stop="clearInvoicePromo"
+                    title="Hapus Promo"
+                    >mdi-close-circle</v-icon
+                  >
+                </template>
+              </v-text-field>
             </v-col>
             <v-col cols="8">
               <v-text-field
                 label="Nama Promo"
                 v-model="header.namaPromo"
                 density="compact"
-                :readonly="isReadonly"
-                filled
+                readonly
                 hide-details
+                class="readonly-field"
               />
             </v-col>
             <v-col cols="12">
@@ -3722,6 +3800,7 @@ watch(
                 density="compact"
                 variant="outlined"
                 hide-details
+                prepend-inner-icon="mdi-note-text-outline"
                 :readonly="isReadonly"
               />
             </v-col>
@@ -3752,7 +3831,7 @@ watch(
       </div>
 
       <div class="right-column">
-        <div class="top-right-header">
+        <div class="top-right-header scanner-section-wrap">
           <div v-if="!header.nomorSo" class="scanner-wrapper d-flex ga-2 align-center">
             <v-text-field
               ref="barcodeInputRef"
@@ -3786,6 +3865,11 @@ watch(
 
         <div class="scrollable-table-wrapper">
           <div class="desktop-form-section table-section">
+            <div v-if="!items.some((i) => i.kode)" class="empty-grid-state">
+              <v-icon size="40">mdi-cart-outline</v-icon>
+              <div class="empty-title">Belum ada barang</div>
+              <div class="empty-subtitle">Scan barcode atau cari produk untuk mulai transaksi</div>
+            </div>
             <v-data-table
               :headers="tableHeaders"
               :items="items"
@@ -4065,6 +4149,8 @@ watch(
             <v-col cols="auto" class="d-flex ga-2">
               <v-btn
                 size="small"
+                variant="tonal"
+                class="btn-footer-action"
                 prepend-icon="mdi-cash-multiple"
                 @click="dialogs.linkedDp = true"
                 :disabled="isReadonly || !header.customer.kode"
@@ -4073,7 +4159,9 @@ watch(
               </v-btn>
               <v-btn
                 size="small"
-                prepend-icon="mdi-sale"
+                variant="tonal"
+                class="btn-footer-action"
+                prepend-icon="mdi-sale-outline"
                 @click="handleOpenDiskonForm"
                 :disabled="isReadonly"
               >
@@ -4085,7 +4173,8 @@ watch(
 
             <v-col cols="auto">
               <v-btn
-                color="primary"
+                class="btn-primary-red"
+                variant="flat"
                 size="large"
                 prepend-icon="mdi-credit-card-check"
                 @click="handleProceedToPayment"
@@ -4360,13 +4449,13 @@ watch(
 }
 
 .custom-input-button {
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.38);
+  border: 1.5px dashed rgba(183, 28, 28, 0.3);
   border-radius: 4px;
   padding: 8px 12px;
   cursor: pointer;
   height: 40px;
 
-  background-color: rgb(var(--v-theme-surface));
+  background-color: rgba(183, 28, 28, 0.02);
   color: rgb(var(--v-theme-on-surface));
 
   display: flex;
@@ -4374,7 +4463,21 @@ watch(
 }
 
 .custom-input-button:hover {
-  border-color: rgb(var(--v-theme-primary));
+  border-color: #b71c1c;
+  background-color: rgba(183, 28, 28, 0.06);
+}
+
+/* ══════════════ FIELD FOKUS: MERAH KONSISTEN ══════════════ */
+
+.left-column :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+.left-column :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
 }
 
 .input-content {
@@ -4434,6 +4537,12 @@ watch(
 .scanner-wrapper {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* ══════════════ SCANNER FIELD ══════════════ */
+
+.scanner-wrapper :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
 }
 
 .logo-container {
@@ -4534,10 +4643,10 @@ watch(
   background: linear-gradient(
     135deg,
     rgba(var(--v-theme-surface), 0.98) 0%,
-    rgba(var(--v-theme-primary), 0.06) 100%
+    rgba(183, 28, 28, 0.06) 100%
   );
+  border-top: 2px solid #b71c1c;
 
-  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 12px 18px;
   font-size: 13px;
   flex-shrink: 0;
@@ -4558,8 +4667,9 @@ watch(
 
 /* Label (chip-like) */
 .summary-row .label {
-  color: rgba(var(--v-theme-on-surface), 0.75);
-  background-color: rgba(var(--v-theme-primary), 0.12);
+  background-color: rgba(183, 28, 28, 0.1);
+  color: #b71c1c;
+  font-weight: 700;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 12px;
@@ -4570,22 +4680,29 @@ watch(
 .summary-row .value {
   min-width: 80px;
   text-align: right;
-  color: rgb(var(--v-theme-on-surface));
+  color: #b71c1c;
   font-size: 14px;
   font-weight: 700;
 }
 
 /* Mewarnai Header Tabel */
 .desktop-table :deep(thead tr th) {
-  background-color: rgb(var(--v-theme-primary)) !important;
-  color: rgb(var(--v-theme-on-primary)) !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
   border-bottom: none !important;
-  /* Supaya lebih rapi */
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.05);
 }
 
 .disabled-input {
@@ -4608,7 +4725,7 @@ watch(
   /* --- OPSI WARNA GRADASI (Pilih salah satu) --- */
 
   /* Opsi 1: Royal Mystic (Biru Tua ke Ungu) - KESAN MEWAH & PROFESIONAL */
-  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
+  background: linear-gradient(135deg, #8e0000 0%, #d32f2f 100%);
 
   /* Opsi 2: Sunset Vibes (Orange ke Pink) - KESAN HOT PROMO */
   /* background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%); */
@@ -4617,17 +4734,16 @@ watch(
   /* background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); */
 
   /* Shadow berwarna sesuai tema */
-  box-shadow: 0 10px 25px -5px rgba(38, 208, 206, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(183, 28, 28, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.15);
   transition: all 0.3s ease;
 }
 
 /* Style Khusus Grand Opening (Emas ke Merah Maroon - Kesan Meriah) */
 .promo-card.grand-opening-style {
-  background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%) !important;
-  box-shadow: 0 10px 25px -5px rgba(221, 36, 118, 0.5) !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #ff512f 100%) !important;
+  box-shadow: 0 10px 25px -5px rgba(183, 28, 28, 0.5) !important;
   border: 1px solid rgba(255, 215, 0, 0.3) !important;
-  /* Border agak keemasan */
 }
 
 .grand-opening-style .promo-label {
@@ -4658,6 +4774,14 @@ watch(
   /* Tambah padding kanan agar tidak tertabrak tombol */
   gap: 16px;
   color: white;
+}
+
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
 }
 
 /* --- ICON Styles --- */
@@ -4712,12 +4836,12 @@ watch(
   align-items: center;
   padding: 6px 16px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #1a2980 0%, #26d0ce 100%);
+  background: linear-gradient(135deg, #8e0000 0%, #d32f2f 100%);
   color: white;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 4px 10px rgba(38, 208, 206, 0.3);
+  box-shadow: 0 4px 10px rgba(183, 28, 28, 0.3);
   transition: transform 0.2s ease;
 }
 
@@ -4734,8 +4858,8 @@ watch(
 
 /* Override warna untuk bar jika itu promo grand opening */
 .promo-minimized-bar.grand-opening-style {
-  background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%) !important;
-  box-shadow: 0 4px 10px rgba(221, 36, 118, 0.4) !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #ff512f 100%) !important;
+  box-shadow: 0 4px 10px rgba(183, 28, 28, 0.4) !important;
 }
 
 /* --- ACTION / BADGE Styles --- */
@@ -4773,6 +4897,14 @@ watch(
   min-height: 0;
   overflow: hidden;
   transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: rgba(183, 28, 28, 0.04);
+}
+
+.left-column .desktop-form-section.header-section {
+  background-color: rgba(183, 28, 28, 0.03);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
 }
 
 :deep(.content-wrapper) {
@@ -5120,5 +5252,172 @@ watch(
   margin-top: 10px;
   font-size: 11px;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+/* ══════════════ SECTION LABELS (diambil dari SoCreateView) ══════════════ */
+.field-section-label {
+  display: flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+/* ══════════════ SEARCH FIELD: ICON JADI TOMBOL JELAS (tap-friendly di tablet) ══════════════ */
+.search-field :deep(.v-field) {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+.search-field :deep(.v-field__prepend-inner),
+.search-field :deep(.v-field__append-inner) {
+  display: flex;
+  align-items: center;
+}
+.search-field :deep(.v-field__prepend-inner .v-icon),
+.search-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #b71c1c;
+  border-radius: 6px;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.search-field:hover :deep(.v-field__prepend-inner .v-icon),
+.search-field:hover :deep(.v-field__append-inner .v-icon) {
+  background-color: #8e0000;
+  transform: scale(1.05);
+}
+
+/* ══════════════ READONLY FIELD: TERLIHAT BUKAN EDITABLE ══════════════ */
+.readonly-field :deep(.v-field) {
+  background-color: rgba(0, 0, 0, 0.025) !important;
+  box-shadow: none !important;
+}
+.readonly-field :deep(input) {
+  color: rgba(0, 0, 0, 0.7) !important;
+  font-weight: 500;
+}
+.nomor-field :deep(input) {
+  font-weight: 800 !important;
+  color: #b71c1c !important;
+  letter-spacing: 0.3px;
+}
+
+/* ══════════════ LEVEL SEBAGAI CHIP ══════════════ */
+.level-chip-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+}
+.level-chip-label {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* ══════════════ PROMO FIELD DITONJOLKAN ══════════════ */
+.promo-field :deep(.v-field) {
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.promo-field :deep(input) {
+  font-weight: 700;
+  color: #b71c1c;
+}
+
+/* ══════════════ SCANNER WRAPPER ══════════════ */
+.scanner-section-wrap {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+/* ══════════════ EMPTY STATE GRID ══════════════ */
+.empty-grid-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  color: rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+.empty-grid-state .v-icon {
+  color: rgba(183, 28, 28, 0.25);
+  margin-bottom: 8px;
+}
+.empty-grid-state .empty-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.5);
+}
+.empty-grid-state .empty-subtitle {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* ══════════════ FIELD NO. SO/SJ: teks tidak kepotong icon clear ══════════════ */
+.so-ref-field :deep(.v-field__input) {
+  padding-right: 4px !important;
+  font-size: 12.5px;
+  letter-spacing: -0.2px;
+}
+
+.so-ref-field :deep(.v-field__clearable) {
+  margin-left: 2px;
+}
+
+.so-ref-field :deep(.v-label) {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90%;
+}
+
+.so-ref-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+}
+
+/* ══════════════ TOMBOL AKSI FOOTER (Lihat DP / Diskon) ══════════════ */
+.btn-footer-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.btn-footer-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+  border-color: rgba(183, 28, 28, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-footer-action:disabled {
+  opacity: 0.4;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* ══════════════ RESPONSIVE FOOTER (dari SO) ══════════════ */
+@media (max-height: 767px) {
+  .table-summary-footer {
+    padding: 8px 14px !important;
+  }
+  .summary-row {
+    gap: 24px !important;
+  }
+  .summary-row .value {
+    font-size: 12px !important;
+  }
 }
 </style>

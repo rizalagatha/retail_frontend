@@ -655,7 +655,8 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-plus"
         @click="router.push('/transaksi/penjualan/pengajuan/pengajuan-harga/new')"
         >Baru</v-btn
@@ -663,6 +664,8 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-pencil"
         @click="editProposal"
@@ -672,6 +675,7 @@ onBeforeRouteLeave((to, from, next) => {
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"
         color="error"
+        variant="tonal"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-delete"
         @click="confirmDelete"
@@ -681,7 +685,8 @@ onBeforeRouteLeave((to, from, next) => {
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
         :disabled="!canClose"
-        color="grey-darken-2"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-lock-outline"
         @click="openCloseDialog"
       >
@@ -722,7 +727,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 118px"
+            class="periode-field"
           ></v-text-field>
           <span>s/d</span>
           <v-text-field
@@ -731,7 +736,7 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 118px"
+            class="periode-field"
           ></v-text-field>
         </div>
         <div class="d-flex align-center ga-2" style="min-width: 220px">
@@ -744,8 +749,8 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 150px"
-            :menu-props="{ class: 'compact-select-list' }"
+            class="cabang-select"
+            :menu-props="{ class: 'compact-select-list ph-filter-menu' }"
           ></v-select>
         </div>
         <v-checkbox
@@ -753,25 +758,27 @@ onBeforeRouteLeave((to, from, next) => {
           label="Draft Saja"
           hide-details
           density="compact"
+          class="draft-checkbox"
         ></v-checkbox>
         <v-spacer></v-spacer>
         <v-divider vertical class="mx-2"></v-divider>
-        <div class="d-flex align-center ga-1">
+        <div class="d-flex align-center ga-1" style="flex-shrink: 0">
           <v-select
             v-model="selectedFilterField"
             :items="filterOptions"
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 160px"
+            class="filterby-select"
             placeholder="Filter..."
+            :menu-props="{ class: 'ph-filter-menu' }"
           />
           <v-text-field
             v-model="filterSearchValue"
             density="compact"
             hide-details
             variant="outlined"
-            style="width: 170px"
+            class="ph-search-field"
             clearable
             prepend-inner-icon="mdi-magnify"
             placeholder="Cari..."
@@ -1523,5 +1530,229 @@ onBeforeRouteLeave((to, from, next) => {
   font-family: monospace;
   color: rgb(var(--v-theme-on-surface));
   word-break: break-word;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.filter-label {
+  color: #b71c1c !important;
+}
+
+/* --- Search bar diperpanjang & override global (FIX flex-shrink) --- */
+.filter-section .ph-search-field {
+  flex: 0 0 420px !important;
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: 420px !important;
+  flex-shrink: 0 !important;
+  margin-left: 4px;
+}
+
+.filter-section .ph-search-field :deep(.v-input__control) {
+  width: 100% !important;
+}
+
+.filter-section .ph-search-field :deep(.v-field) {
+  width: 100% !important;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .ph-search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .ph-search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .ph-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+/* --- Filter Berdasarkan (combobox) --- */
+.filter-section .filterby-select {
+  width: 190px !important;
+}
+
+.filter-section .filterby-select :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .periode-field :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .filterby-select :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .periode-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .filterby-select :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .periode-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .filterby-select :deep(.v-select__menu-icon),
+.filter-section .cabang-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+.filter-section .periode-field {
+  width: 130px;
+}
+
+.filter-section .cabang-select {
+  width: 150px;
+}
+
+/* --- Checkbox "Draft Saja" --- */
+.filter-section .draft-checkbox :deep(.v-selection-control__input .v-icon) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.resizable-header {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.resizable-header .header-content span,
+.resizable-header .v-icon {
+  color: #ffffff !important;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #ffd54f !important;
+}
+
+/* ══════════════ ROW HOVER / STRIPE MERAH ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.v-theme--dark .desktop-table :deep(tr:hover td.text-red) {
+  background-color: rgba(211, 47, 47, 0.2) !important;
+}
+
+/* ══════════════ LEGEND ══════════════ */
+.legend-pending {
+  background-color: rgba(183, 28, 28, 0.08);
+  color: #b71c1c !important;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* ══════════════ DETAIL TABLE HEADER (expanded row) ══════════════ */
+.detail-table-title {
+  background: linear-gradient(
+    135deg,
+    rgba(183, 28, 28, 0.85) 0%,
+    rgba(142, 0, 0, 0.85) 100%
+  ) !important;
+}
+
+.detail-table :deep(thead tr th) {
+  background: linear-gradient(
+    135deg,
+    rgba(183, 28, 28, 0.85) 0%,
+    rgba(142, 0, 0, 0.85) 100%
+  ) !important;
+  color: #ffffff !important;
+}
+
+.detail-table-wrapper,
+.detail-info-wrapper {
+  border-left: 3px solid #b71c1c !important;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+</style>
+
+<style>
+.ph-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.ph-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

@@ -170,8 +170,9 @@ defineExpose({ setFailed });
 
 <template>
   <v-dialog :model-value="true" persistent max-width="400px">
-    <v-card>
-      <v-card-title class="bg-primary text-white text-subtitle-1">
+    <v-card class="dialog-card">
+      <v-card-title class="modal-header text-white text-subtitle-1 d-flex align-center">
+        <v-icon start size="20">mdi-shield-key-outline</v-icon>
         {{ title || `Otorisasi ${targetRole}` }}
       </v-card-title>
 
@@ -182,12 +183,12 @@ defineExpose({ setFailed });
               <span
                 >Jenis: <strong>{{ jenis }}</strong></span
               >
-              <span v-if="nominal">
+              <span v-if="nominal" class="nilai-highlight">
                 {{ labelNilai }}: <strong>{{ formattedNilai }}</strong>
               </span>
             </div>
 
-            <div v-if="props.keterangan" class="mt-2 pa-2 bg-grey-lighten-4 rounded text-caption">
+            <div v-if="props.keterangan" class="mt-2 pa-2 info-box rounded text-caption">
               <div style="white-space: pre-wrap">{{ props.keterangan }}</div>
             </div>
           </div>
@@ -201,6 +202,7 @@ defineExpose({ setFailed });
             placeholder="Contoh: Barang display, reject minor, dll..."
             :error-messages="errorMessage"
             autofocus
+            class="alasan-field"
           >
           </v-textarea>
         </div>
@@ -208,17 +210,19 @@ defineExpose({ setFailed });
         <div v-else class="text-center py-6">
           <v-progress-circular
             indeterminate
-            color="primary"
+            color="#b71c1c"
             size="64"
             class="mb-4"
           ></v-progress-circular>
           <h3 class="text-h6 font-weight-bold">Menunggu Persetujuan...</h3>
           <p class="text-body-2 text-grey">
             Mohon tunggu, permintaan sedang dikirim ke
-            <strong>{{ targetRole }}</strong
+            <strong class="target-role-text">{{ targetRole }}</strong
             >.
             <br />
-            <span class="text-caption mt-2 d-block"> ID Request: {{ authNomor }} </span>
+            <span class="text-caption mt-2 d-block auth-nomor-text">
+              ID Request: {{ authNomor }}
+            </span>
           </p>
         </div>
       </v-card-text>
@@ -230,14 +234,61 @@ defineExpose({ setFailed });
         </v-btn>
         <v-btn
           v-if="step === 'input'"
-          color="primary"
+          class="btn-kirim"
           variant="flat"
           :loading="isSending"
           @click="sendRequest"
         >
+          <v-icon start size="16">mdi-send</v-icon>
           Kirim Permintaan
         </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.dialog-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.modal-header {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+}
+
+.info-box {
+  background-color: rgba(183, 28, 28, 0.05) !important;
+  border-left: 3px solid #b71c1c;
+}
+
+.nilai-highlight strong {
+  color: #b71c1c;
+}
+
+.target-role-text {
+  color: #b71c1c;
+}
+
+.auth-nomor-text {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.alasan-field :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.alasan-field :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.btn-kirim {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+.btn-kirim:hover {
+  filter: brightness(1.08);
+}
+</style>

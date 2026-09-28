@@ -175,7 +175,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         @click="openNewDialog"
         prepend-icon="mdi-plus"
         >Baru</v-btn
@@ -183,6 +184,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!canEdit"
         @click="handleEditFromHeader"
         prepend-icon="mdi-pencil"
@@ -192,6 +195,7 @@ onMounted(() => {
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"
         color="error"
+        variant="tonal"
         :disabled="!canDelete"
         @click="handleDeleteFromHeader"
         prepend-icon="mdi-delete"
@@ -200,6 +204,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         @click="printData"
         prepend-icon="mdi-printer"
         >Cetak</v-btn
@@ -207,6 +213,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         @click="exportData"
         prepend-icon="mdi-file-excel"
         >Export</v-btn
@@ -241,7 +249,7 @@ onMounted(() => {
         :loading="isLoading"
         item-value="kode"
         density="compact"
-        class="desktop-table header-browse-blue"
+        class="desktop-table"
         fixed-header
         show-select
         return-object
@@ -388,7 +396,9 @@ onMounted(() => {
         <v-card-actions class="dialog-footer">
           <v-spacer></v-spacer>
           <v-btn size="small" variant="text" color="grey" @click="dialog = false">Batal</v-btn>
-          <v-btn size="small" color="primary" @click="saveSupplier" variant="flat">Simpan</v-btn>
+          <v-btn size="small" class="btn-primary-red" @click="saveSupplier" variant="flat"
+            >Simpan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -452,5 +462,153 @@ onMounted(() => {
 .dialog-card :deep(.v-select),
 .dialog-card :deep(.v-textarea) {
   margin-bottom: 12px;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+/* --- Search bar diperlebar — selector spesifik agar menang dari CSS global
+     .filter-section .v-input { flex: 0 0 auto } --- */
+.filter-section .search-grow.supplier-search-field {
+  flex: 0 0 420px !important;
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: 420px !important;
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+}
+
+.filter-section .search-grow.supplier-search-field :deep(.v-input__control) {
+  width: 100% !important;
+}
+
+.filter-section .search-grow.supplier-search-field :deep(.v-field) {
+  width: 100% !important;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .search-grow.supplier-search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .search-grow.supplier-search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.filter-section .search-grow.supplier-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.desktop-table :deep(thead tr th span),
+.desktop-table :deep(thead tr th .v-icon) {
+  color: #ffffff !important;
+}
+
+/* ══════════════ ROW HOVER MERAH ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover td) {
+  background-color: rgba(183, 28, 28, 0.05) !important;
+  cursor: pointer;
+}
+
+/* ══════════════ CHECKBOX SELEKSI BARIS — MERAH SAAT DICENTANG ══════════════ */
+.desktop-table :deep(.v-selection-control--dirty .v-icon) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════════ DIALOG FORM: HEADER & AKSEN MERAH ══════════════ */
+.dialog-header {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.2) !important;
+  border-left: 4px solid #b71c1c !important;
+  background: linear-gradient(135deg, rgba(183, 28, 28, 0.06) 0%, transparent 100%);
+}
+
+.dialog-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.dialog-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
 }
 </style>

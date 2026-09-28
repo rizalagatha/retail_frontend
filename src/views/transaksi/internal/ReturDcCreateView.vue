@@ -9,7 +9,8 @@ import api from "@/services/api";
 import { format } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
-import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 import ReturJualOnlineSearchModal from "@/components/lookup/ReturJualOnlineSearchModal.vue";
 import axios, { AxiosError } from "axios";
 
@@ -35,20 +36,8 @@ interface Item {
   hargabaru: number;
   kodebaru: string;
   barcode: string;
-}
-interface ProductSelected {
-  kode: string;
-  ukuran: string;
-}
-
-interface ProductDetail {
-  kode: string;
-  ukuran: string;
-  nama: string;
-  barcode: string;
-  stok: number;
-  harga: number;
-  // tambahkan properti lain sesuai response API
+  unitSerial?: string;
+  unitSerials?: string[];
 }
 
 // Interface untuk parameter 'retur' dari modal pencarian
@@ -67,6 +56,7 @@ interface ItemFromRJ {
   ukuran: string;
   jumlah: number;
   stok: number;
+  unitSerials?: string[];
 }
 
 interface BackendReturItem {
@@ -110,8 +100,8 @@ const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
 const scannedBarcode = ref("");
-const dialog = reactive({ gudangSearch: false, productSearch: false });
-const isMultiSelectProduct = ref(false);
+const dialog = reactive({ gudangSearch: false });
+const isProductPanelVisible = ref(false);
 const activeRowIndex = ref(0);
 
 const dialogConfirm = reactive({
@@ -220,6 +210,55 @@ const onGudangSelected = (gudang: { kode: string; nama: string }) => {
 const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
+
+  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs)
+  try {
+    const res = await api.get(`/retur-dc-form/lookup/unit-for-retur/${barcode}`, {
+      params: { gudang: authStore.user?.cabang },
+    });
+    const unit = res.data;
+    const existingUnitRow = items.value.find((item) => item.unitSerial === unit.unitSerial);
+    if (existingUnitRow) {
+      toast.info("Unit ini sudah ada di daftar.");
+      scannedBarcode.value = "";
+      return;
+    }
+    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
+    const newItem: Item = {
+      id: Date.now(),
+      kode: unit.kode,
+      nama: unit.nama,
+      ukuran: unit.ukuran,
+      stok: 0,
+      jumlah: 1,
+      harga: 0,
+      hargaDtf: 0,
+      jenis: "",
+      ket: "",
+      diskon: 0,
+      hargabaru: 0,
+      kodebaru: "",
+      barcode: unit.barcode,
+      unitSerial: unit.unitSerial,
+    };
+    if (emptyRowIndex !== -1) {
+      items.value.splice(emptyRowIndex, 1, newItem);
+    } else {
+      items.value.push(newItem);
+    }
+    addNewRow();
+    scannedBarcode.value = "";
+    return;
+  } catch (unitError) {
+    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
+      toast.error(unitError.response?.data?.message || "Gagal memproses QR.");
+      scannedBarcode.value = "";
+      return;
+    }
+    // 404 → bukan unit_serial baru, lanjut ke jalur lama di bawah
+  }
+
+  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
   const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
   if (existingItem) {
     existingItem.jumlah = (existingItem.jumlah || 0) + 1;
@@ -238,70 +277,64 @@ const handleBarcodeScan = async () => {
       addNewRow();
     }
   } catch (error: unknown) {
-    // <-- 2. Catch as 'unknown'
-    // --- 3. Refactored Error Handling ---
-    let errorMessage = `Barcode ${barcode} tidak valid atau terjadi kesalahan.`; // Default message
+    let errorMessage = `Barcode ${barcode} tidak valid atau terjadi kesalahan.`;
     if (axios.isAxiosError(error)) {
-      // Now TypeScript knows 'error' is an AxiosError
-      const axiosError = error as AxiosError<{ message?: string }>; // Optional: Cast for clearer data access
+      const axiosError = error as AxiosError<{ message?: string }>;
       if (axiosError.response?.data?.message) {
         errorMessage = axiosError.response.data.message;
       } else if (axiosError.message) {
-        errorMessage = axiosError.message; // Use Axios's generic message if no specific one
+        errorMessage = axiosError.message;
       }
     } else if (error instanceof Error) {
-      errorMessage = error.message; // Handle generic JS Errors
+      errorMessage = error.message;
     }
     toast.error(errorMessage);
-    // ------------------------------------
   } finally {
     scannedBarcode.value = "";
   }
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number) => {
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti;
-  dialog.productSearch = true;
+  isProductPanelVisible.value = true;
 };
 
-const onProductsSelected = async (selectedProducts: ProductSelected[]) => {
-  dialog.productSearch = false;
-
-  const productsToAdd = selectedProducts.filter(
+const onPanelProductsAdded = (selections: ProductPanelSelection[]) => {
+  const productsToAdd = selections.filter(
     (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
   );
 
-  if (productsToAdd.length === 0 && selectedProducts.length > 0)
+  if (productsToAdd.length === 0 && selections.length > 0) {
     return toast.info("Semua produk sudah ada di daftar.");
-
-  try {
-    const detailPromises = productsToAdd.map((p) =>
-      api.get<ProductDetail>("/retur-dc-form/lookup/product-details", {
-        params: { kode: p.kode, ukuran: p.ukuran, gudang: authStore.user?.cabang },
-      })
-    );
-
-    const responses = await Promise.all(detailPromises);
-
-    const newItems = responses.map((res) => ({
-      ...res.data,
-      id: Date.now() + Math.random(),
-      jumlah: 1,
-      hargaDtf: res.data.harga || 0,
-      jenis: "",
-      ket: "",
-      diskon: 0,
-      hargabaru: 0,
-      kodebaru: "",
-    }));
-
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
-    addNewRow();
-  } catch (error: unknown) {
-    toast.error("Gagal memuat detail produk.");
-    console.error(error);
   }
+
+  const newItems: Item[] = productsToAdd.map((p) => ({
+    id: Date.now() + Math.random(),
+    kode: p.kode,
+    nama: p.nama,
+    ukuran: p.ukuran || "-",
+    stok: p.stok || 0,
+    jumlah: p.jumlah || 1,
+    harga: p.harga || 0,
+    hargaDtf: p.harga || 0,
+    jenis: "",
+    ket: "",
+    diskon: 0,
+    hargabaru: 0,
+    kodebaru: "",
+    barcode: p.barcode || p.kode,
+  }));
+
+  // Sisipkan ke baris kosong yang sedang aktif dulu, sisanya di-append
+  const emptyIdx = items.value.findIndex((item) => !item.kode);
+  if (emptyIdx !== -1 && newItems.length > 0) {
+    items.value.splice(emptyIdx, 1, newItems[0]);
+    items.value.splice(emptyIdx + 1, 0, ...newItems.slice(1));
+  } else {
+    items.value.push(...newItems);
+  }
+
+  addNewRow();
 };
 
 const onRJSelected = async (retur: ReturJualLookup) => {
@@ -359,7 +392,12 @@ const save = () => {
   if (validItems.some((i) => (i.jumlah || 0) <= 0)) {
     return toast.error("Jumlah retur harus diisi dan lebih dari 0.");
   }
-  if (validItems.some((i) => (i.jumlah || 0) > i.stok)) {
+  if (
+    validItems.some(
+      (i) =>
+        !i.unitSerial && (!i.unitSerials || i.unitSerials.length === 0) && (i.jumlah || 0) > i.stok
+    )
+  ) {
     return toast.error("Ada jumlah retur yang melebihi stok yang tersedia.");
   }
   // --- AKHIR VALIDASI ---
@@ -449,16 +487,9 @@ const loadDataForEdit = async (nomor: string) => {
 };
 
 const handleProductKeydown = (e: KeyboardEvent, index: number) => {
-  switch (e.key) {
-    case "F1":
-      e.preventDefault();
-      openProductSearch(index, false);
-      break;
-
-    case "F2":
-      e.preventDefault();
-      openProductSearch(index, true);
-      break;
+  if (e.key === "F1" || e.key === "F2") {
+    e.preventDefault();
+    openProductSearch(index);
   }
 };
 
@@ -513,6 +544,14 @@ onMounted(async () => {
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-truck-minus-outline">
     <template #header-actions>
       <v-btn
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        @click="isProductPanelVisible = true"
+      >
+        Cari Produk
+      </v-btn>
+      <v-btn
         size="small"
         prepend-icon="mdi-content-save"
         color="primary"
@@ -523,6 +562,7 @@ onMounted(async () => {
       <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">Batal</v-btn>
       <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">Tutup</v-btn>
     </template>
+
     <div class="form-grid-container">
       <div class="left-column">
         <div class="desktop-form-section header-section">
@@ -624,7 +664,9 @@ onMounted(async () => {
                 variant="underlined"
                 density="compact"
                 hide-details
-                placeholder="F1/F2..."
+                placeholder="Cari produk..."
+                append-inner-icon="mdi-magnify"
+                @click:append-inner="openProductSearch(index)"
                 @keydown="handleProductKeydown($event, index)"
               />
             </template>
@@ -667,13 +709,10 @@ onMounted(async () => {
       @close="dialog.gudangSearch = false"
       @gudang-selected="onGudangSelected"
     />
-    <MintaBarangSearchModal
-      v-if="dialog.productSearch"
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
       :gudang="authStore.user?.cabang || ''"
-      :multi="isMultiSelectProduct"
-      source="koreksi-stok"
-      @close="dialog.productSearch = false"
-      @products-selected="onProductsSelected"
+      @products-added="onPanelProductsAdded"
     />
     <ReturJualOnlineSearchModal
       v-if="dialogRJ"

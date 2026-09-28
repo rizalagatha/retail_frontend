@@ -476,7 +476,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         @click="openNewDialog"
         prepend-icon="mdi-plus"
         >Baru</v-btn
@@ -484,16 +485,18 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!canEdit"
         @click="handleEditFromHeader"
         prepend-icon="mdi-pencil"
         >Ubah</v-btn
       >
-      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!canDelete" @click="handleDeleteFromHeader"
-        prepend-icon="mdi-delete">Hapus</v-btn> -->
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         @click="printData"
         prepend-icon="mdi-printer"
         >Cetak</v-btn
@@ -501,6 +504,8 @@ onMounted(() => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         @click="exportData"
         prepend-icon="mdi-file-excel"
         >Export</v-btn
@@ -523,7 +528,7 @@ onMounted(() => {
           variant="outlined"
           hide-details
           single-line
-          class="search-grow"
+          class="search-grow customer-search-field"
         ></v-text-field>
         <v-spacer />
         <v-btn @click="fetchCustomers" icon="mdi-refresh" variant="text" size="small"></v-btn>
@@ -592,7 +597,7 @@ onMounted(() => {
           <template #[`item.top`]="{ item }">{{ item.top }} hari</template>
 
           <template #[`item.level`]="{ item }">
-            <v-chip size="x-small" color="primary" variant="outlined" v-if="item.level">{{
+            <v-chip size="x-small" class="level-chip-red" variant="outlined" v-if="item.level">{{
               item.level
             }}</v-chip>
           </template>
@@ -786,6 +791,8 @@ onMounted(() => {
                   :items="levelHistory"
                   density="compact"
                   class="border rounded-sm bg-surface"
+                  hide-default-footer
+                  :items-per-page="-1"
                   style="
                     border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
                   "
@@ -806,7 +813,7 @@ onMounted(() => {
           <v-spacer></v-spacer>
           <v-btn variant="text" color="grey" @click="dialog = false">Batal</v-btn>
           <v-btn
-            color="primary"
+            class="btn-primary-red"
             variant="flat"
             @click="saveCustomer"
             :loading="isSaving"
@@ -878,20 +885,6 @@ onMounted(() => {
   min-width: 100%;
 }
 
-/* Header Resize */
-.resizable-header {
-  position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
-  font-weight: 700 !important;
-  text-transform: uppercase;
-  font-size: 11px !important;
-  height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
-  padding: 0 8px !important;
-  user-select: none;
-}
-
 .header-content {
   display: flex;
   align-items: center;
@@ -909,10 +902,6 @@ onMounted(() => {
   z-index: 10;
 }
 
-.resizer:hover {
-  border-right: 2px solid #1565c0;
-}
-
 /* Dialog Styles */
 .dialog-card {
   font-size: 12px;
@@ -922,10 +911,9 @@ onMounted(() => {
 }
 
 .dialog-header {
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  padding: 8px 16px;
-  /* [FIX] Background header dialog lebih gelap/terang sedikit dari surface */
-  background-color: rgb(var(--v-theme-background));
+  border-bottom: 2px solid rgba(183, 28, 28, 0.2) !important;
+  border-left: 4px solid #b71c1c !important;
+  background: linear-gradient(135deg, rgba(183, 28, 28, 0.06) 0%, transparent 100%);
 }
 
 .dialog-footer {
@@ -985,23 +973,6 @@ onMounted(() => {
   padding: 0 4px !important;
 }
 
-/* Selected — pakai class manual row-is-selected */
-.desktop-table :deep(tbody tr.row-is-selected td) {
-  background-color: rgba(25, 118, 210, 0.13) !important;
-}
-.desktop-table :deep(tbody tr.row-is-selected td:first-child) {
-  border-left: 3px solid #1976d2 !important;
-}
-.desktop-table :deep(tbody tr.row-is-selected:hover td) {
-  background-color: rgba(25, 118, 210, 0.22) !important;
-}
-
-/* Hover normal */
-.desktop-table :deep(tbody tr:hover td) {
-  background-color: rgba(25, 118, 210, 0.07) !important;
-  cursor: pointer;
-}
-
 /* Pasif tetap abu */
 .desktop-table :deep(tbody tr.text-grey td),
 .desktop-table :deep(tbody tr.row-is-selected.text-grey td) {
@@ -1041,5 +1012,231 @@ onMounted(() => {
   min-height: 28px !important;
   padding: 0 4px !important;
   min-width: 200px !important;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.customer-search-field :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.customer-search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.customer-search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.customer-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.resizable-header {
+  position: relative;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+  padding: 0 8px !important;
+  user-select: none;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #ffd54f !important;
+}
+
+/* ══════════════ ROW SELECTED / HOVER MERAH ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr.row-is-selected td) {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected td:first-child) {
+  border-left: 3px solid #b71c1c !important;
+}
+.desktop-table :deep(tbody tr.row-is-selected:hover td) {
+  background-color: rgba(183, 28, 28, 0.16) !important;
+}
+
+.desktop-table :deep(tbody tr:hover td) {
+  background-color: rgba(183, 28, 28, 0.05) !important;
+  cursor: pointer;
+}
+
+/* Pasif tetap abu, menang atas hover/selected */
+.desktop-table :deep(tbody tr.text-grey td),
+.desktop-table :deep(tbody tr.row-is-selected.text-grey td) {
+  color: #9e9e9e !important;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════════ CHIP LEVEL — aksen merah ══════════════ */
+.desktop-table :deep(.v-chip.text-primary),
+.desktop-table :deep(.v-chip[variant="outlined"]) {
+  border-color: rgba(183, 28, 28, 0.4) !important;
+  color: #b71c1c !important;
+}
+
+/* ══════════════ DIALOG FORM: header dengan aksen merah ══════════════ */
+.dialog-header {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.2) !important;
+  border-left: 4px solid #b71c1c;
+}
+
+/* ══════════════ CHIP LEVEL MERAH ══════════════ */
+.level-chip-red {
+  color: #b71c1c !important;
+  border-color: rgba(183, 28, 28, 0.5) !important;
+}
+
+/* ══════════════ CHECKBOX SELEKSI BARIS — MERAH SAAT DICENTANG ══════════════ */
+.desktop-table :deep(.v-selection-control--dirty .v-icon) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.v-checkbox-btn .v-selection-control__input .v-icon) {
+  color: rgba(183, 28, 28, 0.6);
+}
+
+/* ══════════════ HEADER TABEL — PAKSA TEKS PUTIH (kalahkan header-browse-blue) ══════════════ */
+.desktop-table :deep(.resizable-header),
+.desktop-table :deep(.resizable-header .header-content),
+.desktop-table :deep(.resizable-header .header-content span),
+.desktop-table :deep(.resizable-header .v-icon) {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+}
+
+.desktop-table :deep(.resizable-header .header-content span) {
+  background: transparent !important;
+}
+
+/* ══════════════ DIALOG FORM: FOCUS OUTLINE MERAH (kalahkan primary biru bawaan) ══════════════ */
+.dialog-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.dialog-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.dialog-card :deep(.v-field--error .v-field__outline) {
+  color: #d32f2f !important;
+}
+
+/* ══════════════ COMBOBOX/SELECT DROPDOWN ITEM AKTIF — MERAH ══════════════ */
+.dialog-card :deep(.v-list-item--active) {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+
+/* ══════════════ JUDUL "History Level" — AKSEN MERAH ══════════════ */
+.dialog-card :deep(h3.text-subtitle-2) {
+  color: #b71c1c !important;
+  border-left: 3px solid #b71c1c;
+  padding-left: 8px;
+}
+
+/* ══════════════ TABEL HISTORY LEVEL DI DALAM DIALOG — HEADER MERAH ══════════════ */
+.dialog-card :deep(.v-data-table thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+}
+
+.dialog-card :deep(.v-data-table tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.05) !important;
+}
+
+/* Pagination di dalam tabel History Level */
+.dialog-card :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 6px !important;
+}
+.dialog-card :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+.dialog-card :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+.dialog-card :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
 }
 </style>

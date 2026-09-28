@@ -181,7 +181,9 @@ const isAccCustomerLocked = computed(
 );
 const isFormLocked = computed(() => {
   if (!header.value.status || header.value.status === "DRAFT") return false;
-  if (header.value.status === "ACC_CUSTOMER" && authStore.user?.canApprovePrice) return false;
+  // Finance (canApprovePrice) tetap bisa edit & simpan di status manapun
+  // (ACC_CUSTOMER, ACC_FINANCE, dst) — bukan cuma saat ACC_CUSTOMER.
+  if (authStore.user?.canApprovePrice) return false;
   return true;
 });
 const isConfirmingAccFinance = ref(false);

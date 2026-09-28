@@ -1255,17 +1255,25 @@ watch(
     persistent
   >
     <v-card>
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title>Form Pembayaran</v-toolbar-title>
-        <v-spacer />
-        <v-btn icon="mdi-close" @click="$emit('close')" />
-      </v-toolbar>
+      <div class="payment-modal-header">
+        <div class="header-icon-circle">
+          <v-icon icon="mdi-credit-card-check-outline" size="20" color="white" />
+        </div>
+        <div class="header-text">
+          <div class="header-title">Form Pembayaran</div>
+          <div class="header-subtitle">Invoice {{ invoiceHeader.nomor || "(Baru)" }}</div>
+        </div>
+        <v-btn icon="mdi-close" variant="text" size="small" color="white" @click="$emit('close')" />
+      </div>
 
       <v-card-text class="pa-4">
         <v-row>
           <v-col cols="12" :md="colSpanRingkasan">
             <div class="desktop-form-section mb-4">
-              <div class="text-subtitle-2 font-weight-bold mb-2">Ringkasan Invoice</div>
+              <div class="field-section-label mb-3">
+                <v-icon size="14" class="mr-1">mdi-receipt-text-outline</v-icon>
+                Ringkasan Invoice
+              </div>
               <div class="d-flex justify-space-between text-caption">
                 <span>Sub Total:</span>
                 <span>{{ formatRupiah(correctedSubTotal) }}</span>
@@ -1315,7 +1323,7 @@ watch(
                 <span>- {{ formatRupiah(totals.totalDp) }}</span>
               </div>
               <v-divider class="my-2" />
-              <div class="d-flex justify-space-between font-weight-bold text-h6 text-primary">
+              <div class="d-flex justify-space-between font-weight-bold text-h6 text-red-invoice">
                 <span>Sisa Piutang:</span>
                 <span>{{ formatRupiah(sisaPiutangDisplay) }}</span>
               </div>
@@ -1389,7 +1397,7 @@ watch(
               </div>
             </div>
 
-            <div class="desktop-form-section" style="background-color: #f7f9fc">
+            <div class="desktop-form-section total-bayar-box">
               <div class="d-flex justify-space-between">
                 <span class="text-subtitle-1">Total Bayar:</span>
                 <span class="text-subtitle-1 font-weight-bold">{{ formatRupiah(totalBayar) }}</span>
@@ -1412,9 +1420,10 @@ watch(
 
           <v-col cols="12" :md="colSpanMetode">
             <div class="desktop-form-section">
-              <div class="text-subtitle-2 font-weight-bold mb-2">
-                Metode Pembayaran:
-                <span class="text-primary">{{
+              <div class="field-section-label mb-3">
+                <v-icon size="14" class="mr-1">mdi-cash-register</v-icon>
+                Metode Pembayaran
+                <span class="payment-mode-badge ml-2">{{
                   paymentTab === "karyawan" ? "Potong Gaji Karyawan" : "Umum (Tunai/TF)"
                 }}</span>
               </div>
@@ -1692,8 +1701,8 @@ watch(
           </v-col>
           <v-col cols="12" :md="colSpanPackaging">
             <div class="desktop-form-section">
-              <div class="text-subtitle-2 font-weight-bold mb-3 d-flex align-center gap-2">
-                <v-icon color="teal" size="18">mdi-package-variant-closed</v-icon>
+              <div class="field-section-label field-section-label-teal mb-3">
+                <v-icon size="14" class="mr-1" color="teal">mdi-package-variant-closed</v-icon>
                 Tambah Packaging
               </div>
 
@@ -1803,7 +1812,8 @@ watch(
         <v-spacer />
         <v-btn @click="$emit('close')" :disabled="isSaving">Batal</v-btn>
         <v-btn
-          color="primary"
+          class="btn-primary-red"
+          variant="flat"
           @click="handleFinalSave"
           :loading="isSaving"
           :disabled="isSaving"
@@ -2183,5 +2193,113 @@ watch(
   font-weight: bold;
   border-bottom: 1px dashed black;
   font-size: 8pt;
+}
+
+/* ══════════════ HEADER MODAL (tema merah) ══════════════ */
+.payment-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 14px 20px;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%);
+}
+
+.header-icon-circle {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.header-text {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.header-title {
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.header-subtitle {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+/* ══════════════ SECTION LABELS ══════════════ */
+.field-section-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  padding-bottom: 6px;
+}
+
+.field-section-label-teal {
+  color: #00897b;
+  border-bottom-color: rgba(0, 137, 123, 0.25);
+}
+
+.payment-mode-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #b71c1c;
+  background-color: rgba(183, 28, 28, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ══════════════ ACCENT COLORS ══════════════ */
+.text-red-invoice {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ TOTAL BAYAR BOX ══════════════ */
+.total-bayar-box {
+  background: linear-gradient(
+    135deg,
+    rgba(183, 28, 28, 0.05) 0%,
+    rgba(142, 0, 0, 0.02) 100%
+  ) !important;
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+}
+
+/* ══════════════ TOMBOL SIMPAN ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+/* ══════════════ FOCUS FIELD MERAH ══════════════ */
+.v-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+.v-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ DESKTOP-FORM-SECTION AKSEN KIRI ══════════════ */
+.desktop-form-section {
+  border-radius: 8px;
 }
 </style>

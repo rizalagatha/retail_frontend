@@ -18,6 +18,7 @@ interface PettyCashItem {
   pck_nomor?: string;
   pck_pth_nomor?: string;
   pck_bbk_finance?: string;
+  pck_bkk_nomor?: string;
   bkm_nomor?: string;
   tanggal: string;
   date_draft?: string;
@@ -96,6 +97,13 @@ const dialogReceive = reactive({
   tanggal: format(new Date(), "yyyy-MM-dd"),
   nominal: 0,
   bbk_finance: "",
+  isProcessing: false,
+});
+const dialogQuickReceive = reactive({
+  show: false,
+  pck_nomor: "",
+  bkk_nomor: "",
+  nominal: 0,
   isProcessing: false,
 });
 
@@ -379,6 +387,7 @@ const handleRowClick = (_event: MouseEvent, { item }: { item: PettyCashItem }) =
   selected.value = [item];
 };
 
+// 3. Ubah openReceiveDialog: cabang logic
 const openReceiveDialog = () => {
   if (selected.value.length !== 1) return;
   const item = selected.value[0];
@@ -387,11 +396,41 @@ const openReceiveDialog = () => {
     return toast.warning("Hanya dokumen yang berstatus ON TRANSFER yang bisa diterima.");
   }
 
+  // [BARU] Kalau BKK Finance sudah diinput, tinggal konfirmasi 1 klik
+  if (item.pck_bkk_nomor) {
+    dialogQuickReceive.pck_nomor = item.pck_nomor;
+    dialogQuickReceive.bkk_nomor = item.pck_bkk_nomor;
+    dialogQuickReceive.nominal = item.terpakai;
+    dialogQuickReceive.show = true;
+    return;
+  }
+
+  // Fallback: BKK belum ada, isi manual seperti sebelumnya
   dialogReceive.pck_nomor = item.pck_nomor;
   dialogReceive.tanggal = format(new Date(), "yyyy-MM-dd");
   dialogReceive.nominal = item.terpakai;
   dialogReceive.bbk_finance = item.pck_bbk_finance || "";
   dialogReceive.show = true;
+};
+
+// [BARU] Proses quick-receive
+const processQuickReceive = async () => {
+  dialogQuickReceive.isProcessing = true;
+  try {
+    const response = await api.put(
+      `/petty-cash/receive-klaim/${dialogQuickReceive.pck_nomor}`,
+      {} // body kosong — backend ambil otomatis dari pck_bkk_nomor & pck_total
+    );
+    toast.success(response.data.message);
+    dialogQuickReceive.show = false;
+    selected.value = [];
+    fetchMasterData();
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
+    toast.error(err.response?.data?.message || "Gagal memproses penerimaan dana.");
+  } finally {
+    dialogQuickReceive.isProcessing = false;
+  }
 };
 
 const processReceive = async () => {
@@ -944,6 +983,42 @@ onMounted(() => {
             variant="flat"
             :loading="dialogReceive.isProcessing"
             @click="processReceive"
+            >Terima & Selesai</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 4. Dialog baru di template, letakkan setelah dialogReceive -->
+    <v-dialog v-model="dialogQuickReceive.show" max-width="400px" persistent>
+      <v-card class="rounded-lg">
+        <v-card-title
+          class="bg-success text-white text-subtitle-1 font-weight-bold d-flex align-center"
+        >
+          <v-icon start>mdi-cash-check</v-icon> Terima Dana (BKK Sudah Ada)
+        </v-card-title>
+        <v-card-text class="pa-5 text-body-2">
+          Dana untuk klaim <b>{{ dialogQuickReceive.pck_nomor }}</b> sudah diproses Finance dengan
+          No. BKK <b>{{ dialogQuickReceive.bkk_nomor }}</b
+          >. <br /><br />
+          Konfirmasi penerimaan dana sebesar
+          <b class="text-success">{{ formatRupiah(dialogQuickReceive.nominal) }}</b
+          >?
+        </v-card-text>
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn
+            variant="text"
+            color="grey-darken-1"
+            @click="dialogQuickReceive.show = false"
+            :disabled="dialogQuickReceive.isProcessing"
+            >Batal</v-btn
+          >
+          <v-btn
+            color="success"
+            variant="flat"
+            :loading="dialogQuickReceive.isProcessing"
+            @click="processQuickReceive"
             >Terima & Selesai</v-btn
           >
         </v-card-actions>

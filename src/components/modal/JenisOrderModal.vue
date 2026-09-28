@@ -404,7 +404,7 @@ const calculatePrices = async () => {
       hargaSatuan = totalLuas * hargaPerCm;
       break;
 
-   case "BR": // BORDIR
+    case "BR": // BORDIR
       // [FIX] Tier disesuaikan Memo Internal berlaku 1 Agustus 2026 —
       // sebelumnya tiap tingkat kepasang harga milik tier di atasnya
       // (misal 1-10 pcs kena Rp 1.500, padahal harusnya Rp 1.000).
@@ -412,7 +412,7 @@ const calculatePrices = async () => {
       else if (totalJumlahKaos >= 20) hargaPerCm = 250;
       else if (totalJumlahKaos >= 11) hargaPerCm = 500;
       else hargaPerCm = 1000; // 1 - 10 pcs
-      
+
       // 2. Hitung harga per kaos (akumulasi tiap titik dengan minimum 5000 per titik)
       let totalHargaJasaPerKaos = 0;
       form.value.titikCetak.forEach((t) => {
@@ -585,8 +585,11 @@ watch(
     persistent
   >
     <v-card class="jenis-order-dialog">
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-1">Input Jenis Order</v-toolbar-title>
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-icon size="20" class="ms-2 me-2">mdi-tshirt-crew-outline</v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+          >Input Jenis Order</v-toolbar-title
+        >
         <v-spacer />
         <v-btn icon="mdi-close" @click="emit('close')" variant="text" size="small" />
       </v-toolbar>
@@ -666,7 +669,10 @@ watch(
         <div class="grid-section">
           <!-- KIRI -->
           <div class="section-box">
-            <div class="section-title">Ukuran Kaos</div>
+            <div class="section-title">
+              <v-icon size="14" class="mr-1">mdi-tshirt-crew</v-icon>
+              Ukuran Kaos
+            </div>
             <v-row dense class="table-header">
               <v-col cols="3">Ukuran</v-col>
               <v-col cols="4">Jumlah</v-col>
@@ -721,7 +727,10 @@ watch(
 
           <!-- KANAN -->
           <div class="section-box">
-            <div class="section-title">Titik Bordir/Cetak</div>
+            <div class="section-title">
+              <v-icon size="14" class="mr-1">mdi-target</v-icon>
+              Titik Bordir/Cetak
+            </div>
 
             <v-row dense class="table-header">
               <v-col cols="3">Keterangan</v-col>
@@ -815,7 +824,7 @@ watch(
         <v-divider class="my-2" />
 
         <v-row dense>
-          <v-col cols="6">
+          <v-col cols="4">
             <v-text-field
               label="Total Jumlah"
               :model-value="form.totalJumlah"
@@ -826,7 +835,7 @@ watch(
               class="text-xs"
             />
           </v-col>
-          <v-col cols="6">
+          <v-col cols="4">
             <v-text-field
               label="Total Harga"
               :model-value="fr(form.totalHarga)"
@@ -834,10 +843,10 @@ watch(
               density="compact"
               variant="outlined"
               hide-details
-              class="text-xs"
+              class="text-xs total-harga-field"
             />
           </v-col>
-          <v-col cols="6">
+          <v-col cols="4">
             <v-text-field
               label="Harga per cm²"
               :model-value="fr(form.hargaPerCm)"
@@ -851,9 +860,12 @@ watch(
         </v-row>
       </v-card-text>
 
-      <v-card-actions class="justify-end">
-        <v-btn variant="tonal" @click="emit('close')">Batal</v-btn>
-        <v-btn color="primary" variant="tonal" @click="save">Simpan</v-btn>
+      <v-card-actions class="justify-end dialog-footer">
+        <v-btn variant="text" color="grey-darken-1" @click="emit('close')">Batal</v-btn>
+        <v-btn class="btn-simpan" variant="flat" @click="save">
+          <v-icon start size="14">mdi-content-save</v-icon>
+          Simpan
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -972,6 +984,64 @@ watch(
   line-height: 1.2 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+}
+
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+
+/* Section box kiri-kanan: border merah tipis + border-top aksen */
+.section-box {
+  border: 1px solid rgba(183, 28, 28, 0.18);
+  border-top: 3px solid #b71c1c;
+  border-radius: 6px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  color: #b71c1c;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10.5px;
+}
+
+.table-header {
+  color: rgba(183, 28, 28, 0.75);
+  font-weight: 700;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+}
+
+/* Field fokus jadi merah, konsisten tema */
+.v-card :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+.v-card :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+/* Total Harga ditonjolkan */
+.total-harga-field :deep(input) {
+  color: #b71c1c !important;
+  font-weight: 800 !important;
+}
+
+.dialog-footer {
+  background-color: #f5f5f5;
+  padding: 10px 16px;
+}
+
+.btn-simpan {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-simpan:hover {
+  filter: brightness(1.08);
 }
 
 /* Responsive */

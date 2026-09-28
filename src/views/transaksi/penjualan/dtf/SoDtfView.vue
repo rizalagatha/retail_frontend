@@ -130,6 +130,13 @@ const SESSION_STATE_KEY = "sodtf_browse_state"; // Untuk global search & filter 
 // --- Computed ---
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
 const isSingleSelected = computed(() => selected.value.length === 1);
+const canClose = computed(() => {
+  if (!isSingleSelected.value) return false;
+  const item = selected.value[0];
+  if (item.NoINV) return false; // sudah invoice
+  if (item.Close === "Y") return false; // sudah di-close sebelumnya
+  return true;
+});
 const filteredSoDtfList = computed(() => {
   let data = [...soDtfList.value];
 
@@ -429,6 +436,10 @@ const openCloseDialog = () => {
   const item = selected.value[0];
   if (item.NoINV) {
     toast.warning("Sudah dibuat Invoice, tidak bisa di-close.");
+    return;
+  }
+  if (item.Close === "Y") {
+    toast.warning("SO DTF ini sudah di-close sebelumnya.");
     return;
   }
   itemToClose.value = item;
@@ -1022,7 +1033,8 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-plus"
         @click="router.push('/transaksi/penjualan/dtf/so-dtf/new')"
         >Baru</v-btn
@@ -1030,26 +1042,32 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-pencil"
         :disabled="!isSingleSelected || Number(selected[0]?.LHK) > 0"
         @click="handleEdit"
       >
         Ubah
       </v-btn>
-      <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" color="error" :disabled="!isSingleSelected"
-        prepend-icon="mdi-delete" @click="showDeleteConfirmation">Hapus</v-btn> -->
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         @click="printData"
-        color="green"
         prepend-icon="mdi-printer"
         >Cetak</v-btn
       >
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
             >Export</v-btn
           >
         </template>
@@ -1066,9 +1084,11 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
-        :disabled="!isSingleSelected"
+        :disabled="!canClose"
+        class="btn-primary-red"
+        variant="flat"
+        prepend-icon="mdi-lock-outline"
         @click="openCloseDialog"
-        color="orange-darken-2"
         >Close SO</v-btn
       >
     </template>
@@ -1097,7 +1117,7 @@ onBeforeRouteLeave((to, from, next) => {
           density="compact"
           hide-details
           variant="outlined"
-          style="min-width: 130px"
+          class="periode-field"
         ></v-text-field>
         <span class="mx-2">s/d</span>
         <v-text-field
@@ -1106,7 +1126,7 @@ onBeforeRouteLeave((to, from, next) => {
           density="compact"
           hide-details
           variant="outlined"
-          style="min-width: 130px"
+          class="periode-field"
         ></v-text-field>
         <v-select
           v-model="filters.cabang"
@@ -1117,8 +1137,8 @@ onBeforeRouteLeave((to, from, next) => {
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-2"
-          style="min-width: 180px"
+          class="ms-2 cabang-select"
+          :menu-props="{ class: 'sodtf-filter-menu' }"
         ></v-select>
         <v-divider vertical class="mx-2"></v-divider>
         <div class="d-flex align-center ga-2">
@@ -1129,7 +1149,8 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="max-width: 180px"
+            class="filterby-select"
+            :menu-props="{ class: 'sodtf-filter-menu' }"
           ></v-select>
           <v-text-field
             v-model="filterSearchValue"
@@ -1137,9 +1158,9 @@ onBeforeRouteLeave((to, from, next) => {
             density="compact"
             hide-details
             variant="outlined"
-            style="min-width: 250px"
             clearable
             prepend-inner-icon="mdi-magnify"
+            class="sodtf-search-field"
           ></v-text-field>
         </div>
         <v-chip
@@ -1154,7 +1175,6 @@ onBeforeRouteLeave((to, from, next) => {
         </v-chip>
         <v-spacer></v-spacer>
         <v-btn
-          color="error"
           variant="tonal"
           prepend-icon="mdi-filter-off"
           class="btn-detail reset-filter-btn ms-2"
@@ -1749,5 +1769,204 @@ onBeforeRouteLeave((to, from, next) => {
 
 .reset-filter-btn:hover {
   background-color: rgba(var(--v-theme-error), 0.25) !important;
+}
+
+/* ══════════════ TOMBOL HEADER TEMA MERAH ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION AKSEN MERAH ══════════════ */
+.filter-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15) !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.filter-label {
+  color: #b71c1c !important;
+}
+
+/* --- Search bar diperpanjang (FIX flex-shrink total) --- */
+.filter-section .sodtf-search-field {
+  flex: 0 0 380px !important;
+  width: 380px !important;
+  min-width: 380px !important;
+  max-width: 380px !important;
+  flex-shrink: 0 !important;
+}
+
+.filter-section .sodtf-search-field :deep(.v-input__control) {
+  width: 100% !important;
+}
+
+.filter-section .sodtf-search-field :deep(.v-field),
+.filter-section .filterby-select :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .periode-field :deep(.v-field) {
+  width: 100% !important;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .sodtf-search-field :deep(.v-field__outline),
+.filter-section .filterby-select :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .periode-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .sodtf-search-field :deep(.v-field--focused),
+.filter-section .filterby-select :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .periode-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .sodtf-search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+.filter-section .filterby-select :deep(.v-select__menu-icon),
+.filter-section .cabang-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+/* Radio group aksen merah saat aktif */
+.filter-section :deep(.v-selection-control--dirty .v-icon) {
+  color: #b71c1c !important;
+}
+
+/* --- Reset Filter --- */
+.reset-filter-btn {
+  color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.1) !important;
+}
+.reset-filter-btn:hover {
+  background-color: rgba(183, 28, 28, 0.2) !important;
+}
+
+/* ══════════════ LEGEND SECTION ══════════════ */
+.legend-section {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.1) !important;
+}
+
+.legend-title {
+  color: #b71c1c;
+}
+
+/* ══════════════ HEADER TABEL GRADIENT MERAH ══════════════ */
+.resizable-header {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.resizable-header .header-content span,
+.resizable-header .v-icon {
+  color: #ffffff !important;
+}
+
+.resizer:hover,
+.resizable-header:hover .resizer {
+  border-right: 2px solid #ffd54f !important;
+}
+
+/* ══════════════ ROW STRIPE — tetap kalah dari warna semantik ══════════════ */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.05) !important;
+}
+
+.row-closed :deep(td:first-child) {
+  background-color: rgba(255, 235, 59, 0.6) !important;
+}
+
+/* ══════════════ DETAIL TABLE (expanded row) ══════════════ */
+.detail-table-wrapper {
+  border-left: 3px solid #b71c1c !important;
+}
+
+.detail-table thead tr {
+  background: linear-gradient(135deg, rgba(183, 28, 28, 0.85) 0%, rgba(142, 0, 0, 0.85) 100%);
+}
+
+.detail-table thead th {
+  color: #ffffff !important;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ══════════════ PAGINATION FOOTER MERAH ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+</style>
+
+<style>
+.sodtf-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.sodtf-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

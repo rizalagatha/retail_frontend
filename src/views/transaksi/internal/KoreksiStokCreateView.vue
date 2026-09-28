@@ -9,7 +9,8 @@ import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import GudangSearchModal from "@/components/lookup/GudangSearchModal.vue";
-import MintaBarangSearchModal from "@/components/lookup/MintaBarangSearchModal.vue";
+import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
+import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 import BahanPenolongSearchModal from "@/components/lookup/BahanPenolongSearchModal.vue";
 import type { AxiosError } from "axios";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -94,8 +95,8 @@ const header = reactive<Header>({
 const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const dialog = reactive({ productSearch: false, bahanPenolongSearch: false });
-const isMultiSelectProduct = ref(false);
+const dialog = reactive({ bahanPenolongSearch: false });
+const isProductPanelVisible = ref(false);
 const activeRowIndex = ref(0);
 const isGudangSearchVisible = ref(false);
 const scannedBarcode = ref("");
@@ -152,16 +153,13 @@ const calculateRow = (item: Item) => {
   item.total = item.selisih * (item.hpp || 0);
 };
 
-const openProductSearch = (index: number, isMulti: boolean) => {
+const openProductSearch = (index: number) => {
   activeRowIndex.value = index;
-  isMultiSelectProduct.value = isMulti;
-  dialog.productSearch = true;
+  isProductPanelVisible.value = true;
 };
 
-const onProductsSelected = async (selectedProducts: ProductLookup[]) => {
-  dialog.productSearch = false;
-
-  const productsToAdd = selectedProducts.filter(
+const onPanelProductsAdded = async (selections: ProductPanelSelection[]) => {
+  const productsToAdd = selections.filter(
     (p) => !items.value.some((item) => item.kode === p.kode && item.ukuran === p.ukuran)
   );
 
@@ -170,6 +168,8 @@ const onProductsSelected = async (selectedProducts: ProductLookup[]) => {
   }
 
   try {
+    // Tetap fetch detail per item — hpp/stok harus akurat sesuai tanggal koreksi,
+    // bukan stok/harga hari ini yang dibawa panel.
     const detailPromises = productsToAdd.map((p) =>
       api.get<ProductLookup>("/koreksi-stok-form/lookup/product-details", {
         params: {
@@ -196,7 +196,12 @@ const onProductsSelected = async (selectedProducts: ProductLookup[]) => {
       return newItem;
     });
 
-    items.value.splice(activeRowIndex.value, 1, ...newItems);
+    const emptyIdx = items.value.findIndex((item) => !item.kode);
+    if (emptyIdx !== -1) {
+      items.value.splice(emptyIdx, 1, ...newItems);
+    } else {
+      items.value.push(...newItems);
+    }
     addNewRow();
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
@@ -400,13 +405,9 @@ const handleBarcodeScan = async () => {
 const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
   switch (e.key) {
     case "F1":
-      e.preventDefault();
-      openProductSearch(index, false);
-      break;
-
     case "F2":
       e.preventDefault();
-      openProductSearch(index, true);
+      openProductSearch(index);
       break;
 
     case "F3":
@@ -461,6 +462,22 @@ onMounted(async () => {
 <template>
   <PageLayout :title="pageTitle" desktop-mode icon="mdi-file-check-outline">
     <template #header-actions>
+      <v-btn
+        color="deep-purple-darken-1"
+        size="small"
+        prepend-icon="mdi-cart-plus"
+        @click="isProductPanelVisible = true"
+      >
+        Cari Produk
+      </v-btn>
+      <v-btn
+        color="teal-darken-1"
+        size="small"
+        prepend-icon="mdi-tag-outline"
+        @click="dialog.bahanPenolongSearch = true"
+      >
+        Cari Aksesoris
+      </v-btn>
       <v-btn
         size="small"
         prepend-icon="mdi-content-save"
@@ -556,9 +573,27 @@ onMounted(async () => {
                 variant="underlined"
                 density="compact"
                 hide-details
-                placeholder="F1/F2/F3..."
+                placeholder="F1/F2 produk, F3 aksesoris..."
                 @keydown="handleKodeKeydown($event, index)"
-              />
+              >
+                <template #append-inner>
+                  <v-icon
+                    size="18"
+                    class="mr-2"
+                    title="Cari Produk (F1/F2)"
+                    @click.stop="openProductSearch(index)"
+                  >
+                    mdi-magnify
+                  </v-icon>
+                  <v-icon
+                    size="18"
+                    title="Cari Bahan Penolong / Aksesoris (F3)"
+                    @click.stop="openBahanPenolongSearch(index)"
+                  >
+                    mdi-tag-outline
+                  </v-icon>
+                </template>
+              </v-text-field>
             </template>
             <template v-slot:[`item.jumlah`]="{ item }">
               <v-text-field
@@ -620,13 +655,10 @@ onMounted(async () => {
       </div>
     </div>
 
-    <MintaBarangSearchModal
-      v-if="dialog.productSearch"
+    <ProductSidePanel
+      v-model="isProductPanelVisible"
       :gudang="authStore.user?.cabang || ''"
-      :multi="isMultiSelectProduct"
-      source="koreksi-stok"
-      @close="dialog.productSearch = false"
-      @products-selected="onProductsSelected"
+      @products-added="onPanelProductsAdded"
     />
 
     <BahanPenolongSearchModal

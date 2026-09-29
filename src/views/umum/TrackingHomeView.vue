@@ -5,6 +5,8 @@ import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useToast } from "vue-toastification";
 import { getFabricTexture } from "@/utils/fabricTextures";
+import { vReveal } from "@/directives/reveal";
+import CountUp from "@/components/CountUp.vue";
 
 // Import logo secara aman untuk Vite/Webpack
 import LogoKaosan from "@/assets/logo.png";
@@ -154,18 +156,45 @@ const kategoriList = computed(() => {
   });
 });
 
-// Ubah "HURUF KAPITAL SEMUA" menjadi sentence case
+const KEEP_UPPER = new Set(["DTF", "CVC", "UV", "PT", "CV", "RP", "SD", "DP", "BR", "SB"]);
+const KEEP_LOWER = new Set(["dan", "atau", "di", "ke", "dari", "untuk", "yang", "dengan", "s/d"]);
+
+// "PROMO KAOSAN 2026 - DISKON ITEM" -> "Promo Kaosan 2026 - Diskon Item"
+const titleCase = (s: string) => {
+  const words = (s || "").trim().toLowerCase().split(/\s+/);
+  return words
+    .map((w, i) => {
+      const up = w.toUpperCase();
+      // kode seperti COMBED 24S, RP100RB, atau singkatan dipertahankan kapital
+      if (KEEP_UPPER.has(up) || (/\d/.test(w) && /[a-z]/.test(w) && w.length <= 8)) return up;
+      if (i > 0 && KEEP_LOWER.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    })
+    .join(" ");
+};
+
 const sentenceCase = (s: string) => {
   const t = (s || "").trim().toLowerCase();
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
+// Nominal rupiah: "25.000" tetap utuh, "Rp" dipisah supaya angka mendapat ruang penuh
 const promoValue = (p: PromoItem) => {
-  if (p.pro_diskon > 0) return { big: `${Number(p.pro_diskon)}%`, label: "Diskon" };
-  if (p.pro_disrp > 0) return { big: formatRupiah(p.pro_disrp), label: "Potongan" };
-  if (p.pro_rpvoucher > 0) return { big: formatRupiah(p.pro_rpvoucher), label: "Voucher" };
-  if (p.pro_totalqty > 0) return { big: `Beli ${p.pro_totalqty}`, label: "Lebih hemat" };
-  return { big: "Spesial", label: "Harga" };
+  if (p.pro_diskon > 0)
+    return { prefix: "", before: "", num: Number(p.pro_diskon), after: "%", label: "Diskon" };
+  if (p.pro_disrp > 0)
+    return { prefix: "Rp", before: "", num: Number(p.pro_disrp), after: "", label: "Potongan" };
+  if (p.pro_rpvoucher > 0)
+    return { prefix: "Rp", before: "", num: Number(p.pro_rpvoucher), after: "", label: "Voucher" };
+  if (p.pro_totalqty > 0)
+    return {
+      prefix: "",
+      before: "Beli ",
+      num: Number(p.pro_totalqty),
+      after: "",
+      label: "Lebih hemat",
+    };
+  return null;
 };
 
 // Helper untuk mengurutkan ukuran secara logis (S, M, L, XL, dst)
@@ -716,7 +745,11 @@ onMounted(() => {
     <section class="t-hero">
       <div class="t-hero-inner">
         <div class="t-eyebrow">Lacak Pesanan</div>
-        <h1 class="t-hero-title">Sudah sampai <em>mana</em> pesananmu?</h1>
+        <h1 class="t-hero-title">
+          <span class="t-line" style="--n: 0">Sudah sampai</span>
+          <em class="t-line" style="--n: 1">mana</em>
+          <span class="t-line" style="--n: 2">pesananmu?</span>
+        </h1>
         <p class="t-hero-sub">
           Masukkan nomor resi untuk melihat proses produksi sampai pesanan siap diambil.
         </p>
@@ -725,7 +758,7 @@ onMounted(() => {
 
     <main class="t-main">
       <!-- PANEL PENCARIAN -->
-      <section class="t-search">
+      <section class="t-search" :class="{ 't-search--loading': isLoading }">
         <div class="t-search-row">
           <v-text-field
             v-model="searchInput"
@@ -745,9 +778,10 @@ onMounted(() => {
             height="48"
             class="text-white px-8 font-weight-bold text-none t-search-btn"
             :loading="isLoading"
+            :disabled="isLoading"
             @click="cariPesanan"
           >
-            Lacak
+            {{ isLoading ? "Mencari..." : "Lacak" }}
           </v-btn>
         </div>
 
@@ -811,15 +845,30 @@ onMounted(() => {
               v-for="(promo, index) in activePromos"
               :key="index"
               class="t-coupon"
-              :style="{ '--i': index }"
+              v-reveal="index"
             >
               <div class="t-coupon-value">
-                <span class="t-coupon-label">{{ promoValue(promo).label }}</span>
-                <span class="t-coupon-big">{{ promoValue(promo).big }}</span>
+                <template v-if="promoValue(promo)">
+                  <span class="t-coupon-label">{{ promoValue(promo)!.label }}</span>
+                  <span v-if="promoValue(promo)!.prefix" class="t-coupon-prefix">
+                    {{ promoValue(promo)!.prefix }}
+                  </span>
+                  <span class="t-coupon-big">
+                    <CountUp
+                      :to="promoValue(promo)!.num"
+                      :before="promoValue(promo)!.before"
+                      :after="promoValue(promo)!.after"
+                    />
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="t-coupon-label">Harga</span>
+                  <span class="t-coupon-big">Spesial</span>
+                </template>
               </div>
 
               <div class="t-coupon-body">
-                <h3 class="t-coupon-title">{{ sentenceCase(promo.pro_judul) }}</h3>
+                <h3 class="t-coupon-title">{{ titleCase(promo.pro_judul) }}</h3>
 
                 <div v-if="promo.pro_totalrp > 0 || promo.pro_totalqty > 0" class="t-coupon-min">
                   <template v-if="promo.pro_totalrp > 0">
@@ -841,11 +890,11 @@ onMounted(() => {
                     {{
                       daysLeft(promo.pro_tanggal2) === 0
                         ? "Berakhir hari ini"
-                        : `Sisa ${daysLeft(promo.pro_tanggal2)} hari`
+                        : `${daysLeft(promo.pro_tanggal2)} hari lagi`
                     }}
                   </span>
                   <button class="t-coupon-btn" @click="klaimPromo(promo)">
-                    Lihat cara klaim
+                    Cara klaim
                     <v-icon size="14">mdi-arrow-right</v-icon>
                   </button>
                 </div>
@@ -856,13 +905,13 @@ onMounted(() => {
       </v-expand-transition>
 
       <!-- LAYANAN -->
-      <section class="t-section">
+      <section class="t-section" v-reveal>
         <div class="t-section-head">
           <h2 class="t-section-title">Layanan Kaosan</h2>
         </div>
 
         <div class="t-service-grid">
-          <button class="t-service" @click="router.push('/katalog')">
+          <button class="t-service" v-reveal="0" @click="router.push('/katalog')">
             <span class="t-service-icon"><v-icon size="22">mdi-hanger</v-icon></span>
             <span class="t-service-text">
               <span class="t-service-name">Katalog Produk</span>
@@ -871,7 +920,7 @@ onMounted(() => {
             <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
           </button>
 
-          <button class="t-service" @click="router.push('/cek-stok')">
+          <button class="t-service" v-reveal="1" @click="router.push('/cek-stok')">
             <span class="t-service-icon"><v-icon size="22">mdi-store-search-outline</v-icon></span>
             <span class="t-service-text">
               <span class="t-service-name">Cek Stok Store <em class="t-beta">Beta</em></span>
@@ -880,7 +929,7 @@ onMounted(() => {
             <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
           </button>
 
-          <button class="t-service" @click="openEstimasi">
+          <button class="t-service" v-reveal="2" @click="openEstimasi">
             <span class="t-service-icon"
               ><v-icon size="22">mdi-calculator-variant-outline</v-icon></span
             >
@@ -891,7 +940,7 @@ onMounted(() => {
             <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
           </button>
 
-          <button class="t-service" @click="openBantuan">
+          <button class="t-service" v-reveal="3" @click="openBantuan">
             <span class="t-service-icon"><v-icon size="22">mdi-headset</v-icon></span>
             <span class="t-service-text">
               <span class="t-service-name">Pusat Bantuan</span>
@@ -2907,7 +2956,7 @@ onMounted(() => {
 
 /* ---------- Section ---------- */
 .t-section {
-  margin-bottom: 48px;
+  margin-bottom: 96px;
 }
 .t-section-head {
   display: flex;
@@ -2930,12 +2979,6 @@ onMounted(() => {
 }
 
 /* ---------- Promo ---------- */
-.t-promo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 18px;
-}
-
 .t-coupon {
   --cut: 9px;
   position: relative;
@@ -2952,18 +2995,26 @@ onMounted(() => {
 }
 
 /* Panel nilai (kiri) */
+/* Satu kolom lebih lega: kupon jadi lebih lebar, tidak berdesakan */
+.t-promo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+}
+
+/* Panel nilai: lebar tetap, isi tidak boleh pecah */
 .t-coupon-value {
-  flex: 0 0 36%;
+  flex: 0 0 132px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 16px 10px;
+  gap: 2px;
+  padding: 16px 8px;
   color: #fff;
   text-align: center;
   background: var(--t-red);
   border-radius: 12px 0 0 12px;
-  /* lekukan sobekan di sisi kanan panel */
   -webkit-mask: radial-gradient(circle var(--cut) at 100% 0, transparent 98%, #000) top / 100% 51%
       no-repeat,
     radial-gradient(circle var(--cut) at 100% 100%, transparent 98%, #000) bottom / 100% 51%
@@ -2973,19 +3024,79 @@ onMounted(() => {
       no-repeat;
 }
 .t-coupon-label {
-  font-size: 10.5px;
+  margin-bottom: 6px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   opacity: 0.85;
 }
+.t-coupon-prefix {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.9;
+}
 .t-coupon-big {
-  margin-top: 4px;
   font-family: var(--t-serif);
-  font-size: clamp(26px, 3.2vw, 34px);
+  font-size: 30px;
   font-weight: 600;
-  line-height: 1.05;
-  word-break: break-word;
+  line-height: 1;
+  white-space: nowrap; /* jangan pernah pecah */
+  font-variant-numeric: lining-nums;
+}
+
+.t-coupon-body {
+  padding: 18px 20px 16px 22px;
+}
+.t-coupon-title {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+.t-coupon-desc {
+  font-size: 12.5px;
+  line-height: 1.55;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* Footer dua sisi, tidak menumpuk */
+.t-coupon-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #eadfda;
+}
+.t-coupon-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t-muted);
+  white-space: nowrap;
+}
+.t-coupon-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Nomor besar yang sangat panjang mengecil otomatis */
+@media (max-width: 420px) {
+  .t-promo-grid {
+    grid-template-columns: 1fr;
+  }
+  .t-coupon-value {
+    flex-basis: 112px;
+  }
+  .t-coupon-big {
+    font-size: 26px;
+  }
 }
 
 /* Detail (kanan) */
@@ -3029,20 +3140,6 @@ onMounted(() => {
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.t-coupon-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.t-coupon-days {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--t-muted);
 }
 .t-dot {
   width: 7px;
@@ -3259,6 +3356,127 @@ onMounted(() => {
   .t-service-arrow,
   .t-nav a::after {
     transition: none;
+  }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(36px) scale(0.97);
+  transition: opacity 0.7s ease var(--d, 0ms),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--d, 0ms);
+  will-change: opacity, transform;
+}
+.reveal--in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero: muncul bertahap saat halaman dibuka */
+.t-eyebrow,
+.t-hero-sub {
+  opacity: 0;
+  animation: t-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.t-line {
+  display: inline-block;
+  margin-right: 0.28em;
+  opacity: 0;
+  animation: t-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(0.15s + var(--n, 0) * 90ms);
+}
+.t-line:last-child {
+  margin-right: 0;
+}
+.t-eyebrow {
+  animation-delay: 0.05s;
+}
+.t-hero-title {
+  animation-delay: 0.15s;
+}
+.t-hero-sub {
+  animation-delay: 0.3s;
+}
+.t-search {
+  animation: t-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+@keyframes t-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.t-search:focus-within {
+  box-shadow: 0 16px 40px rgba(183, 28, 28, 0.16);
+  transition: box-shadow 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-eyebrow,
+  .t-hero-title,
+  .t-hero-sub,
+  .t-search {
+    animation: none;
+    opacity: 1;
+  }
+  .t-line {
+    animation: none;
+    opacity: 1;
+  }
+  .t-coupon-days.t-urgent .t-dot {
+    animation: none;
+  }
+}
+
+.t-coupon.reveal--in {
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+.t-service.reveal--in {
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+.t-search {
+  position: relative;
+  overflow: hidden;
+}
+.t-search--loading::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 40%;
+  background: var(--t-red);
+  animation: t-bar 1s ease-in-out infinite;
+}
+@keyframes t-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.t-found-name,
+.t-found-label {
+  animation: t-slide-left 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+.t-found-badge {
+  animation: t-slide-left 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
+}
+@keyframes t-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

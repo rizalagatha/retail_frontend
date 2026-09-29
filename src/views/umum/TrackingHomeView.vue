@@ -472,13 +472,13 @@ const fetchPromos = async () => {
 //   }
 // };
 
-const openCekStok = () => {
-  stokResults.value = [];
-  searchStokKeyword.value = "";
-  selectedStore.value = null;
-  cekStokPhase.value = "select-store";
-  isCekStokDialogVisible.value = true;
-};
+// const openCekStok = () => {
+//   stokResults.value = [];
+//   searchStokKeyword.value = "";
+//   selectedStore.value = null;
+//   cekStokPhase.value = "select-store";
+//   isCekStokDialogVisible.value = true;
+// };
 
 const pilihStore = async (kode: string) => {
   selectedStore.value = kode;
@@ -932,7 +932,7 @@ onMounted(() => {
           <v-card
             elevation="0"
             class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
-            @click="openCekStok"
+            @click="router.push('/katalog')"
           >
             <v-icon size="40" color="#D32F2F" class="mr-4">mdi-store-search-outline</v-icon>
             <div>

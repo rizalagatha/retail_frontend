@@ -55,7 +55,7 @@ const ProformaCreateView = () => import("@/views/transaksi/penjualan/ProformaCre
 const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrintView.vue");
 
 const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
-
+const KatalogStokView = () => import("@/views/umum/KatalogStokView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
 
 // --- DTF & PESANAN ---
@@ -370,6 +370,19 @@ const routes = [
       title: "Lacak Pesanan",
       layout: "PrintLayout", // Pakai PrintLayout agar bersih tanpa sidebar/header admin
       requiresAuth: false, // <-- PENTING: Bebas akses untuk pelanggan
+      public: true,
+    },
+  },
+  {
+    // Satu route dengan param opsional, jadi komponen tidak di-mount ulang
+    // saat pindah fase (toko -> kategori -> produk) dan data stok tetap terjaga.
+    path: "/katalog/:toko?/:kategori?",
+    name: "Katalog Stok",
+    component: KatalogStokView,
+    meta: {
+      title: "Cek Stok Store",
+      layout: "PrintLayout",
+      requiresAuth: false,
       public: true,
     },
   },
@@ -2924,19 +2937,19 @@ const routes = [
 // 1. Filter rute: Jika Mode Tracking, buang rute yang bukan untuk umum
 const filteredRoutes = routes.filter((r) => {
   if (isTrackingMode) {
-    // [PERBAIKAN] Tambahkan /login dan /admin-katalog agar tidak terbuang saat build tracking
     const allowedPaths = [
       "/",
       "/tracking",
       "/:pathMatch(.*)*",
       "/unauthorized",
-      "/login", // Wajib diizinkan agar halaman login bisa dibuka
-      "/admin-katalog", // Wajib diizinkan agar admin panel bisa dibuka setelah login
+      "/login",
+      "/admin-katalog",
     ];
 
     const isTrackingDetail = r.path.includes("/transaksi/penjualan/surat-pesanan/track");
+    const isKatalog = r.path.startsWith("/katalog");
 
-    return allowedPaths.includes(r.path) || isTrackingDetail;
+    return allowedPaths.includes(r.path) || isTrackingDetail || isKatalog;
   }
 
   return true;

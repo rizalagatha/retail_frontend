@@ -219,8 +219,8 @@ const kategoriList = computed(() => {
 
 // --- Filter (di query URL) ---
 const lengan = computed(() => String(route.query.lengan || "SEMUA").toUpperCase());
-const searchTerm = computed(() => String(route.query.q || ""));
 const searchInput = ref(String(route.query.q || ""));
+const searchTerm = ref(searchInput.value.trim());
 const lenganOptions = [
   { label: "Semua", value: "SEMUA" },
   { label: "Pendek", value: "PENDEK" },
@@ -228,15 +228,30 @@ const lenganOptions = [
 ];
 
 const setLengan = (v: string) =>
-  router.replace({ query: { ...route.query, lengan: v === "SEMUA" ? undefined : v } });
+  router.replace({
+    query: {
+      ...route.query,
+      q: searchTerm.value || undefined,
+      lengan: v === "SEMUA" ? undefined : v,
+    },
+  });
+
+// Simpan kata kunci di URL (agar bisa dibagikan) tanpa memicu router,
+// supaya halaman tidak dirender ulang dan fokus kolom tidak hilang
+const syncSearchToUrl = (q: string) => {
+  const url = new URL(window.location.href);
+  if (q) url.searchParams.set("q", q);
+  else url.searchParams.delete("q");
+  window.history.replaceState(window.history.state, "", url);
+};
 
 let searchTimer: ReturnType<typeof setTimeout>;
 watch(searchInput, (v) => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(
-    () => router.replace({ query: { ...route.query, q: v?.trim() || undefined } }),
-    300
-  );
+  searchTimer = setTimeout(() => {
+    searchTerm.value = v?.trim() || "";
+    syncSearchToUrl(searchTerm.value);
+  }, 400);
 });
 
 const filtered = computed(() => {
@@ -294,6 +309,15 @@ watch(phase, (p) => {
 
 const scrollTop = () => window.scrollTo({ top: 0 });
 
+// Pintasan "/" untuk fokus ke kolom pencarian (desktop)
+const searchEl = ref<HTMLInputElement | null>(null);
+const onSlashKey = (e: KeyboardEvent) => {
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (e.key !== "/" || tag === "INPUT" || tag === "TEXTAREA") return;
+  e.preventDefault();
+  searchEl.value?.focus();
+};
+
 // --- Gambar: fade-in saat selesai dimuat ---
 const imgFailed = reactive<Record<string, boolean>>({});
 const onImgLoad = (e: Event) => (e.target as HTMLImageElement).classList.add("is-loaded");
@@ -303,7 +327,7 @@ const pilihKategori = (nama: string) =>
   router.push({
     name: ROUTE_NAME,
     params: { kategori: nama === "ALL" ? "semua" : nama },
-    query: route.query,
+    query: { ...route.query, q: searchTerm.value || undefined },
   });
 const goBack = () =>
   phase.value === "products" ? router.push({ name: ROUTE_NAME }) : router.push("/");
@@ -399,11 +423,13 @@ onMounted(() => {
   document.title = "Katalog Produk - Kaosan";
   loadCatalog();
   window.addEventListener("keydown", onLbKey, true);
+  window.addEventListener("keydown", onSlashKey);
 });
 onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
   window.removeEventListener("keydown", onLbKey, true);
+  window.removeEventListener("keydown", onSlashKey);
 });
 </script>
 
@@ -565,17 +591,28 @@ onUnmounted(() => {
         <div class="k-container k-shop" :class="{ 'k-shop--side': mdAndUp }">
           <!-- SIDEBAR (desktop) -->
           <aside v-if="mdAndUp" class="k-side">
-            <v-text-field
-              v-model="searchInput"
-              placeholder="Cari nama / warna..."
-              variant="outlined"
-              density="compact"
-              hide-details
-              clearable
-              bg-color="white"
-              prepend-inner-icon="mdi-magnify"
-              class="k-search"
-            />
+            <label class="k-searchbox">
+              <v-icon size="18" class="k-searchbox-icon">mdi-magnify</v-icon>
+              <input
+                ref="searchEl"
+                v-model="searchInput"
+                type="search"
+                class="k-searchbox-input"
+                placeholder="Cari kaos atau warna"
+                autocomplete="off"
+                aria-label="Cari produk"
+              />
+              <button
+                v-if="searchInput"
+                type="button"
+                class="k-searchbox-clear"
+                aria-label="Hapus pencarian"
+                @click.prevent="searchInput = ''"
+              >
+                <v-icon size="14">mdi-close</v-icon>
+              </button>
+              <kbd v-else class="k-searchbox-key">/</kbd>
+            </label>
 
             <div class="k-side-title">Jenis kain</div>
             <nav class="k-side-list">
@@ -913,9 +950,6 @@ onUnmounted(() => {
 .k-swap-enter-from,
 .k-swap-leave-to {
   opacity: 0;
-}
-.k-shop-main {
-  position: relative;
 }
 
 .k-toolbar {
@@ -1406,6 +1440,9 @@ onUnmounted(() => {
   .k-cat-card:active {
     transform: none;
   }
+  .k-searchbox {
+    transition: none;
+  }
 }
 
 .k-card,
@@ -1659,137 +1696,10 @@ onUnmounted(() => {
     transition: none !important;
   }
 }
-.k-hero {
-  position: relative;
-  overflow: hidden;
-  background: #e9e1dd;
-  border-radius: 0;
-  box-shadow: 0 10px 30px rgba(60, 30, 20, 0.14);
-}
-/* Desktop: 8 foto sebaris, tiap foto berbentuk potret, tinggi hero jauh lebih pendek */
-.k-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: 1fr;
-  gap: 2px;
-  height: clamp(220px, 20vw, 340px);
-}
-.k-hero-overlay {
-  padding: 28px max(20px, calc((100vw - 1360px) / 2 + 16px));
-}
-.k-hero-title {
-  font-size: clamp(28px, 4vw, 52px);
-}
-@media (max-width: 959px) {
-  .k-hero-grid {
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(2, 1fr);
-    height: 280px;
-  }
-  .k-hero-overlay {
-    padding: 16px;
-    background: linear-gradient(
-      0deg,
-      rgba(20, 8, 6, 0.8) 0%,
-      rgba(20, 8, 6, 0.2) 65%,
-      transparent 100%
-    );
-  }
-}
-.k-hero-tile {
-  position: relative;
-  overflow: hidden;
-  background: #ddd;
-  opacity: 0;
-  animation: k-fade-up 0.6s ease forwards;
-  animation-delay: calc(var(--i, 0) * 70ms);
-}
-.k-hero-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 20%;
-  opacity: 0;
-  transform: scale(1.06);
-  transition: opacity 0.6s ease, transform 6s ease-out;
-}
+
 .k-hero-tile img.is-loaded {
   opacity: 1;
   transform: scale(1);
-}
-
-/* Overlay teks: gradasi gelap dari kiri supaya teks terbaca di atas foto apa pun */
-.k-hero-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  opacity: 0.85;
-  margin-bottom: 6px;
-}
-.k-hero-title {
-  margin: 0;
-  max-width: 14ch;
-  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
-  font-weight: 600;
-  font-size: clamp(28px, 5.2vw, 58px);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-}
-.k-hero-title em {
-  font-style: italic;
-  font-weight: 500;
-}
-.k-hero-sub {
-  margin: 10px 0 16px;
-  max-width: 34ch;
-  font-size: clamp(12px, 1.4vw, 15px);
-  line-height: 1.5;
-  opacity: 0.92;
-}
-.k-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.k-hero-btn {
-  padding: 9px 18px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  text-decoration: none;
-  cursor: pointer;
-  border: 1.5px solid #fff;
-  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-.k-hero-btn:hover {
-  transform: translateY(-1px);
-}
-.k-hero-btn--solid {
-  background: #fff;
-  color: var(--k-red-dark);
-}
-.k-hero-btn--ghost {
-  background: transparent;
-  color: #fff;
-}
-.k-hero-btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-.k-side .k-search {
-  max-width: none;
-  width: 100%;
-  margin-left: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .k-hero-tile,
-  .k-hero-tile img {
-    animation: none;
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
 }
 
 /* Grid kategori: 5 kolom di layar lebar */
@@ -2011,6 +1921,84 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+/* Kolom pencarian sidebar */
+.k-searchbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #e6dbd6, 0 1px 2px rgba(60, 30, 20, 0.04);
+  cursor: text;
+  transition: box-shadow 0.18s ease;
+}
+.k-searchbox:hover {
+  box-shadow: 0 0 0 1px #d6c4bd, 0 2px 6px rgba(60, 30, 20, 0.06);
+}
+.k-searchbox:focus-within {
+  box-shadow: 0 0 0 2px var(--k-red), 0 6px 16px rgba(183, 28, 28, 0.14);
+}
+.k-searchbox-icon {
+  flex-shrink: 0;
+  color: #a1928d;
+  transition: color 0.18s ease;
+}
+.k-searchbox:focus-within .k-searchbox-icon {
+  color: var(--k-red);
+}
+.k-searchbox-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2a2220;
+}
+.k-searchbox-input::placeholder {
+  color: #a1928d;
+}
+/* Sembunyikan tombol clear bawaan browser (kita punya sendiri) */
+.k-searchbox-input::-webkit-search-cancel-button {
+  display: none;
+}
+.k-searchbox-clear {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  color: #6f6663;
+  background: #f0e8e4;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.k-searchbox-clear:hover {
+  color: #fff;
+  background: var(--k-red);
+}
+.k-searchbox-key {
+  flex-shrink: 0;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  color: #a1928d;
+  background: #f5efec;
+  box-shadow: inset 0 -1px 0 #e6dbd6;
+}
+
 /* Kolom produk menyesuaikan lebar area setelah sidebar */
 @media (min-width: 960px) {
   .k-shop--side .k-grid {
@@ -2037,24 +2025,6 @@ onUnmounted(() => {
   .k-card:hover .k-img.is-loaded,
   .k-cat-card:hover .k-cat-cover img {
     transform: none;
-  }
-}
-
-.k-hero-overlay {
-  padding: 28px max(20px, calc((100vw - 1360px) / 2 + 16px));
-}
-.k-hero-title {
-  font-size: clamp(28px, 4vw, 52px);
-}
-@media (max-width: 959px) {
-  .k-hero-overlay {
-    padding: 16px;
-    background: linear-gradient(
-      0deg,
-      rgba(20, 8, 6, 0.8) 0%,
-      rgba(20, 8, 6, 0.2) 65%,
-      transparent 100%
-    );
   }
 }
 </style>

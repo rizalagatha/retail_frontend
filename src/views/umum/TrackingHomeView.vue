@@ -154,6 +154,20 @@ const kategoriList = computed(() => {
   });
 });
 
+// Ubah "HURUF KAPITAL SEMUA" menjadi sentence case
+const sentenceCase = (s: string) => {
+  const t = (s || "").trim().toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
+const promoValue = (p: PromoItem) => {
+  if (p.pro_diskon > 0) return { big: `${Number(p.pro_diskon)}%`, label: "Diskon" };
+  if (p.pro_disrp > 0) return { big: formatRupiah(p.pro_disrp), label: "Potongan" };
+  if (p.pro_rpvoucher > 0) return { big: formatRupiah(p.pro_rpvoucher), label: "Voucher" };
+  if (p.pro_totalqty > 0) return { big: `Beli ${p.pro_totalqty}`, label: "Lebih hemat" };
+  return { big: "Spesial", label: "Harga" };
+};
+
 // Helper untuk mengurutkan ukuran secara logis (S, M, L, XL, dst)
 const getSizeRank = (size: string) => {
   const s = size.toUpperCase().trim();
@@ -793,48 +807,48 @@ onMounted(() => {
           </div>
 
           <div class="t-promo-grid">
-            <article v-for="(promo, index) in activePromos" :key="index" class="t-promo">
-              <div class="t-promo-tag">
-                {{ promo.pro_jenis === 2 ? "Bundling" : "Diskon" }}
-              </div>
-              <h3 class="t-promo-title">{{ promo.pro_judul }}</h3>
-
-              <div class="t-promo-value">
-                <template v-if="promo.pro_diskon > 0">{{ promo.pro_diskon }}%</template>
-                <template v-else-if="promo.pro_disrp > 0">{{
-                  formatRupiah(promo.pro_disrp)
-                }}</template>
-                <template v-else-if="promo.pro_rpvoucher > 0">{{
-                  formatRupiah(promo.pro_rpvoucher)
-                }}</template>
-                <template v-else-if="promo.pro_totalqty > 0"
-                  >Beli {{ promo.pro_totalqty }}</template
-                >
-                <template v-else>Harga spesial</template>
-                <small v-if="promo.pro_diskon > 0"> diskon</small>
-                <small v-else-if="promo.pro_disrp > 0"> potongan</small>
-                <small v-else-if="promo.pro_rpvoucher > 0"> voucher</small>
+            <article
+              v-for="(promo, index) in activePromos"
+              :key="index"
+              class="t-coupon"
+              :style="{ '--i': index }"
+            >
+              <div class="t-coupon-value">
+                <span class="t-coupon-label">{{ promoValue(promo).label }}</span>
+                <span class="t-coupon-big">{{ promoValue(promo).big }}</span>
               </div>
 
-              <div v-if="promo.pro_totalrp > 0 || promo.pro_totalqty > 0" class="t-promo-min">
-                <template v-if="promo.pro_totalrp > 0">
-                  Min. belanja {{ formatRupiah(promo.pro_totalrp) }}
-                </template>
-                <template v-else>Min. {{ promo.pro_totalqty }} item</template>
-              </div>
+              <div class="t-coupon-body">
+                <h3 class="t-coupon-title">{{ sentenceCase(promo.pro_judul) }}</h3>
 
-              <p class="t-promo-desc">
-                {{ promo.pro_keterangan || "Berlaku untuk pemesanan di Kaosan." }}
-              </p>
-
-              <div class="t-promo-foot">
-                <div class="t-promo-left">
-                  <span>Berakhir dalam</span>
-                  <strong :class="{ 't-urgent': daysLeft(promo.pro_tanggal2) <= 7 }">
-                    {{ daysLeft(promo.pro_tanggal2) }} hari
-                  </strong>
+                <div v-if="promo.pro_totalrp > 0 || promo.pro_totalqty > 0" class="t-coupon-min">
+                  <template v-if="promo.pro_totalrp > 0">
+                    Min. belanja {{ formatRupiah(promo.pro_totalrp) }}
+                  </template>
+                  <template v-else>Min. {{ promo.pro_totalqty }} item</template>
                 </div>
-                <button class="t-promo-btn" @click="klaimPromo(promo)">Klaim</button>
+
+                <p class="t-coupon-desc">
+                  {{ sentenceCase(promo.pro_keterangan || "Berlaku untuk pemesanan di Kaosan.") }}
+                </p>
+
+                <div class="t-coupon-foot">
+                  <span
+                    class="t-coupon-days"
+                    :class="{ 't-urgent': daysLeft(promo.pro_tanggal2) <= 7 }"
+                  >
+                    <i class="t-dot"></i>
+                    {{
+                      daysLeft(promo.pro_tanggal2) === 0
+                        ? "Berakhir hari ini"
+                        : `Sisa ${daysLeft(promo.pro_tanggal2)} hari`
+                    }}
+                  </span>
+                  <button class="t-coupon-btn" @click="klaimPromo(promo)">
+                    Lihat cara klaim
+                    <v-icon size="14">mdi-arrow-right</v-icon>
+                  </button>
+                </div>
               </div>
             </article>
           </div>
@@ -2918,96 +2932,166 @@ onMounted(() => {
 /* ---------- Promo ---------- */
 .t-promo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
 }
-.t-promo {
+
+.t-coupon {
+  --cut: 9px;
+  position: relative;
+  display: flex;
+  min-height: 170px;
+  background: #fff;
+  border-radius: 12px;
+  filter: drop-shadow(0 6px 14px rgba(60, 20, 15, 0.1));
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+.t-coupon:hover {
+  transform: translateY(-3px) rotate(-0.4deg);
+  filter: drop-shadow(0 12px 22px rgba(60, 20, 15, 0.16));
+}
+
+/* Panel nilai (kiri) */
+.t-coupon-value {
+  flex: 0 0 36%;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  background: #fff;
-  border: 1px solid var(--t-line);
-  border-left: 4px solid var(--t-red);
-  border-radius: 10px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 10px;
+  color: #fff;
+  text-align: center;
+  background: var(--t-red);
+  border-radius: 12px 0 0 12px;
+  /* lekukan sobekan di sisi kanan panel */
+  -webkit-mask: radial-gradient(circle var(--cut) at 100% 0, transparent 98%, #000) top / 100% 51%
+      no-repeat,
+    radial-gradient(circle var(--cut) at 100% 100%, transparent 98%, #000) bottom / 100% 51%
+      no-repeat;
+  mask: radial-gradient(circle var(--cut) at 100% 0, transparent 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--cut) at 100% 100%, transparent 98%, #000) bottom / 100% 51%
+      no-repeat;
 }
-.t-promo:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 24px rgba(60, 20, 15, 0.1);
-}
-.t-promo-tag {
+.t-coupon-label {
   font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--t-red);
+  opacity: 0.85;
 }
-.t-promo-title {
-  margin: 6px 0 10px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
-}
-.t-promo-value {
+.t-coupon-big {
+  margin-top: 4px;
   font-family: var(--t-serif);
-  font-size: 34px;
+  font-size: clamp(26px, 3.2vw, 34px);
   font-weight: 600;
-  line-height: 1;
-  color: var(--t-red);
+  line-height: 1.05;
+  word-break: break-word;
 }
-.t-promo-value small {
-  font-family: "Plus Jakarta Sans", sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--t-muted);
-}
-.t-promo-min {
-  margin-top: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #8a5a00;
-}
-.t-promo-desc {
+
+/* Detail (kanan) */
+.t-coupon-body {
   flex: 1;
-  margin: 10px 0 16px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--t-muted);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 14px 20px;
+  border-radius: 0 12px 12px 0;
+  background: radial-gradient(circle var(--cut) at 0 0, transparent 98%, #fff) top / 100% 51%
+      no-repeat,
+    radial-gradient(circle var(--cut) at 0 100%, transparent 98%, #fff) bottom / 100% 51% no-repeat;
+  /* garis sobekan putus-putus */
+  border-left: 2px dashed #e4d6d1;
 }
-.t-promo-foot {
+.t-coupon-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.t-coupon-min {
+  margin-top: 6px;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7a4b00;
+  background: #fff1d6;
+}
+.t-coupon-desc {
+  flex: 1;
+  margin: 8px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--t-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.t-coupon-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 14px;
-  border-top: 1px dashed var(--t-line);
+  gap: 8px;
 }
-.t-promo-left {
-  display: flex;
-  flex-direction: column;
-  font-size: 10.5px;
+.t-coupon-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
   color: var(--t-muted);
 }
-.t-promo-left strong {
-  font-size: 13px;
-  color: var(--t-ink);
+.t-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2e9e5b;
 }
-.t-promo-left strong.t-urgent {
+.t-coupon-days.t-urgent {
   color: var(--t-red);
 }
-.t-promo-btn {
-  padding: 8px 20px;
-  border: 1.5px solid var(--t-red);
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--t-red);
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.t-promo-btn:hover {
+.t-coupon-days.t-urgent .t-dot {
   background: var(--t-red);
-  color: #fff;
+  animation: t-pulse 1.6s ease-in-out infinite;
+}
+@keyframes t-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(183, 28, 28, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(183, 28, 28, 0);
+  }
+}
+.t-coupon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--t-red);
+  cursor: pointer;
+}
+.t-coupon-btn .v-icon {
+  transition: transform 0.18s ease;
+}
+.t-coupon-btn:hover .v-icon {
+  transform: translateX(4px);
+}
+
+@media (max-width: 599px) {
+  .t-promo-grid {
+    grid-template-columns: 1fr;
+  }
+  .t-coupon-value {
+    flex-basis: 34%;
+  }
 }
 
 /* ---------- Layanan ---------- */

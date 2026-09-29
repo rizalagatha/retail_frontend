@@ -40,13 +40,6 @@ const route = useRoute();
 const router = useRouter();
 const { xs } = useDisplay();
 
-const BANNER_KEY = "katalog_banner_closed";
-const showBanner = ref(sessionStorage.getItem(BANNER_KEY) !== "1");
-const closeBanner = () => {
-  showBanner.value = false;
-  sessionStorage.setItem(BANNER_KEY, "1");
-};
-
 const ROUTE_NAME = "Katalog";
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
@@ -162,6 +155,7 @@ const products = computed<Product[]>(() =>
 // jadi tidak berganti-ganti saat user bolak-balik atau mengetik.
 const coverMap = ref<Record<string, string>>({});
 const semuaCovers = ref<string[]>([]);
+const heroImages = ref<string[]>([]);
 
 const shuffle = <T>(arr: T[]) => {
   const a = [...arr];
@@ -190,6 +184,16 @@ watch(
 
     // Kartu "SEMUA": 4 foto acak dari kategori yang berbeda
     semuaCovers.value = shuffle(Object.values(picked)).slice(0, 4);
+
+    // Hero: 8 foto dari jenis kain berbeda (kalau kain < 8, sisanya diisi foto produk acak)
+    const hero = shuffle(Object.values(picked)).slice(0, 8);
+    if (hero.length < 8) {
+      const extra = shuffle(
+        list.map((p) => p.gambar).filter((g): g is string => !!g && !hero.includes(g))
+      );
+      hero.push(...extra.slice(0, 8 - hero.length));
+    }
+    heroImages.value = hero;
   },
   { immediate: true }
 );
@@ -418,20 +422,32 @@ onUnmounted(() => {
     <Transition name="k-page" mode="out-in" appear @before-enter="scrollTop">
       <!-- ============ KATEGORI ============ -->
       <main v-if="phase === 'category'" key="category" class="k-container">
-        <Transition name="k-fade">
-          <section v-if="showBanner" class="k-banner">
-            <div class="k-banner-text">
-              <div class="k-banner-title">Kaos polos berkualitas, tersedia di semua store</div>
-              <div class="k-banner-sub">
-                Pesan custom sablon, bordir, dan grosir langsung di store terdekat.
-              </div>
+        <section v-if="!isLoading && heroImages.length" class="k-hero">
+          <div class="k-hero-grid">
+            <div
+              v-for="(src, i) in heroImages"
+              :key="src"
+              class="k-hero-tile"
+              :style="{ '--i': i }"
+            >
+              <img :src="src" alt="" decoding="async" @load="onImgLoad" />
             </div>
-            <router-link to="/cek-stok" class="k-banner-cta">Cek Stok Store</router-link>
-            <button class="k-banner-x" aria-label="Tutup banner" @click="closeBanner">
-              <v-icon size="16">mdi-close</v-icon>
-            </button>
-          </section>
-        </Transition>
+          </div>
+
+          <div class="k-hero-overlay">
+            <div class="k-hero-eyebrow">Kaosan Official</div>
+            <h1 class="k-hero-title">Polos yang <em>berkarakter.</em></h1>
+            <p class="k-hero-sub">Dipilih per kain, dibuat untuk dipakai setiap hari.</p>
+            <div class="k-hero-actions">
+              <button class="k-hero-btn k-hero-btn--solid" @click="pilihKategori('ALL')">
+                Lihat semua koleksi
+              </button>
+              <router-link to="/cek-stok" class="k-hero-btn k-hero-btn--ghost">
+                Cek stok store
+              </router-link>
+            </div>
+          </div>
+        </section>
 
         <p class="k-hint">Pilih jenis kain untuk melihat koleksi kami.</p>
 
@@ -1525,71 +1541,141 @@ onUnmounted(() => {
     transition: none !important;
   }
 }
-
-.k-banner {
+.k-hero {
   position: relative;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #e9e1dd;
+  box-shadow: 0 10px 30px rgba(60, 30, 20, 0.16);
+}
+.k-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 2px;
+  height: clamp(240px, 36vw, 440px);
+}
+.k-hero-tile {
+  position: relative;
+  overflow: hidden;
+  background: #ddd;
+  opacity: 0;
+  animation: k-fade-up 0.6s ease forwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.k-hero-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0;
+  transform: scale(1.06);
+  transition: opacity 0.6s ease, transform 6s ease-out;
+}
+.k-hero-tile img.is-loaded {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Overlay teks: gradasi gelap dari kiri supaya teks terbaca di atas foto apa pun */
+.k-hero-overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-  padding: 14px 40px 14px 16px;
-  border-radius: 14px;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(16px, 3.5vw, 40px);
   color: #fff;
-  background: radial-gradient(240px 120px at 100% 0, rgba(255, 255, 255, 0.18), transparent 70%),
-    linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
-  box-shadow: 0 6px 18px rgba(183, 28, 28, 0.25);
+  background: linear-gradient(
+      90deg,
+      rgba(20, 8, 6, 0.72) 0%,
+      rgba(20, 8, 6, 0.35) 45%,
+      transparent 75%
+    ),
+    linear-gradient(0deg, rgba(20, 8, 6, 0.5) 0%, transparent 45%);
 }
-.k-banner-text {
-  flex: 1;
-  min-width: 0;
-}
-.k-banner-title {
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.25;
-}
-.k-banner-sub {
-  margin-top: 2px;
+.k-hero-eyebrow {
   font-size: 11px;
-  opacity: 0.9;
-  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 6px;
 }
-.k-banner-cta {
-  flex-shrink: 0;
-  padding: 7px 14px;
+.k-hero-title {
+  margin: 0;
+  max-width: 14ch;
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: clamp(28px, 5.2vw, 58px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.k-hero-title em {
+  font-style: italic;
+  font-weight: 500;
+}
+.k-hero-sub {
+  margin: 10px 0 16px;
+  max-width: 34ch;
+  font-size: clamp(12px, 1.4vw, 15px);
+  line-height: 1.5;
+  opacity: 0.92;
+}
+.k-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.k-hero-btn {
+  padding: 9px 18px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
-  color: var(--k-red-dark);
-  background: #fff;
   text-decoration: none;
-  white-space: nowrap;
-  transition: transform 0.15s ease;
+  cursor: pointer;
+  border: 1.5px solid #fff;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
-.k-banner-cta:hover {
+.k-hero-btn:hover {
   transform: translateY(-1px);
 }
-.k-banner-x {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.16);
-  cursor: pointer;
+.k-hero-btn--solid {
+  background: #fff;
+  color: var(--k-red-dark);
 }
+.k-hero-btn--ghost {
+  background: transparent;
+  color: #fff;
+}
+.k-hero-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 @media (max-width: 599px) {
-  .k-banner {
-    flex-wrap: wrap;
+  .k-hero {
+    border-radius: 14px;
   }
-  .k-banner-cta {
-    order: 3;
+  .k-hero-grid {
+    height: 300px;
+  }
+  .k-hero-overlay {
+    background: linear-gradient(
+      0deg,
+      rgba(20, 8, 6, 0.8) 0%,
+      rgba(20, 8, 6, 0.2) 65%,
+      transparent 100%
+    );
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-hero-tile,
+  .k-hero-tile img {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
 </style>

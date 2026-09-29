@@ -40,6 +40,16 @@ const { xs } = useDisplay();
 const ROUTE_NAME = "Katalog";
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
+const formatHarga = (min: number, max: number) => {
+  if (!max || max <= 0) return null;
+  if (min === max) return rp(min);
+  return `${rp(min)} - ${new Intl.NumberFormat("id-ID").format(max)}`;
+};
+
+const selectedHarga = computed(() =>
+  selected.value ? formatHarga(selected.value.hargaMin, selected.value.hargaMax) : null
+);
+
 // --- Fase dari URL ---
 const kategoriParam = computed(() => (route.params.kategori as string) || "");
 const phase = computed<"category" | "products">(() =>
@@ -101,35 +111,60 @@ const products = computed<Product[]>(() =>
   })
 );
 
-const kategoriList = computed(() => {
-  const map = new Map<string, { nama: string; jumlah: number; cover: string | null }>();
+// Cover acak per kategori. Dipilih sekali saat data dimuat (bukan tiap render),
+// jadi tidak berganti-ganti saat user bolak-balik atau mengetik.
+const coverMap = ref<Record<string, string>>({});
+const semuaCovers = ref<string[]>([]);
 
-  // products sudah urut per "urutan" dari filtered; urutkan dulu supaya cover = produk unggulan
-  const sorted = [...products.value].sort(
-    (a, b) => a.urutan - b.urutan || a.nama.localeCompare(b.nama)
-  );
+const shuffle = <T>(arr: T[]) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
 
-  sorted.forEach((p) => {
-    if (!map.has(p.kategori)) map.set(p.kategori, { nama: p.kategori, jumlah: 0, cover: null });
-    const k = map.get(p.kategori)!;
-    k.jumlah += 1;
-    if (!k.cover && p.gambar) k.cover = p.gambar;
-  });
+watch(
+  products,
+  (list) => {
+    const groups = new Map<string, string[]>();
+    list.forEach((p) => {
+      if (!p.gambar) return;
+      if (!groups.has(p.kategori)) groups.set(p.kategori, []);
+      groups.get(p.kategori)!.push(p.gambar);
+    });
 
-  return Array.from(map.values()).sort((a, b) => {
-    if (a.nama === "LAIN-LAIN") return 1;
-    if (b.nama === "LAIN-LAIN") return -1;
-    return b.jumlah - a.jumlah;
-  });
-});
+    const picked: Record<string, string> = {};
+    groups.forEach((imgs, kategori) => {
+      picked[kategori] = imgs[Math.floor(Math.random() * imgs.length)];
+    });
+    coverMap.value = picked;
 
-// Cover untuk kartu "SEMUA": ambil 4 foto dari kategori berbeda
-const semuaCovers = computed(() =>
-  kategoriList.value
-    .map((k) => k.cover)
-    .filter((c): c is string => !!c)
-    .slice(0, 4)
+    // Kartu "SEMUA": 4 foto acak dari kategori yang berbeda
+    semuaCovers.value = shuffle(Object.values(picked)).slice(0, 4);
+  },
+  { immediate: true }
 );
+
+const kategoriList = computed(() => {
+  const count: Record<string, number> = {};
+  products.value.forEach((p) => {
+    count[p.kategori] = (count[p.kategori] || 0) + 1;
+  });
+
+  return Object.keys(count)
+    .sort((a, b) => {
+      if (a === "LAIN-LAIN") return 1;
+      if (b === "LAIN-LAIN") return -1;
+      return count[b] - count[a];
+    })
+    .map((nama) => ({
+      nama,
+      jumlah: count[nama],
+      cover: coverMap.value[nama] || null,
+    }));
+});
 
 // --- Filter (di query URL) ---
 const lengan = computed(() => String(route.query.lengan || "SEMUA").toUpperCase());
@@ -355,12 +390,8 @@ onUnmounted(() => {
               </div>
               <div class="k-card-body">
                 <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
-                <div class="k-card-price">
-                  <template v-if="p.hargaMin !== p.hargaMax">
-                    {{ rp(p.hargaMin) }} - {{ new Intl.NumberFormat("id-ID").format(p.hargaMax) }}
-                  </template>
-                  <template v-else>{{ rp(p.hargaMin) }}</template>
-                </div>
+                <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+                <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
               </div>
             </article>
           </div>
@@ -636,6 +667,11 @@ onUnmounted(() => {
   aspect-ratio: 1 / 1;
   background: #eee;
   overflow: hidden;
+}
+.k-card-price--na {
+  font-size: 11px;
+  font-weight: 600;
+  color: #999;
 }
 .k-tex {
   width: 100%;

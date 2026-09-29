@@ -15,6 +15,7 @@ interface CatalogRow {
   harga_min: number | null;
   harga_max: number | null;
   ukuran: string | null;
+  ukuran_harga: string | null;
   gambar_url: string | null;
   urutan: number;
   galeri: string | { url: string; index: number }[] | null;
@@ -28,6 +29,7 @@ interface Product {
   hargaMin: number;
   hargaMax: number;
   ukuran: string[];
+  ukuranHarga: { ukuran: string; harga: number }[];
   gambar: string | null;
   urutan: number;
   galeri: { url: string; index: number }[];
@@ -41,7 +43,7 @@ const ROUTE_NAME = "Katalog";
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
 const formatHarga = (min: number, max: number) => {
-  if (!max || max <= 0) return null;
+  if (!max || max <= 0) return null; // semua 0 -> tidak ada harga
   if (min === max) return rp(min);
   return `${rp(min)} - ${new Intl.NumberFormat("id-ID").format(max)}`;
 };
@@ -77,6 +79,26 @@ const loadCatalog = async () => {
   }
 };
 
+const sizeRank = (size: string) => {
+  const s = (size || "").toUpperCase().trim();
+  const ranks: Record<string, number> = {
+    XS: 1,
+    SS: 2,
+    S: 3,
+    M: 4,
+    L: 5,
+    XL: 6,
+    XXL: 7,
+    "2XL": 7,
+    "3XL": 8,
+    "4XL": 9,
+    "5XL": 10,
+  };
+  if (ranks[s]) return ranks[s];
+  const n = parseInt(s);
+  return isNaN(n) ? 999 : 20 + n;
+};
+
 const products = computed<Product[]>(() =>
   rows.value.map((r) => {
     let galeri: { url: string; index: number }[] = [];
@@ -96,14 +118,26 @@ const products = computed<Product[]>(() =>
 
     const min = Number(r.harga_min) || 0;
     const max = Number(r.harga_max) || 0;
+
+    let ukuranHarga: { ukuran: string; harga: number }[] = [];
+    try {
+      ukuranHarga = r.ukuran_harga ? JSON.parse(r.ukuran_harga) : [];
+    } catch {
+      ukuranHarga = [];
+    }
+    ukuranHarga = ukuranHarga
+      .map((u) => ({ ukuran: u.ukuran, harga: Number(u.harga) || 0 }))
+      .sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
+
     return {
       kode: r.kode,
       nama: r.nama,
       kategori,
       lengan: (r.lengan || "").toUpperCase(),
       hargaMin: min || max,
-      hargaMax: max,
+      hargaMax: max || min,
       ukuran: r.ukuran ? r.ukuran.split(",") : [],
+      ukuranHarga,
       gambar: r.gambar_url,
       urutan: r.urutan || 9999,
       galeri,
@@ -390,8 +424,10 @@ onUnmounted(() => {
               </div>
               <div class="k-card-body">
                 <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
-                <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
-                <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
+                <div v-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
+                  {{ formatHarga(p.hargaMin, p.hargaMax) }}
+                </div>
+                <div v-else class="k-card-price k-card-price--na">Hubungi store untuk harga</div>
               </div>
             </article>
           </div>
@@ -404,7 +440,7 @@ onUnmounted(() => {
     </template>
 
     <!-- DETAIL (tanpa stok) -->
-    <v-dialog v-model="detailVisible" max-width="420" scrollable :fullscreen="xs">
+    <v-dialog v-model="detailVisible" max-width="860" scrollable :fullscreen="xs">
       <v-card v-if="selected" class="k-detail">
         <div
           class="k-detail-bar"
@@ -421,48 +457,58 @@ onUnmounted(() => {
             @click="detailVisible = false"
           />
         </div>
-        <v-card-text class="pa-4">
-          <v-carousel
-            v-if="selected.galeri.length"
-            height="340"
-            hide-delimiter-background
-            show-arrows="hover"
-            class="k-carousel"
-          >
-            <v-carousel-item v-for="(img, i) in selected.galeri" :key="i">
-              <v-img :src="img.url" cover height="100%">
-                <template #error>
-                  <div class="k-img-broken">
-                    <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
-                  </div>
-                </template>
-              </v-img>
-            </v-carousel-item>
-          </v-carousel>
-          <div v-else class="k-carousel k-carousel-tex">
-            <div class="k-tex" v-html="getFabricTexture(selected.kategori)"></div>
-          </div>
 
-          <h2 class="k-detail-name">{{ selected.nama }}</h2>
-          <div class="k-detail-price">
-            <template v-if="selected.hargaMin !== selected.hargaMax">
-              {{ rp(selected.hargaMin) }} -
-              {{ new Intl.NumberFormat("id-ID").format(selected.hargaMax) }}
-            </template>
-            <template v-else>{{ rp(selected.hargaMin) }}</template>
-          </div>
+        <v-card-text class="pa-4 pa-sm-6">
+          <div class="k-detail-layout">
+            <div class="k-detail-media">
+              <v-carousel
+                v-if="selected.galeri.length"
+                height="100%"
+                hide-delimiter-background
+                show-arrows="hover"
+                class="k-carousel"
+              >
+                <v-carousel-item v-for="(img, i) in selected.galeri" :key="i">
+                  <v-img :src="img.url" cover height="100%">
+                    <template #error>
+                      <div class="k-img-broken">
+                        <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
+                      </div>
+                    </template>
+                  </v-img>
+                </v-carousel-item>
+              </v-carousel>
+              <div v-else-if="selected.gambar" class="k-carousel">
+                <v-img :src="selected.gambar" cover height="100%" />
+              </div>
+              <div v-else class="k-carousel">
+                <div class="k-tex" v-html="getFabricTexture(selected.kategori)"></div>
+              </div>
+            </div>
 
-          <div v-if="selected.ukuran.length" class="k-detail-label">
-            Ukuran tersedia dalam produk ini
-          </div>
-          <div class="k-sizes">
-            <span v-for="u in selected.ukuran" :key="u" class="k-size">{{ u }}</span>
-          </div>
+            <div class="k-detail-info">
+              <h2 class="k-detail-name">{{ selected.nama }}</h2>
+              <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+              <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
 
-          <div class="k-note">
-            <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
-            Ketersediaan stok berbeda di tiap store. Cek di menu
-            <router-link to="/cek-stok">Cek Stok Store</router-link>.
+              <div v-if="selected.ukuranHarga.length" class="k-detail-label">Harga per ukuran</div>
+              <div v-if="selected.ukuranHarga.length" class="k-price-list">
+                <div v-for="u in selected.ukuranHarga" :key="u.ukuran" class="k-price-row">
+                  <span class="k-size">{{ u.ukuran }}</span>
+                  <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
+                    {{ u.harga ? rp(u.harga) : "Hubungi store" }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="k-note">
+                <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
+                <span>
+                  Ketersediaan stok berbeda di tiap store. Cek di menu
+                  <router-link to="/cek-stok">Cek Stok Store</router-link>.
+                </span>
+              </div>
+            </div>
           </div>
         </v-card-text>
       </v-card>
@@ -890,6 +936,70 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .k-cat-cover img {
     transition: none;
+  }
+}
+.k-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.k-detail-media {
+  height: 340px;
+}
+.k-detail-media .k-carousel {
+  height: 100%;
+  margin-bottom: 0;
+}
+.k-detail-info {
+  min-width: 0;
+}
+.k-price-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.k-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+.k-price-row:last-child {
+  border-bottom: none;
+}
+.k-price-row:nth-child(even) {
+  background: #fafafa;
+}
+.k-price-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--k-red);
+}
+.k-price-val--na {
+  font-size: 11px;
+  font-weight: 600;
+  color: #999;
+}
+@media (min-width: 700px) {
+  .k-detail-layout {
+    flex-direction: row;
+    gap: 24px;
+  }
+  .k-detail-media {
+    flex: 0 0 48%;
+    height: 480px;
+  }
+  .k-detail-info {
+    flex: 1;
+  }
+  .k-detail-name {
+    font-size: 20px;
+  }
+  .k-detail-price {
+    font-size: 18px;
   }
 }
 

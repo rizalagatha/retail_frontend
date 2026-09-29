@@ -88,81 +88,215 @@ onMounted(loadData);
 
 <template>
   <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="850px" persistent>
-    <v-card>
-      <v-card-title
-        class="bg-primary text-white py-2 px-4 d-flex align-center"
-        style="font-size: 14px; font-weight: 600"
-      >
-        <span>Pilih Packing List (Pra-SJ) - Store {{ storeKode }}</span>
+    <v-card class="dialog-card d-flex flex-column" style="height: 80vh">
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-icon icon="mdi-clipboard-list-outline" class="ms-2 me-1" size="20"></v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+          Pilih Packing List (Pra-SJ) - Store {{ storeKode }}
+        </v-toolbar-title>
         <v-spacer></v-spacer>
-        <v-btn icon="mdi-close" variant="text" density="compact" @click="$emit('close')"></v-btn>
-      </v-card-title>
+        <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
+      </v-toolbar>
 
-      <v-card-text class="pt-4 px-4 pb-2">
+      <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field
           v-model="search"
-          label="Cari Nomor PL..."
-          placeholder="Ketik nomor lalu tekan Enter"
+          label="Cari Nomor PL / Keterangan..."
+          placeholder="Ketik lalu tekan Enter"
           prepend-inner-icon="mdi-magnify"
           density="compact"
           variant="outlined"
           hide-details
-          class="mb-3 custom-input"
+          autofocus
+          class="mb-4 flex-shrink-0 search-input"
           @keydown.enter="loadData"
         ></v-text-field>
 
-        <div class="table-wrapper">
-          <v-data-table
-            :headers="headers"
-            :items="items"
-            :loading="loading"
-            density="compact"
-            fixed-header
-            height="350px"
-            class="custom-table"
-            :items-per-page="10"
-            hover
-            @click:row="handleRowClick"
-          >
-            <template #[`item.Tanggal`]="{ item }">
-              {{ formatDate(item.Tanggal) }}
-            </template>
-          </v-data-table>
-        </div>
+        <v-data-table
+          :headers="headers"
+          :items="items"
+          :loading="loading"
+          density="compact"
+          fixed-header
+          height="calc(80vh - 200px)"
+          class="desktop-table flex-grow-1"
+          :items-per-page="10"
+          hover
+          @click:row="handleRowClick"
+        >
+          <template #[`item.Nomor`]="{ item }">
+            <v-chip size="x-small" color="red-darken-2" variant="flat" class="font-weight-bold">
+              {{ item.Nomor }}
+            </v-chip>
+          </template>
+          <template #[`item.Tanggal`]="{ item }">
+            {{ formatDate(item.Tanggal) }}
+          </template>
+          <template #no-data>
+            <div class="text-center pa-4">Tidak ada Packing List yang masih OPEN.</div>
+          </template>
+        </v-data-table>
       </v-card-text>
     </v-card>
   </v-dialog>
 </template>
 
 <style scoped>
-/* Styling Konsisten 11px */
+.dialog-card {
+  font-size: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-.custom-input :deep(.v-field__input),
-.custom-input :deep(.v-label) {
+/* Toolbar merah gradient */
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+
+.modal-toolbar :deep(.v-btn) {
+  color: #ffffff !important;
+}
+
+/* Search field */
+.search-input :deep(.v-field) {
+  border-radius: 8px;
+}
+
+.search-input :deep(.v-field__input),
+.search-input :deep(.v-label) {
   font-size: 11px !important;
 }
 
-.custom-table :deep(thead tr th) {
-  background-color: #f5f5f5 !important;
-  color: #424242 !important;
-  font-weight: 600 !important;
+.search-input :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.search-input :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+
+.search-input :deep(.v-icon) {
+  color: rgba(183, 28, 28, 0.7);
+}
+
+/* Tabel */
+.desktop-table {
+  font-size: 11px;
+}
+
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+  padding: 0 8px !important;
+  height: 28px !important;
+}
+
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
   text-transform: uppercase;
-  font-size: 11px !important;
-  height: 36px !important;
-  border-bottom: 1px solid #e0e0e0 !important;
+  font-size: 10.5px !important;
+  border-bottom: none !important;
 }
 
-.custom-table :deep(tbody tr td) {
-  font-size: 11px !important;
-  height: 32px !important;
-  border-bottom: 1px solid #f0f0f0 !important;
+.desktop-table :deep(tbody tr) {
   cursor: pointer;
-  /* [UBAH] Tambahkan pointer agar terlihat bisa diklik */
+  transition: background-color 0.12s ease;
 }
 
-/* Hover effect lebih tegas */
-.custom-table :deep(tbody tr:hover) {
-  background-color: #bbdefb !important;
-  /* Biru lebih gelap saat hover */
+.desktop-table :deep(tbody tr td) {
+  font-size: 11px !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+}
+
+.desktop-table :deep(tbody tr:active) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+
+/* Footer pagination */
+.desktop-table :deep(.v-data-table-footer) {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px !important;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  font-size: 12px;
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page) {
+  margin-right: auto;
+  gap: 8px;
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-select) {
+  max-width: 92px;
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field__input) {
+  padding-right: 4px;
+  min-width: 0;
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.v-data-table-footer__info) {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.65);
+  margin: 0 16px;
+}
+
+.desktop-table :deep(.v-data-table-footer__pagination) {
+  gap: 4px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+  transition: all 0.15s ease;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+  transform: translateY(-1px);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+  opacity: 0.4;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled .v-icon) {
+  color: rgba(0, 0, 0, 0.3);
 }
 </style>

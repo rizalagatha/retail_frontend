@@ -110,6 +110,11 @@ const items = ref<Item[]>([]);
 const scannedBarcode = ref("");
 const isLeftColumnVisible = ref(true);
 
+const grandQty = computed(() =>
+  items.value.reduce((sum, i) => (i.kode ? sum + (Number(i.jumlah) || 0) : sum), 0)
+);
+const totalItem = computed(() => items.value.filter((i) => i.kode).length);
+
 // Modal states
 const dialog = reactive({
   gudangSearch: false,
@@ -619,9 +624,9 @@ onMounted(async () => {
     <template #header-actions>
       <v-chip
         size="small"
-        :color="header.kategori === 'PENOLONG' ? 'orange' : 'blue'"
-        variant="tonal"
-        class="mr-2"
+        :color="header.kategori === 'PENOLONG' ? 'orange-darken-2' : 'red-darken-2'"
+        variant="flat"
+        class="mr-2 font-weight-bold"
       >
         {{ kategoriLabel }}
       </v-chip>
@@ -636,7 +641,8 @@ onMounted(async () => {
       </v-btn>
       <v-btn
         size="small"
-        color="primary"
+        class="btn-simpan-sj"
+        variant="flat"
         @click="handleSave"
         :loading="isSaving"
         prepend-icon="mdi-content-save"
@@ -644,7 +650,7 @@ onMounted(async () => {
       >
         Simpan
       </v-btn>
-      <v-btn size="small" @click="handleCancel" prepend-icon="mdi-refresh"> Batal </v-btn>
+      <v-btn size="small" @click="handleCancel" prepend-icon="mdi-cancel"> Batal </v-btn>
       <v-btn size="small" @click="handleClose" prepend-icon="mdi-close"> Tutup </v-btn>
     </template>
 
@@ -652,8 +658,12 @@ onMounted(async () => {
       <!-- Left Column: Header -->
       <div class="left-column">
         <div class="desktop-form-section header-section">
+          <div class="field-section-label">
+            <v-icon size="14" class="mr-1">mdi-file-document-outline</v-icon>
+            Dokumen
+          </div>
           <v-row dense>
-            <v-col cols="12">
+            <v-col cols="6">
               <v-text-field
                 label="Nomor"
                 v-model="header.nomor"
@@ -661,9 +671,10 @@ onMounted(async () => {
                 filled
                 density="compact"
                 hide-details
+                class="readonly-field nomor-field"
               />
             </v-col>
-            <v-col cols="12">
+            <v-col cols="6">
               <v-text-field
                 label="Tanggal"
                 v-model="header.tanggal"
@@ -675,18 +686,20 @@ onMounted(async () => {
                 :max="format(new Date(), 'yyyy-MM-dd')"
               />
             </v-col>
-            <v-col cols="12">
+            <v-col cols="5">
               <v-text-field
                 label="Gudang"
                 v-model="header.gudang.kode"
                 readonly
                 @click="dialog.gudangSearch = true"
-                prepend-inner-icon="mdi-magnify"
+                append-inner-icon="mdi-magnify"
+                variant="outlined"
                 density="compact"
                 hide-details
+                class="search-field"
               />
             </v-col>
-            <v-col cols="12">
+            <v-col cols="7">
               <v-text-field
                 label="Nama Gudang"
                 v-model="header.gudang.nama"
@@ -694,19 +707,30 @@ onMounted(async () => {
                 filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
-            <v-col cols="12">
+          </v-row>
+
+          <div class="field-section-label mt-3">
+            <v-icon size="14" class="mr-1">mdi-store-outline</v-icon>
+            Tujuan
+          </div>
+          <v-row dense>
+            <v-col cols="5">
               <v-text-field
                 label="Ke Store"
                 v-model="header.store.kode"
+                readonly
                 @click="openStoreSearch"
-                prepend-inner-icon="mdi-magnify"
+                append-inner-icon="mdi-magnify"
+                variant="outlined"
                 density="compact"
                 hide-details
+                class="search-field"
               />
             </v-col>
-            <v-col cols="12">
+            <v-col cols="7">
               <v-text-field
                 label="Nama Store"
                 v-model="header.store.nama"
@@ -714,8 +738,16 @@ onMounted(async () => {
                 filled
                 density="compact"
                 hide-details
+                class="readonly-field"
               />
             </v-col>
+          </v-row>
+
+          <div class="field-section-label mt-3">
+            <v-icon size="14" class="mr-1">mdi-link-variant</v-icon>
+            Referensi
+          </div>
+          <v-row dense>
             <v-col cols="12">
               <v-text-field
                 label="Ref. Packing List"
@@ -728,6 +760,7 @@ onMounted(async () => {
                 variant="outlined"
                 :disabled="isEditMode || !header.store.kode"
                 placeholder="Pilih Packing List..."
+                class="search-field"
               />
             </v-col>
             <v-col cols="12" v-if="header.store.kode === 'W01'">
@@ -740,9 +773,9 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 variant="outlined"
-                bg-color="blue-lighten-5"
                 :disabled="isEditMode"
                 placeholder="Pilih Nomor SO..."
+                class="search-field promo-field"
               />
             </v-col>
             <v-col cols="12">
@@ -761,9 +794,8 @@ onMounted(async () => {
 
       <!-- Right Column: Details -->
       <div class="right-column">
-        <div class="desktop-form-section d-flex flex-column fill-height">
-          <div class="d-flex align-center gap-2 mb-2">
-            <!-- Scanner — flex-grow agar melebar -->
+        <div class="desktop-form-section scanner-section">
+          <div class="d-flex align-center ga-2">
             <v-text-field
               v-model="scannedBarcode"
               label="Scan Barcode di Sini..."
@@ -773,13 +805,14 @@ onMounted(async () => {
               prepend-inner-icon="mdi-barcode-scan"
               hide-details
               clearable
+              class="verify-scanner-field"
               style="flex: 1; min-width: 0"
               @keydown="handleScannerKeydown"
             />
 
             <v-btn
               size="small"
-              color="teal"
+              color="red-darken-2"
               variant="tonal"
               prepend-icon="mdi-package-variant-closed"
               :disabled="
@@ -790,10 +823,19 @@ onMounted(async () => {
               + Bahan Penolong (F1)
             </v-btn>
 
-            <v-btn size="small" @click="openTerimaRbSearch" prepend-icon="mdi-package-down">
+            <v-btn
+              size="small"
+              color="red-darken-2"
+              variant="outlined"
+              @click="openTerimaRbSearch"
+              prepend-icon="mdi-package-down"
+            >
               Load from Terima RB
             </v-btn>
           </div>
+        </div>
+
+        <div class="desktop-form-section main-grid-section">
           <v-data-table
             :headers="tableHeaders"
             :items="items"
@@ -801,6 +843,7 @@ onMounted(async () => {
             density="compact"
             fixed-header
             :items-per-page="-1"
+            hide-default-footer
           >
             <template #[`item.kode`]="{ item }">
               <v-text-field
@@ -822,7 +865,8 @@ onMounted(async () => {
                 variant="underlined"
                 density="compact"
                 hide-details
-                class="text-right"
+                class="text-right font-weight-bold"
+                :error="!!item.kode && item.jumlah > item.stok"
               />
               <div v-else class="text-right font-weight-bold">
                 {{ item.jumlah }}
@@ -830,6 +874,7 @@ onMounted(async () => {
             </template>
             <template #[`item.actions`]="{ item }">
               <v-btn
+                v-if="item.kode"
                 icon="mdi-delete"
                 size="x-small"
                 variant="text"
@@ -844,12 +889,19 @@ onMounted(async () => {
                   @click="addNewRow"
                   prepend-icon="mdi-plus"
                   variant="text"
-                  color="primary"
+                  color="red-darken-2"
                   >Tambah Baris</v-btn
                 >
               </div>
             </template>
           </v-data-table>
+
+          <div class="sj-sticky-footer">
+            <div class="footer-col label-left">TOTAL ITEM</div>
+            <div class="footer-col value-center">{{ totalItem }}</div>
+            <div class="footer-col label-right">TOTAL QTY KIRIM</div>
+            <div class="footer-col value-right">{{ grandQty }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -891,14 +943,16 @@ onMounted(async () => {
     />
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
-      <v-card>
+      <v-card class="confirm-card">
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
         <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="dialogConfirm.show = false"
+            >Tidak</v-btn
+          >
           <v-btn
-            color="primary"
+            color="red-darken-2"
             variant="tonal"
             @click="
               dialogConfirm.onConfirm();
@@ -914,37 +968,14 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.desktop-table :deep(.scrollable-cell) {
-  white-space: nowrap;
-  overflow-x: auto;
-  max-width: 450px;
-  min-width: 300px;
-  height: 22px;
-  display: block;
-  padding-bottom: 5px;
-  margin-bottom: -5px;
-}
-
-.desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
-  /* Biru Tua */
-  color: #ffffff !important;
-  /* Teks Putih */
-  font-weight: bold !important;
-  text-transform: uppercase;
-  font-size: 11px !important;
-  height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-bottom: none !important;
-  /* Supaya lebih rapi */
-}
-
+/* ══════════════ LAYOUT ══════════════ */
 .form-grid-container {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 340px 1fr;
   gap: 16px;
   height: calc(100vh - 120px);
   transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: rgba(183, 28, 28, 0.05);
 }
 
 .form-grid-container.hide-left {
@@ -952,7 +983,13 @@ onMounted(async () => {
 }
 
 .left-column {
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.35s ease;
   transform-origin: left center;
 }
@@ -964,5 +1001,242 @@ onMounted(async () => {
   width: 0;
   padding: 0;
   transform: translateX(-20px);
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.left-column .desktop-form-section.header-section {
+  background-color: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
+}
+
+/* ══════════════ TOMBOL SIMPAN ══════════════ */
+.btn-simpan-sj {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+
+/* ══════════════ SECTION LABELS ══════════════ */
+.field-section-label {
+  display: flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+/* ══════════════ SEARCH FIELD ══════════════ */
+.search-field :deep(.v-field) {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+.search-field :deep(.v-field__append-inner) {
+  display: flex;
+  align-items: center;
+}
+
+.search-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #b71c1c;
+  border-radius: 6px;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.search-field:hover :deep(.v-field__append-inner .v-icon) {
+  background-color: #8e0000;
+  transform: scale(1.05);
+}
+
+.search-field :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.promo-field :deep(.v-field) {
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.promo-field :deep(input) {
+  font-weight: 700;
+  color: #b71c1c;
+}
+
+/* ══════════════ READONLY FIELD ══════════════ */
+.readonly-field :deep(.v-field) {
+  background-color: rgba(0, 0, 0, 0.025) !important;
+  box-shadow: none !important;
+}
+
+.readonly-field :deep(input) {
+  color: rgba(0, 0, 0, 0.7) !important;
+  font-weight: 500;
+}
+
+.nomor-field :deep(input) {
+  font-weight: 800 !important;
+  color: #b71c1c !important;
+  letter-spacing: 0.3px;
+}
+
+/* ══════════════ SCANNER ══════════════ */
+.scanner-section {
+  flex-shrink: 0;
+  z-index: 10;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 8px;
+}
+
+.verify-scanner-field :deep(input) {
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.verify-scanner-field :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ GRID UTAMA ══════════════ */
+.main-grid-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: rgba(183, 28, 28, 0.03);
+  border: 1px solid rgba(183, 28, 28, 0.12);
+  border-radius: 8px;
+}
+
+.desktop-table {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+.desktop-table :deep(.v-table) {
+  min-width: max-content;
+}
+
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+  border-bottom: none !important;
+}
+
+.desktop-table :deep(thead tr th),
+.desktop-table :deep(tbody tr td) {
+  padding: 0 4px !important;
+}
+
+.desktop-table :deep(tbody tr td) {
+  height: 36px !important;
+  vertical-align: middle !important;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-text-field .v-input__details) {
+  display: none !important;
+}
+
+.desktop-table :deep(.v-text-field .v-field__input) {
+  padding: 0 2px !important;
+  min-height: 28px !important;
+}
+
+.desktop-table :deep(.scrollable-cell) {
+  white-space: nowrap;
+  overflow-x: auto;
+  max-width: 450px;
+  min-width: 300px;
+  height: 22px;
+  display: block;
+  padding-bottom: 5px;
+  margin-bottom: -5px;
+  font-weight: 500;
+}
+
+/* ══════════════ FOOTER TOTAL ══════════════ */
+.sj-sticky-footer {
+  display: grid;
+  grid-template-columns: 1fr 0.7fr 1fr 1fr;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 48px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border-top: 3px solid #b71c1c;
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.04) 0%, rgb(var(--v-theme-surface)) 100%);
+}
+
+.sj-sticky-footer .footer-col {
+  padding: 4px 12px;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.label-left {
+  font-weight: 600;
+  text-align: left;
+}
+
+.value-center {
+  font-weight: 700;
+  text-align: center;
+}
+
+.label-right {
+  font-weight: 600;
+  text-align: right;
+}
+
+.value-right {
+  font-weight: 900;
+  text-align: right;
+  font-size: 17px;
+  color: #b71c1c;
+}
+
+/* ══════════════ DIALOG ══════════════ */
+.confirm-card {
+  border-left: 4px solid #b71c1c;
 }
 </style>

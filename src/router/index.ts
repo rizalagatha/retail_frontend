@@ -56,6 +56,7 @@ const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrin
 
 const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
 const KatalogStokView = () => import("@/views/umum/KatalogStokView.vue");
+const KatalogView = () => import("@/views/umum/KatalogView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
 
 // --- DTF & PESANAN ---
@@ -374,17 +375,16 @@ const routes = [
     },
   },
   {
-    // Satu route dengan param opsional, jadi komponen tidak di-mount ulang
-    // saat pindah fase (toko -> kategori -> produk) dan data stok tetap terjaga.
-    path: "/katalog/:toko?/:kategori?",
+    path: "/cek-stok/:toko?/:kategori?",
     name: "Katalog Stok",
     component: KatalogStokView,
-    meta: {
-      title: "Cek Stok Store",
-      layout: "PrintLayout",
-      requiresAuth: false,
-      public: true,
-    },
+    meta: { title: "Cek Stok Store", layout: "PrintLayout", requiresAuth: false, public: true },
+  },
+  {
+    path: "/katalog/:kategori?",
+    name: "Katalog",
+    component: KatalogView,
+    meta: { title: "Katalog Produk", layout: "PrintLayout", requiresAuth: false, public: true },
   },
   {
     path: "/admin-katalog",
@@ -2947,7 +2947,7 @@ const filteredRoutes = routes.filter((r) => {
     ];
 
     const isTrackingDetail = r.path.includes("/transaksi/penjualan/surat-pesanan/track");
-    const isKatalog = r.path.startsWith("/katalog");
+    const isKatalog = r.path.startsWith("/katalog") || r.path.startsWith("/cek-stok");
 
     return allowedPaths.includes(r.path) || isTrackingDetail || isKatalog;
   }

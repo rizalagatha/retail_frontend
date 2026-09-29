@@ -591,7 +591,10 @@ onUnmounted(() => {
     <!-- ================= DIALOG DETAIL UKURAN ================= -->
     <v-dialog v-model="isDetailVisible" max-width="420" scrollable :fullscreen="xs">
       <v-card class="k-detail">
-        <div class="k-detail-bar">
+        <div
+          class="k-detail-bar"
+          style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
+        >
           <v-icon color="white" size="18" class="mr-2">mdi-tshirt-crew</v-icon>
           <span class="k-detail-bar-title">Rincian Ukuran</span>
           <v-spacer />
@@ -600,6 +603,7 @@ onUnmounted(() => {
             color="white"
             variant="text"
             size="small"
+            aria-label="Tutup"
             @click="isDetailVisible = false"
           />
         </div>
@@ -1261,6 +1265,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: zoom-out;
+}
+
+.k-detail-bar {
+  flex-shrink: 0;
+  min-height: 44px;
 }
 
 /* ---------- RESPONSIF ---------- */

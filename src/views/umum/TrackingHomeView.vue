@@ -928,11 +928,24 @@ onMounted(() => {
       </v-expand-transition>
 
       <v-row justify="center" style="max-width: 900px; margin: 0 auto">
-        <v-col cols="12" sm="4">
+        <v-col cols="12" sm="3">
           <v-card
             elevation="0"
             class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
             @click="router.push('/katalog')"
+          >
+            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-shopping-outline</v-icon>
+            <div>
+              <div class="font-weight-bold text-subtitle-2">Katalog Produk</div>
+              <div class="text-caption text-grey-darken-1">Lihat koleksi kaos kami</div>
+            </div>
+          </v-card>
+        </v-col>
+        <v-col cols="12" sm="3">
+          <v-card
+            elevation="0"
+            class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
+            @click="router.push('/cek-stok')"
           >
             <v-icon size="40" color="#D32F2F" class="mr-4">mdi-store-search-outline</v-icon>
             <div>

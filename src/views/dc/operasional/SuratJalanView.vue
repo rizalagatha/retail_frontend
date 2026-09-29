@@ -650,7 +650,8 @@ watch(
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-plus"
         @click="router.push({ name: 'SuratJalanCreate' })"
         >Baru</v-btn
@@ -658,6 +659,8 @@ watch(
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-pencil"
         @click="handleEdit"
@@ -666,7 +669,8 @@ watch(
       <v-btn
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"
-        color="error"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-delete"
         @click="showDeleteConfirmation"
@@ -675,7 +679,8 @@ watch(
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
-        color="green"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-printer"
         @click="printData"
@@ -683,7 +688,12 @@ watch(
       >
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
             >Export</v-btn
           >
         </template>
@@ -700,7 +710,6 @@ watch(
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-divider vertical class="mx-2" />
         <v-label class="filter-label">Tanggal:</v-label>
         <v-text-field
           v-model="filters.startDate"
@@ -708,6 +717,7 @@ watch(
           density="compact"
           hide-details
           variant="outlined"
+          class="periode-field"
         />
         <v-label class="filter-label mx-2">s/d</v-label>
         <v-text-field
@@ -716,6 +726,7 @@ watch(
           density="compact"
           hide-details
           variant="outlined"
+          class="periode-field"
         />
 
         <v-select
@@ -727,8 +738,9 @@ watch(
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-4"
+          class="ms-4 cabang-select"
           style="max-width: 200px"
+          :menu-props="{ class: 'sj-filter-menu' }"
         />
 
         <v-text-field
@@ -738,8 +750,10 @@ watch(
           hide-details
           clearable
           variant="outlined"
-          class="ms-4 field-kode-barang"
+          append-inner-icon="mdi-magnify"
+          class="ms-4 field-kode-barang sj-input search-field"
           style="min-width: 150px !important; max-width: 200px !important"
+          @click:append-inner="dialog.searchProduct = true"
           @keydown.f1.prevent="dialog.searchProduct = true"
         >
         </v-text-field>
@@ -751,7 +765,7 @@ watch(
           hide-details
           readonly
           variant="outlined"
-          class="filter-nama-barang ms-2 field-nama-barang"
+          class="filter-nama-barang ms-2 field-nama-barang sj-input"
           style="
             min-width: 250px !important;
             max-width: 350px !important;
@@ -764,9 +778,9 @@ watch(
 
         <v-btn
           class="reset-filter-btn ms-2"
-          color="error"
           variant="tonal"
           icon
+          title="Reset filter kolom"
           @click="resetAllFilters"
         >
           <v-icon size="18">mdi-filter-off</v-icon>
@@ -777,7 +791,7 @@ watch(
           icon="mdi-refresh"
           variant="text"
           size="small"
-          class="ms-2"
+          class="ms-2 refresh-btn"
         />
       </div>
 
@@ -790,7 +804,7 @@ watch(
           :loading="loading.master"
           item-value="Nomor"
           density="compact"
-          class="desktop-table header-browse-blue"
+          class="desktop-table"
           fixed-header
           show-select
           return-object
@@ -855,6 +869,7 @@ watch(
                             <v-checkbox-btn
                               :model-value="columnFilters[header.key]?.values?.includes(val)"
                               density="compact"
+                              color="red-darken-2"
                             />
                           </template>
                           <v-list-item-title>{{
@@ -863,7 +878,7 @@ watch(
                         </v-list-item>
                         <v-divider />
                         <v-list-item @click="openCustomFilter(header.key)">
-                          <v-list-item-title class="text-caption text-primary"
+                          <v-list-item-title class="text-caption custom-filter-item"
                             >(Custom Filter...)</v-list-item-title
                           >
                         </v-list-item>
@@ -930,8 +945,9 @@ watch(
           <template #[`item.Kategori`]="{ item }">
             <v-chip
               size="x-small"
-              :color="item.Kategori === 'PENOLONG' ? 'orange' : 'blue'"
-              variant="tonal"
+              :color="item.Kategori === 'PENOLONG' ? 'orange-darken-2' : 'red-darken-2'"
+              variant="flat"
+              class="font-weight-bold"
             >
               {{ item.Kategori === "PENOLONG" ? "Penolong" : "Utama" }}
             </v-chip>
@@ -973,19 +989,17 @@ watch(
             <tr class="sticky-footer-row">
               <td
                 :colspan="beforeTotalQtyColspan"
-                class="text-end font-weight-bold text-subtitle-2 bg-blue-lighten-5"
+                class="text-end font-weight-bold footer-total-cell"
               >
                 TOTAL QTY :
               </td>
-              <td
-                class="text-end font-weight-bold text-subtitle-2 bg-blue-lighten-5 text-blue-darken-4"
-              >
+              <td class="text-end font-weight-bold footer-total-cell footer-total-value">
                 {{ calculateTotalQtyPerPage(items).toLocaleString("id-ID") }}
               </td>
               <td
                 v-if="afterTotalQtyColspan > 0"
                 :colspan="afterTotalQtyColspan"
-                class="bg-blue-lighten-5"
+                class="footer-total-cell"
               ></td>
             </tr>
           </template>
@@ -1000,14 +1014,14 @@ watch(
     />
 
     <v-dialog v-model="dialog.confirm" max-width="400px" persistent>
-      <v-card>
+      <v-card class="confirm-card">
         <v-card-title class="text-h6 font-weight-bold">Konfirmasi</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="dialog.confirm = false">Tidak</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="dialog.confirm = false">Tidak</v-btn>
           <v-btn
-            color="primary"
+            color="red-darken-2"
             variant="tonal"
             @click="
               confirmAction && confirmAction();
@@ -1020,7 +1034,7 @@ watch(
     </v-dialog>
 
     <v-dialog v-model="customFilterDialog" max-width="350px">
-      <v-card>
+      <v-card class="confirm-card">
         <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
         <v-card-text>
           <v-select
@@ -1040,8 +1054,39 @@ watch(
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="customFilterDialog = false">Batal</v-btn>
-          <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="customFilterDialog = false"
+            >Batal</v-btn
+          >
+          <v-btn class="btn-primary-red" variant="flat" @click="applyCustomFilter">Terapkan</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="customFilterDialog" max-width="350px">
+      <v-card class="confirm-card">
+        <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
+        <v-card-text>
+          <v-select
+            v-model="customFilter.operator"
+            :items="['=', '!=', '>', '>=', '<', '<=', 'contains', 'starts', 'ends']"
+            density="compact"
+            hide-details
+            class="mb-2"
+          />
+          <v-text-field
+            v-model="customFilter.value"
+            density="compact"
+            hide-details
+            autofocus
+            placeholder="Value..."
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="grey-darken-1" variant="text" @click="customFilterDialog = false"
+            >Batal</v-btn
+          >
+          <v-btn class="btn-primary-red" variant="flat" @click="applyCustomFilter">Terapkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1049,7 +1094,7 @@ watch(
 </template>
 
 <style scoped>
-/* Layout Full Height */
+/* ══════════════ LAYOUT ══════════════ */
 .browse-content {
   display: flex;
   flex-direction: column;
@@ -1063,8 +1108,8 @@ watch(
   display: flex;
   align-items: center;
   gap: 12px;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
 }
 
 .table-container {
@@ -1075,7 +1120,87 @@ watch(
   overflow: hidden;
 }
 
-/* Table Style */
+/* ══════════════ TOMBOL HEADER ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+
+/* ══════════════ FILTER SECTION ══════════════ */
+.filter-label {
+  color: #b71c1c !important;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.filter-section :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .sj-input :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .sj-input :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .sj-input :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .cabang-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+.filter-nama-barang :deep(input) {
+  font-size: 11px !important;
+}
+
+.reset-filter-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px !important;
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+}
+.reset-filter-btn:hover {
+  background-color: rgba(183, 28, 28, 0.2) !important;
+}
+
+.refresh-btn {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ TABEL ══════════════ */
 .desktop-table {
   height: 100%;
   display: flex;
@@ -1092,22 +1217,44 @@ watch(
   min-width: 100%;
 }
 
-/* Header Resize */
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.desktop-table :deep(tbody tr.v-data-table__selected),
+.desktop-table :deep(tbody tr.v-data-table__tr--selected) {
+  background-color: rgba(183, 28, 28, 0.12) !important;
+}
+
+/* ══════════════ HEADER TABEL (RESIZABLE) ══════════════ */
 .resizable-header {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+  border-bottom: none !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
   padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: pointer;
+}
+
+.desktop-table :deep(.resizable-header),
+.desktop-table :deep(.resizable-header .header-content),
+.desktop-table :deep(.resizable-header .header-content span),
+.desktop-table :deep(.resizable-header .v-icon),
+.desktop-table :deep(.resizable-header .v-selection-control .v-icon) {
+  color: #ffffff !important;
 }
 
 .header-content {
@@ -1130,23 +1277,29 @@ watch(
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid #ffd54f;
 }
 
-/* Detail Sticky */
+/* ══════════════ FILTER MENU KOLOM ══════════════ */
+.filter-menu {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.custom-filter-item {
+  color: #b71c1c !important;
+  font-weight: 700;
+}
+
+/* ══════════════ DETAIL (EXPANDED ROW) ══════════════ */
 .detail-container {
   position: sticky;
   left: 0;
   background-color: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-
-  /* [UBAH DI SINI] Gunakan padding 16px rata agar di kiri */
   padding: 16px;
-
   width: 100%;
   box-sizing: border-box;
-
-  /* Pastikan konten flex di kiri */
   display: flex;
   justify-content: flex-start;
 }
@@ -1154,18 +1307,23 @@ watch(
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
-  /* Batasi lebar tabel detail agar rapi */
-
   background-color: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(183, 28, 28, 0.85) 0%,
+    rgba(142, 0, 0, 0.85) 100%
+  ) !important;
+  color: #ffffff !important;
   font-size: 11px !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
   height: 32px !important;
 }
 
@@ -1176,36 +1334,76 @@ watch(
   justify-content: center;
 }
 
-.filter-menu {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.reset-filter-btn {
-  width: 40px;
-  height: 40px;
-
-  border-radius: 6px !important;
-  /* sama seperti input */
-  background-color: rgba(211, 47, 47, 0.15) !important;
-}
-
-.reset-filter-btn:hover {
-  background-color: rgba(211, 47, 47, 0.25) !important;
-}
-
-.filter-nama-barang :deep(input) {
-  font-size: 11px !important;
-}
-
-/* Sticky Footer di dalam tabel body (Per Page) */
+/* ══════════════ BARIS TOTAL QTY ══════════════ */
 .sticky-footer-row td {
   position: sticky;
   bottom: 0;
   z-index: 3;
-  border-top: 2px solid #1976d2 !important;
+  border-top: 2px solid #b71c1c !important;
   border-bottom: none !important;
   height: 40px !important;
+}
+
+.footer-total-cell {
+  background-color: #fdecea !important;
+  font-size: 0.875rem;
+}
+
+.footer-total-value {
+  color: #b71c1c !important;
+  font-size: 0.95rem;
+}
+
+/* ══════════════ PAGINATION FOOTER ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+  transition: all 0.15s ease;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+  opacity: 0.4;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════════ DIALOG ══════════════ */
+.confirm-card {
+  border-left: 4px solid #b71c1c;
 }
 
 /* --- Override Global CSS untuk Field Kode & Nama Barang --- */
@@ -1221,11 +1419,54 @@ watch(
 
 .field-nama-barang {
   flex-shrink: 0 !important;
-  width: 300px !important; /* Sesuaikan lebar ideal yang diinginkan */
+  width: 300px !important;
 }
 .field-nama-barang :deep(.v-input__control),
 .field-nama-barang :deep(.v-field) {
   width: 100% !important;
   min-width: 300px !important;
+}
+
+/* ══════════════ ICON SEARCH KODE BARANG ══════════════ */
+.search-field :deep(.v-field__append-inner) {
+  display: flex;
+  align-items: center;
+}
+
+.search-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #b71c1c;
+  border-radius: 6px;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.search-field :deep(.v-field__append-inner .v-icon:hover) {
+  background-color: #8e0000;
+  transform: scale(1.05);
+}
+
+/* Tombol clear (x) tetap polos, tidak ikut jadi kotak merah */
+.search-field :deep(.v-field__clearable .v-icon) {
+  color: rgba(0, 0, 0, 0.55);
+  background-color: transparent;
+  padding: 0;
+  width: auto;
+  height: auto;
+}
+</style>
+
+<style>
+.sj-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+
+.sj-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

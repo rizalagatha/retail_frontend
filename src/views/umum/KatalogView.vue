@@ -33,11 +33,19 @@ interface Product {
   gambar: string | null;
   urutan: number;
   galeri: { url: string; index: number }[];
+  coverIndex: number;
 }
 
 const route = useRoute();
 const router = useRouter();
 const { xs } = useDisplay();
+
+const BANNER_KEY = "katalog_banner_closed";
+const showBanner = ref(sessionStorage.getItem(BANNER_KEY) !== "1");
+const closeBanner = () => {
+  showBanner.value = false;
+  sessionStorage.setItem(BANNER_KEY, "1");
+};
 
 const ROUTE_NAME = "Katalog";
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
@@ -129,6 +137,10 @@ const products = computed<Product[]>(() =>
       .map((u) => ({ ukuran: u.ukuran, harga: Number(u.harga) || 0 }))
       .sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
 
+    // Pilih 1 foto acak dari galeri sebagai foto kartu (fallback ke gambar_url)
+    const coverIndex = galeri.length ? Math.floor(Math.random() * galeri.length) : 0;
+    const gambar = galeri.length ? galeri[coverIndex].url : r.gambar_url;
+
     return {
       kode: r.kode,
       nama: r.nama,
@@ -138,7 +150,8 @@ const products = computed<Product[]>(() =>
       hargaMax: max || min,
       ukuran: r.ukuran ? r.ukuran.split(",") : [],
       ukuranHarga,
-      gambar: r.gambar_url,
+      gambar,
+      coverIndex,
       urutan: r.urutan || 9999,
       galeri,
     };
@@ -285,7 +298,7 @@ const detailIndex = ref(0);
 
 const openDetail = (p: Product) => {
   selected.value = p;
-  detailIndex.value = 0;
+  detailIndex.value = p.coverIndex;
   detailVisible.value = true;
 };
 
@@ -405,6 +418,21 @@ onUnmounted(() => {
     <Transition name="k-page" mode="out-in" appear @before-enter="scrollTop">
       <!-- ============ KATEGORI ============ -->
       <main v-if="phase === 'category'" key="category" class="k-container">
+        <Transition name="k-fade">
+          <section v-if="showBanner" class="k-banner">
+            <div class="k-banner-text">
+              <div class="k-banner-title">Kaos polos berkualitas, tersedia di semua store</div>
+              <div class="k-banner-sub">
+                Pesan custom sablon, bordir, dan grosir langsung di store terdekat.
+              </div>
+            </div>
+            <router-link to="/cek-stok" class="k-banner-cta">Cek Stok Store</router-link>
+            <button class="k-banner-x" aria-label="Tutup banner" @click="closeBanner">
+              <v-icon size="16">mdi-close</v-icon>
+            </button>
+          </section>
+        </Transition>
+
         <p class="k-hint">Pilih jenis kain untuk melihat koleksi kami.</p>
 
         <Transition name="k-fade" mode="out-in">
@@ -708,12 +736,41 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.k-page,
+.k-page :deep(input),
+.k-page :deep(.v-btn),
+.k-page :deep(.v-field),
+.k-detail,
+.k-lb {
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Hierarki teks */
+.k-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+}
+.k-card-price {
+  font-weight: 800;
+  font-size: 14px;
+}
+.k-cat-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.k-detail-name {
+  letter-spacing: -0.01em;
+}
+
 .k-page {
   --k-red: #d32f2f;
   --k-red-dark: #b71c1c;
   --k-header-h: 56px;
   min-height: 100vh;
-  background: #f5f5f5;
+  background: radial-gradient(900px 380px at 10% -100px, rgba(211, 47, 47, 0.1), transparent 70%),
+    radial-gradient(700px 320px at 100% 0, rgba(255, 171, 145, 0.16), transparent 70%), #faf6f4;
 }
 .k-header {
   position: sticky;
@@ -768,7 +825,7 @@ onUnmounted(() => {
   position: sticky;
   top: var(--k-header-h);
   z-index: 40;
-  background: rgba(245, 245, 245, 0.96);
+  background: rgba(250, 246, 244, 0.92);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid #e8e8e8;
 }
@@ -1234,7 +1291,8 @@ onUnmounted(() => {
   }
   .k-card,
   .k-cat-card {
-    transition: none;
+    border-color: #f1e9e6;
+    box-shadow: 0 1px 2px rgba(60, 30, 20, 0.05);
   }
 }
 
@@ -1465,6 +1523,73 @@ onUnmounted(() => {
   .k-img,
   .k-cat-cover img {
     transition: none !important;
+  }
+}
+
+.k-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px 40px 14px 16px;
+  border-radius: 14px;
+  color: #fff;
+  background: radial-gradient(240px 120px at 100% 0, rgba(255, 255, 255, 0.18), transparent 70%),
+    linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+  box-shadow: 0 6px 18px rgba(183, 28, 28, 0.25);
+}
+.k-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+.k-banner-title {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.k-banner-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.9;
+  line-height: 1.35;
+}
+.k-banner-cta {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--k-red-dark);
+  background: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.15s ease;
+}
+.k-banner-cta:hover {
+  transform: translateY(-1px);
+}
+.k-banner-x {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+}
+@media (max-width: 599px) {
+  .k-banner {
+    flex-wrap: wrap;
+  }
+  .k-banner-cta {
+    order: 3;
   }
 }
 </style>

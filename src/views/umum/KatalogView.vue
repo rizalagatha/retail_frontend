@@ -734,9 +734,9 @@ onUnmounted(() => {
                 <div class="k-tex" v-html="getFabricTexture(selected.kategori)"></div>
               </div>
 
-              <div v-if="detailImages.length" class="k-zoom-hint">
-                <v-icon size="14">mdi-magnify-plus-outline</v-icon>
-                Ketuk untuk memperbesar
+              <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
+                <v-icon size="16">mdi-magnify-plus-outline</v-icon>
+                <span class="k-zoom-hint-text">Perbesar</span>
               </div>
             </div>
 
@@ -972,6 +972,10 @@ onUnmounted(() => {
 .k-lengan-btn:hover {
   border-color: var(--k-red);
   color: var(--k-red);
+  background: #fff5f5;
+}
+.k-lengan-btn:active {
+  transform: scale(0.95);
 }
 .k-lengan-btn--active {
   border-color: var(--k-red) !important;
@@ -1002,9 +1006,17 @@ onUnmounted(() => {
 }
 .k-cat-card:hover,
 .k-cat-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-5px);
+  box-shadow: 0 14px 28px rgba(183, 28, 28, 0.22);
+  border-color: var(--k-red);
   outline: none;
+}
+.k-cat-card:active {
+  transform: translateY(-1px) scale(0.985);
+  transition-duration: 0.08s;
+}
+.k-cat-card:hover .k-cat-name {
+  color: var(--k-red-dark);
 }
 .k-cat-tex {
   line-height: 0;
@@ -1048,10 +1060,15 @@ onUnmounted(() => {
 }
 .k-card:hover,
 .k-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(211, 47, 47, 0.16);
-  border-color: #ffcdd2;
+  transform: translateY(-5px);
+  box-shadow: 0 14px 28px rgba(183, 28, 28, 0.22);
+  border-color: var(--k-red);
   outline: none;
+}
+.k-card:active {
+  transform: translateY(-1px) scale(0.985);
+  box-shadow: 0 4px 10px rgba(183, 28, 28, 0.2);
+  transition-duration: 0.08s;
 }
 .k-card-img {
   position: relative;
@@ -1099,6 +1116,9 @@ onUnmounted(() => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.k-card:hover .k-card-name {
+  color: var(--k-red-dark);
 }
 .k-card-price {
   font-size: 13px;
@@ -1261,7 +1281,7 @@ onUnmounted(() => {
   transition: transform 0.35s ease;
 }
 .k-cat-card:hover .k-cat-cover img {
-  transform: scale(1.05);
+  transform: scale(1.1);
 }
 .k-cat-cover--mosaic {
   display: grid;
@@ -1380,6 +1400,12 @@ onUnmounted(() => {
   .k-img-loading {
     animation: none;
   }
+  .k-card:hover,
+  .k-card:active,
+  .k-cat-card:hover,
+  .k-cat-card:active {
+    transform: none;
+  }
 }
 
 .k-card,
@@ -1436,7 +1462,7 @@ onUnmounted(() => {
   opacity: 1;
 }
 .k-card:hover .k-img.is-loaded {
-  transform: scale(1.04);
+  transform: scale(1.08);
 }
 
 .k-cat-cover {
@@ -1461,19 +1487,35 @@ onUnmounted(() => {
 }
 .k-zoom-hint {
   position: absolute;
-  top: 10px;
   right: 10px;
+  bottom: 10px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+  gap: 0;
+  padding: 6px;
   border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
   color: #fff;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(4px);
   pointer-events: none;
+  transition: gap 0.2s ease, padding 0.2s ease, background 0.2s ease;
+}
+.k-zoom-hint-text {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  transition: max-width 0.25s ease;
+}
+.k-detail-media:hover .k-zoom-hint {
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.k-detail-media:hover .k-zoom-hint-text {
+  max-width: 80px;
 }
 
 .k-price-cols {
@@ -1942,7 +1984,8 @@ onUnmounted(() => {
   font-weight: 600;
   color: #3a3231;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, padding-left 0.15s ease,
+    color 0.15s ease;
 }
 .k-side-item small {
   font-size: 11px;
@@ -1950,7 +1993,13 @@ onUnmounted(() => {
   color: #9a908c;
 }
 .k-side-item:hover {
-  background: rgba(211, 47, 47, 0.06);
+  padding-left: 14px;
+  border-left-color: rgba(211, 47, 47, 0.45);
+  background: rgba(211, 47, 47, 0.1);
+  color: var(--k-red-dark);
+}
+.k-side-item:active {
+  background: rgba(211, 47, 47, 0.18);
 }
 .k-side-item--active {
   border-left-color: var(--k-red);
@@ -1976,6 +2025,18 @@ onUnmounted(() => {
 @media (min-width: 1700px) {
   .k-shop--side .k-grid {
     grid-template-columns: repeat(5, 1fr);
+  }
+}
+@media (hover: none) {
+  .k-card:hover,
+  .k-cat-card:hover {
+    transform: none;
+    box-shadow: 0 1px 2px rgba(60, 30, 20, 0.05);
+    border-color: #f1e9e6;
+  }
+  .k-card:hover .k-img.is-loaded,
+  .k-cat-card:hover .k-cat-cover img {
+    transform: none;
   }
 }
 

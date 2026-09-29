@@ -283,6 +283,35 @@ const totalHargaDtf = computed(() => {
   return Math.round(totalLuasDtf.value * (biayaPerCmDtf.value || 0));
 });
 
+// --- Deteksi Bordir/DTF yang belum di-OK ---
+const bordirSignature = computed(() =>
+  JSON.stringify({ items: bordirItems.value, rate: biayaPerCmBordir.value })
+);
+const dtfSignature = computed(() =>
+  JSON.stringify({ items: dtfItems.value, rate: biayaPerCmDtf.value })
+);
+const bordirAppliedSig = ref("");
+const dtfAppliedSig = ref("");
+
+const markAppliedSnapshots = () => {
+  bordirAppliedSig.value = bordirSignature.value;
+  dtfAppliedSig.value = dtfSignature.value;
+};
+
+// Dirty = ada isian/biaya bordir dan konfigurasinya berubah sejak terakhir di-OK/dimuat
+const isBordirDirty = computed(
+  () =>
+    !isSublimMode.value &&
+    (totalLuasBordir.value > 0 || bordirCost.value > 0) &&
+    bordirSignature.value !== bordirAppliedSig.value
+);
+const isDtfDirty = computed(
+  () =>
+    !isSublimMode.value &&
+    (totalLuasDtf.value > 0 || dtfCost.value > 0) &&
+    dtfSignature.value !== dtfAppliedSig.value
+);
+
 const isSaveConfirmVisible = ref(false);
 const isCancelConfirmVisible = ref(false);
 const isConfirmDialogVisible = ref(false);
@@ -618,6 +647,16 @@ const save = () => {
       return toast.error("Isi minimal qty Jersey atau Celana.");
     }
   }
+  const unapplied: string[] = [];
+  if (isBordirDirty.value) unapplied.push("Bordir");
+  if (isDtfDirty.value) unapplied.push("DTF");
+
+  if (unapplied.length > 0) {
+    showConfirmation(() => {
+      isSaveConfirmVisible.value = true;
+    }, `Perubahan tab ${unapplied.join(" dan ")} belum diterapkan (tombol OK belum diklik), jadi harga di tab Pengajuan Harga belum ikut terupdate. Tetap lanjut menyimpan?`);
+    return;
+  }
 
   isSaveConfirmVisible.value = true;
 };
@@ -782,6 +821,7 @@ const resetForm = () => {
   dtfCost.value = 0;
 
   activeTab.value = "pengajuan";
+  markAppliedSnapshots();
 };
 
 const confirmCancel = () => {
@@ -929,24 +969,36 @@ const onAdditionalCostSelected = (cost: { tambahan: string; harga: number }) => 
 };
 
 const applyBordirCost = () => {
+  if (totalLuasBordir.value > 0 && !(biayaPerCmBordir.value > 0)) {
+    toast.error("Biaya /Cm2 Bordir masih 0. Pilih Jenis Kaos terlebih dahulu.");
+    return;
+  }
+
   let finalCost = totalHargaBordir.value;
   if (finalCost > 0 && finalCost < bordirMinCharge.value) {
     finalCost = bordirMinCharge.value;
   }
 
   bordirCost.value = finalCost;
+  bordirAppliedSig.value = bordirSignature.value;
   toast.success(`Biaya Bordir sebesar ${formatRupiah(finalCost)} diterapkan.`);
 
   activeTab.value = "pengajuan";
 };
 
 const applyDtfCost = () => {
+  if (totalLuasDtf.value > 0 && !(biayaPerCmDtf.value > 0)) {
+    toast.error("Biaya /Cm2 DTF masih 0. Pilih Jenis Kaos terlebih dahulu.");
+    return;
+  }
+
   let finalCost = totalHargaDtf.value;
   if (finalCost > 0 && finalCost < dtfMinCharge.value) {
     finalCost = dtfMinCharge.value;
   }
 
   dtfCost.value = finalCost;
+  dtfAppliedSig.value = dtfSignature.value;
   toast.success(`Biaya DTF sebesar ${formatRupiah(finalCost)} diterapkan.`);
 
   activeTab.value = "pengajuan";
@@ -1079,6 +1131,20 @@ const loadOfferData = async (nomor: string) => {
         },
       });
 
+      // Isi tarif dari master bila dokumen tersimpan tidak punya tarif (0/kosong)
+      const tplCosts = templateSizesResponse.data.costs;
+      if (tplCosts) {
+        if (tplCosts.bordir) {
+          if (!(biayaPerCmBordirFlat.value > 0))
+            biayaPerCmBordirFlat.value = tplCosts.bordir.cm || 0;
+          bordirMinCharge.value = tplCosts.bordir.min || bordirMinCharge.value;
+        }
+        if (tplCosts.dtf) {
+          if (!(biayaPerCmDtf.value > 0)) biayaPerCmDtf.value = tplCosts.dtf.cm || 0;
+          dtfMinCharge.value = tplCosts.dtf.min || dtfMinCharge.value;
+        }
+      }
+
       let templateSizes = templateSizesResponse.data.sizes || [];
 
       if (templateSizes && !Array.isArray(templateSizes)) {
@@ -1132,6 +1198,7 @@ const loadOfferData = async (nomor: string) => {
 
     await nextTick();
     calculateTotals();
+    markAppliedSnapshots();
 
     toast.success(`Data untuk ${nomor} berhasil dimuat.`);
 
@@ -2182,7 +2249,7 @@ onMounted(() => {
   if (isEditMode.value) {
     loadOfferData(route.params.nomor as string);
   } else {
-    // Logika untuk form baru (misalnya getNextNumber)
+    markAppliedSnapshots();
   }
 });
 </script>
@@ -2192,16 +2259,26 @@ onMounted(() => {
     <template #header-actions>
       <v-btn
         size="small"
-        color="primary"
+        class="btn-primary-red"
+        variant="flat"
         prepend-icon="mdi-content-save"
         @click="save"
         :loading="isSaving"
         :disabled="isFormLocked"
         >Simpan</v-btn
       >
-      <v-btn size="small" prepend-icon="mdi-cancel" @click="confirmCancel">Batal</v-btn>
       <v-btn
         size="small"
+        class="btn-header-action"
+        variant="tonal"
+        prepend-icon="mdi-cancel"
+        @click="confirmCancel"
+        >Batal</v-btn
+      >
+      <v-btn
+        size="small"
+        class="btn-header-action"
+        variant="tonal"
         prepend-icon="mdi-close"
         @click="
           showConfirmation(
@@ -2222,8 +2299,12 @@ onMounted(() => {
     <div class="form-grid-container">
       <!-- Kolom Kiri -->
       <div class="left-column">
-        <div class="desktop-form-section">
+        <div class="desktop-form-section header-section">
           <div class="header-grid">
+            <div class="field-section-label section-span">
+              <v-icon size="14" class="mr-1">mdi-file-document-outline</v-icon>
+              Dokumen
+            </div>
             <div class="grid-item-nomor">
               <v-text-field
                 label="Nomor"
@@ -2232,6 +2313,7 @@ onMounted(() => {
                 variant="filled"
                 density="compact"
                 hide-details
+                class="readonly-field nomor-field"
               ></v-text-field>
             </div>
             <div class="grid-item-tanggal">
@@ -2255,6 +2337,8 @@ onMounted(() => {
                 variant="filled"
                 density="compact"
                 hide-details
+                class="readonly-field"
+                :class="{ 'approval-ok': header.status === 'ACC_FINANCE' }"
                 :prepend-inner-icon="
                   header.status === 'ACC_FINANCE' ? 'mdi-check-decagram' : 'mdi-clock-outline'
                 "
@@ -2271,30 +2355,40 @@ onMounted(() => {
                 prepend-icon="mdi-upload"
               ></v-file-input>
             </div>
-            <div class="grid-item-customer">
-              <v-text-field
-                label="Customer"
-                v-model="header.customerKode"
-                readonly
-                placeholder="Tekan F1 atau Klik Cari..."
-                @keydown.f1.prevent="openCustomerSearch"
-                @click="!isFormLocked && openCustomerSearch()"
-                :disabled="isFormLocked"
-                variant="outlined"
-                density="compact"
-                hide-details
-                append-inner-icon="mdi-magnify"
-                @click:append-inner="openCustomerSearch"
-              ></v-text-field>
+
+            <div class="field-section-label section-span mt-2">
+              <v-icon size="14" class="mr-1">mdi-account-outline</v-icon>
+              Customer
             </div>
-            <div class="grid-item-customer-nama">
-              <v-text-field
-                :model-value="header.customerNama"
-                readonly
-                variant="filled"
-                density="compact"
-                hide-details
-              ></v-text-field>
+            <div class="grid-item-customer-row">
+              <div class="customer-kode">
+                <v-text-field
+                  label="Customer"
+                  v-model="header.customerKode"
+                  readonly
+                  placeholder="F1..."
+                  @keydown.f1.prevent="openCustomerSearch"
+                  @click="!isFormLocked && openCustomerSearch()"
+                  :disabled="isFormLocked"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  append-inner-icon="mdi-magnify"
+                  class="search-field"
+                  @click:append-inner="openCustomerSearch"
+                ></v-text-field>
+              </div>
+              <div class="customer-nama">
+                <v-text-field
+                  label="Nama Customer"
+                  :model-value="header.customerNama"
+                  readonly
+                  variant="filled"
+                  density="compact"
+                  hide-details
+                  class="readonly-field"
+                ></v-text-field>
+              </div>
             </div>
             <div class="grid-item-keterangan">
               <v-text-field
@@ -2305,6 +2399,11 @@ onMounted(() => {
                 density="compact"
                 hide-details
               ></v-text-field>
+            </div>
+
+            <div class="field-section-label section-span mt-2">
+              <v-icon size="14" class="mr-1">mdi-tshirt-crew-outline</v-icon>
+              Jenis Order
             </div>
             <div class="grid-item-radio">
               <v-radio-group
@@ -2332,11 +2431,10 @@ onMounted(() => {
                   density="compact"
                   hide-details
                   append-inner-icon="mdi-magnify"
+                  class="search-field"
                   @click:append-inner="openTshirtTypeSearch"
                 ></v-text-field>
               </div>
-
-              <!-- [DIUBAH] sekarang tampil untuk Stok DAN Custom, bukan cuma Custom -->
               <div class="grid-item-jenis-kain">
                 <v-text-field
                   label="Jenis Kain"
@@ -2349,6 +2447,7 @@ onMounted(() => {
                   density="compact"
                   hide-details
                   append-inner-icon="mdi-magnify"
+                  class="search-field"
                   @click:append-inner="openJenisKainSearch"
                 ></v-text-field>
               </div>
@@ -2364,11 +2463,10 @@ onMounted(() => {
                   density="compact"
                   hide-details
                   append-inner-icon="mdi-magnify"
+                  class="search-field"
                   @click:append-inner="openWarnaSearch"
                 ></v-text-field>
               </div>
-
-              <!-- Kode Barang Draft tetap khusus Custom (cuma itu yang generate kode) -->
               <div
                 v-if="(isCustomMode || isStokMode) && header.kodeBarangDraft"
                 class="grid-item-kode-draft"
@@ -2380,11 +2478,11 @@ onMounted(() => {
                   variant="filled"
                   density="compact"
                   hide-details
+                  class="readonly-field nomor-field"
                 ></v-text-field>
               </div>
             </template>
             <template v-else>
-              <!-- [BARU] pengganti area yang kosong pas Sublim, biar tinggi card konsisten -->
               <div class="grid-item-jenis-kaos">
                 <v-alert type="info" variant="tonal" density="compact">
                   Jenis Kain & model Jersey dipilih di tab <strong>Sublim</strong>.
@@ -2393,60 +2491,52 @@ onMounted(() => {
             </template>
           </div>
         </div>
+
         <div class="desktop-form-section footer-section">
-          <v-row dense>
-            <v-col md="12">
-              <v-text-field
-                label="Harga Bruto"
-                :model-value="formatRupiah(footer.hargaBruto)"
-                readonly
-                variant="filled"
-                density="compact"
-                hide-details
-                class="summary-field"
-              ></v-text-field>
-              <v-text-field
-                label="Diskon"
-                :model-value="formatRupiah(footer.diskon)"
-                readonly
-                variant="filled"
-                density="compact"
-                hide-details
-                class="summary-field"
-              ></v-text-field>
-              <v-text-field
-                label="Harga Netto"
-                :model-value="formatRupiah(footer.hargaNetto)"
-                readonly
-                variant="filled"
-                density="compact"
-                hide-details
-                class="font-weight-bold summary-field"
-              ></v-text-field>
-            </v-col>
-            <v-col md="8" class="d-flex align-center">
-              <div class="text-caption text-medium-emphasis pa-2">
-                <p class="font-weight-bold">Note:</p>
-                <p>Harga Kaos = Harga/Pcs + Total Harga Tambahan.</p>
-                <p>Total Harga = Qty Order x Harga Kaos.</p>
-                <p class="mt-2 font-weight-bold">Diskon:</p>
-                <p>
-                  - Jika Harga Netto >= 3 juta dan Harga Netto kurang dari 6 juta=5% dari Harga
-                  Netto.
-                </p>
-                <p>- Jika Harga Netto >= 6 juta = 10% dari Harga Netto.</p>
-              </div>
-            </v-col>
-          </v-row>
+          <div class="field-section-label">
+            <v-icon size="14" class="mr-1">mdi-calculator-variant-outline</v-icon>
+            Ringkasan Harga
+          </div>
+          <div class="summary-line">
+            <span>Harga Bruto</span>
+            <span>{{ formatRupiah(footer.hargaBruto) }}</span>
+          </div>
+          <div class="summary-line summary-line-diskon">
+            <span>Diskon</span>
+            <span>- {{ formatRupiah(footer.diskon) }}</span>
+          </div>
+          <div class="summary-line summary-line-netto">
+            <span>Harga Netto</span>
+            <span>{{ formatRupiah(footer.hargaNetto) }}</span>
+          </div>
+
+          <div class="summary-note text-caption">
+            <p class="font-weight-bold">Note:</p>
+            <p>Harga Kaos = Harga/Pcs + Total Harga Tambahan.</p>
+            <p>Total Harga = Qty Order x Harga Kaos.</p>
+            <p class="mt-2 font-weight-bold">Diskon:</p>
+            <p>- Harga Netto ≥ 3 juta dan &lt; 6 juta = 5% dari Harga Netto.</p>
+            <p>- Harga Netto ≥ 6 juta = 10% dari Harga Netto.</p>
+          </div>
         </div>
       </div>
 
       <!-- Kolom Kanan -->
       <div class="desktop-form-section right-column">
-        <v-tabs v-model="activeTab" density="compact" class="tabs-header">
+        <v-tabs v-model="activeTab" density="compact" color="red-darken-2" class="tabs-header">
           <v-tab value="pengajuan">Pengajuan Harga</v-tab>
-          <v-tab value="bordir">Bordir</v-tab>
-          <v-tab value="dtf">DTF</v-tab>
+          <v-tab value="bordir">
+            Bordir
+            <v-icon v-if="isBordirDirty" size="16" color="warning" class="ml-1"
+              >mdi-alert-circle</v-icon
+            >
+          </v-tab>
+          <v-tab value="dtf">
+            DTF
+            <v-icon v-if="isDtfDirty" size="16" color="warning" class="ml-1"
+              >mdi-alert-circle</v-icon
+            >
+          </v-tab>
           <v-tab value="sublim">Sublim</v-tab>
           <v-tab value="gambar">Lihat Gambar</v-tab>
           <v-tab value="accCustomer">Acc Customer</v-tab>
@@ -2459,6 +2549,22 @@ onMounted(() => {
         </v-tabs>
         <v-window v-model="activeTab" class="flex-grow-1">
           <v-window-item value="pengajuan" class="window-item">
+            <v-alert
+              v-if="isBordirDirty || isDtfDirty"
+              type="warning"
+              density="compact"
+              variant="tonal"
+              class="mb-2"
+              icon="mdi-alert-circle-outline"
+            >
+              Perubahan tab
+              <strong>{{
+                [isBordirDirty ? "Bordir" : "", isDtfDirty ? "DTF" : ""]
+                  .filter(Boolean)
+                  .join(" dan ")
+              }}</strong>
+              belum diterapkan. Buka tab tersebut dan klik <strong>OK</strong> agar harga terupdate.
+            </v-alert>
             <v-alert
               v-if="header.hargaLocked"
               :type="isDarulUser ? 'info' : 'warning'"
@@ -2561,39 +2667,49 @@ onMounted(() => {
               </div>
               <!-- Side tabel -->
               <div class="side-table-container">
-                <div
-                  class="pa-2 font-weight-medium text-caption d-flex justify-space-between align-center"
-                >
-                  <span>Harga Tambahan</span>
+                <div class="side-panel-header">
+                  <span class="side-panel-title">
+                    <v-icon size="14" class="mr-1">mdi-plus-circle-outline</v-icon>
+                    Harga Tambahan
+                  </span>
                   <v-btn
                     @click="addAdditionalCostRow"
                     size="x-small"
+                    class="btn-header-action"
                     variant="tonal"
                     prepend-icon="mdi-plus"
+                    :disabled="isFormLocked"
                     >Tambah</v-btn
                   >
                 </div>
-                <v-divider></v-divider>
-                <div class="pa-2">
-                  <v-text-field
-                    label="Bordir/cm2"
-                    v-model.number="bordirCost"
-                    type="number"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                    class="mb-2"
-                  ></v-text-field>
-                  <v-text-field
-                    label="DTF/cm2"
-                    v-model.number="dtfCost"
-                    type="number"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                  ></v-text-field>
+
+                <div class="side-cost-box">
+                  <div class="side-cost-label">Biaya per cm²</div>
+                  <div class="side-cost-fields">
+                    <v-text-field
+                      label="Bordir / cm²"
+                      v-model.number="bordirCost"
+                      type="number"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      prefix="Rp"
+                      class="no-spinner"
+                    ></v-text-field>
+                    <v-text-field
+                      label="DTF / cm²"
+                      v-model.number="dtfCost"
+                      type="number"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      prefix="Rp"
+                      class="no-spinner"
+                    ></v-text-field>
+                  </div>
                 </div>
-                <v-divider></v-divider>
+
+                <div class="side-list-label">Biaya Lainnya</div>
                 <v-data-table
                   :items="additionalCostItems"
                   :headers="[
@@ -2639,6 +2755,12 @@ onMounted(() => {
                       @click="removeAdditionalCostRow(item.id)"
                       title="Hapus Tambahan"
                     ></v-btn>
+                  </template>
+
+                  <template #no-data>
+                    <div class="text-caption text-medium-emphasis pa-3">
+                      Belum ada biaya tambahan.
+                    </div>
                   </template>
                 </v-data-table>
                 <div class="total-footer">
@@ -2708,8 +2830,17 @@ onMounted(() => {
               <div class="summary-section">
                 <v-row dense>
                   <v-col cols="8">
-                    <v-alert density="compact" variant="tonal" class="text-caption h-100">
-                      Note: Biaya akan diterapkan ke tab "Pengajuan Harga".
+                    <v-alert
+                      density="compact"
+                      variant="tonal"
+                      :type="isBordirDirty ? 'warning' : 'info'"
+                      class="text-caption h-100"
+                    >
+                      {{
+                        isBordirDirty
+                          ? 'Belum diterapkan! Klik "OK" agar biaya masuk ke tab Pengajuan Harga.'
+                          : 'Note: Biaya akan diterapkan ke tab "Pengajuan Harga" setelah klik OK.'
+                      }}
                     </v-alert>
                   </v-col>
                   <v-col cols="4">
@@ -2809,8 +2940,17 @@ onMounted(() => {
               <div class="summary-section">
                 <v-row dense>
                   <v-col cols="8">
-                    <v-alert density="compact" variant="tonal" class="text-caption h-100">
-                      Note: Biaya akan diterapkan ke tab "Pengajuan Harga".
+                    <v-alert
+                      density="compact"
+                      variant="tonal"
+                      :type="isBordirDirty ? 'warning' : 'info'"
+                      class="text-caption h-100"
+                    >
+                      {{
+                        isBordirDirty
+                          ? 'Belum diterapkan! Klik "OK" agar biaya masuk ke tab Pengajuan Harga.'
+                          : 'Note: Biaya akan diterapkan ke tab "Pengajuan Harga" setelah klik OK.'
+                      }}
                     </v-alert>
                   </v-col>
                   <v-col cols="4">
@@ -3939,9 +4079,9 @@ onMounted(() => {
     />
 
     <v-dialog v-model="isUpdateAllConfirmVisible" max-width="500px" persistent>
-      <v-card>
+      <v-card class="confirm-card">
         <v-card-title class="text-h6 font-weight-medium">
-          <v-icon color="primary" class="me-2">mdi-help-circle-outline</v-icon>
+          <v-icon color="red-darken-2" class="me-2">mdi-help-circle-outline</v-icon>
           Konfirmasi Update
         </v-card-title>
         <v-card-text class="pb-0">
@@ -3952,8 +4092,10 @@ onMounted(() => {
         </v-card-text>
         <v-card-actions class="pa-4">
           <v-spacer></v-spacer>
-          <v-btn @click="handleUpdateAllConfirm(false)">Hanya Baris Ini</v-btn>
-          <v-btn color="primary" variant="elevated" @click="handleUpdateAllConfirm(true)"
+          <v-btn color="grey-darken-1" variant="text" @click="handleUpdateAllConfirm(false)"
+            >Hanya Baris Ini</v-btn
+          >
+          <v-btn color="red-darken-2" variant="flat" @click="handleUpdateAllConfirm(true)"
             >Ya, Update Semua</v-btn
           >
         </v-card-actions>
@@ -3961,34 +4103,38 @@ onMounted(() => {
     </v-dialog>
 
     <v-dialog v-model="isSaveConfirmVisible" max-width="400px" persistent>
-      <v-card>
-        <v-card-title class="text-h6">Konfirmasi Simpan</v-card-title>
+      <v-card class="confirm-card">
+        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Simpan</v-card-title>
         <v-card-text>Apakah Anda yakin ingin menyimpan data pengajuan ini?</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="isSaveConfirmVisible = false">Tidak</v-btn>
-          <v-btn color="primary" variant="elevated" @click="executeSave">Ya, Simpan</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="isSaveConfirmVisible = false"
+            >Tidak</v-btn
+          >
+          <v-btn color="red-darken-2" variant="flat" @click="executeSave">Ya, Simpan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="isCancelConfirmVisible" max-width="400px" persistent>
-      <v-card>
-        <v-card-title class="text-h6">Konfirmasi Batal</v-card-title>
+      <v-card class="confirm-card">
+        <v-card-title class="text-h6 font-weight-bold">Konfirmasi Batal</v-card-title>
         <v-card-text
           >Semua data yang belum disimpan akan hilang. Apakah Anda yakin ingin
           membatalkan?</v-card-text
         >
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="isCancelConfirmVisible = false">Tidak</v-btn>
-          <v-btn color="primary" variant="elevated" @click="executeCancel">Ya, Batal</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="isCancelConfirmVisible = false"
+            >Tidak</v-btn
+          >
+          <v-btn color="red-darken-2" variant="flat" @click="executeCancel">Ya, Batal</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="isConfirmDialogVisible" max-width="400px" persistent>
-      <v-card>
+      <v-card class="confirm-card">
         <v-card-title class="text-h6 font-weight-bold"> Konfirmasi </v-card-title>
         <v-card-text>
           {{ confirmText }}
@@ -3996,7 +4142,7 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="grey-darken-1" variant="text" @click="closeConfirmDialog"> Tidak </v-btn>
-          <v-btn color="primary" variant="tonal" @click="executePendingAction">
+          <v-btn color="red-darken-2" variant="tonal" @click="executePendingAction">
             Ya, Lanjutkan
           </v-btn>
         </v-card-actions>
@@ -4890,5 +5036,303 @@ onMounted(() => {
 
 .annotation-props-actions .v-btn {
   flex: 1;
+}
+
+/* ══════════════ TEMA MERAH: OVERRIDE WARNA PRIMARY DI DALAM FORM ══════════════ */
+/* Semua color="primary" dan rgba(var(--v-theme-primary)) di dalam container ini jadi merah */
+.form-grid-container {
+  --v-theme-primary: 183, 28, 28;
+  background-color: rgba(183, 28, 28, 0.05);
+  border-radius: 8px;
+}
+
+/* ══════════════ TOMBOL HEADER ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+
+/* ══════════════ PANEL KIRI ══════════════ */
+.left-column .desktop-form-section.header-section {
+  background-color: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
+}
+
+.left-column .desktop-form-section.footer-section {
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
+}
+
+.right-column.desktop-form-section {
+  border: 1px solid rgba(183, 28, 28, 0.12);
+  border-radius: 8px;
+}
+
+.field-section-label {
+  display: flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.header-grid .section-span {
+  grid-column: span 2;
+}
+
+/* ══════════════ SEARCH FIELD: IKON JADI TOMBOL MERAH ══════════════ */
+.search-field :deep(.v-field) {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+.search-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+  color: #ffffff;
+  opacity: 1;
+  background-color: #b71c1c;
+  border-radius: 6px;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.search-field:hover :deep(.v-field__append-inner .v-icon) {
+  background-color: #8e0000;
+  transform: scale(1.05);
+}
+
+/* ══════════════ FIELD READONLY & NOMOR ══════════════ */
+.readonly-field :deep(.v-field) {
+  background-color: rgba(0, 0, 0, 0.025) !important;
+  box-shadow: none !important;
+}
+
+.readonly-field :deep(input) {
+  color: rgba(0, 0, 0, 0.7) !important;
+  font-weight: 500;
+}
+
+.nomor-field :deep(input) {
+  font-weight: 800 !important;
+  color: #b71c1c !important;
+  letter-spacing: 0.3px;
+}
+
+.approval-ok :deep(input),
+.approval-ok :deep(.v-icon) {
+  color: #2e7d32 !important;
+  font-weight: 700;
+}
+
+.desktop-form-section :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ RINGKASAN HARGA ══════════════ */
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 4px;
+  font-size: 12.5px;
+  border-bottom: 1px dashed rgba(183, 28, 28, 0.18);
+}
+
+.summary-line-diskon {
+  color: #b71c1c;
+}
+
+.summary-line-netto {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #ffffff;
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%);
+  box-shadow: 0 2px 8px rgba(183, 28, 28, 0.3);
+}
+
+.summary-note {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background-color: rgba(183, 28, 28, 0.04);
+  color: rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+}
+
+/* ══════════════ TAB ══════════════ */
+.tabs-header {
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.03) 0%, transparent 100%);
+}
+
+.tabs-header :deep(.v-tab) {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: none;
+}
+
+.tabs-header :deep(.v-tab--selected) {
+  color: #b71c1c !important;
+}
+
+/* ══════════════ TABEL ══════════════ */
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.35);
+}
+
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.02);
+}
+
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+.total-footer {
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.04) 0%, rgb(var(--v-theme-surface)) 100%);
+  border-top: 3px solid #b71c1c;
+}
+
+.side-table-container {
+  border-left: 1px solid rgba(183, 28, 28, 0.2);
+}
+
+/* ══════════════ BORDIR / DTF ══════════════ */
+.result-cell {
+  background-color: rgba(183, 28, 28, 0.06);
+  border: 1px solid rgba(183, 28, 28, 0.2);
+  color: #b71c1c;
+}
+
+.summary-section {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+}
+
+/* ══════════════ DIALOG ══════════════ */
+.confirm-card {
+  border-left: 4px solid #b71c1c;
+}
+
+/* ══════════════ CUSTOMER: KODE & NAMA SIDE-BY-SIDE ══════════════ */
+.header-grid .grid-item-customer-row {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ══════════════ PANEL HARGA TAMBAHAN ══════════════ */
+.side-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.04) 0%, transparent 100%);
+}
+
+.side-panel-title {
+  display: flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #b71c1c;
+}
+
+.side-cost-box {
+  margin: 10px 10px 4px;
+  padding: 10px;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+  border-left: 3px solid #b71c1c;
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.03);
+}
+
+.side-cost-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: rgba(0, 0, 0, 0.55);
+  margin-bottom: 8px;
+}
+
+.side-cost-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Hilangkan panah spinner bawaan input number */
+.no-spinner :deep(input::-webkit-outer-spin-button),
+.no-spinner :deep(input::-webkit-inner-spin-button) {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner :deep(input[type="number"]) {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.side-list-label {
+  margin: 10px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* Header tabel: gradient vertikal supaya menyambung antar kolom */
+.desktop-table :deep(thead tr th) {
+  background: linear-gradient(180deg, #b71c1c 0%, #9a1515 100%) !important;
+  box-shadow: none !important;
+}
+
+.side-table-container .desktop-table {
+  margin: 0 10px;
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.side-table-container .total-footer {
+  margin: 8px 10px 10px;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+  border-top: 3px solid #b71c1c;
+  border-radius: 8px;
 }
 </style>

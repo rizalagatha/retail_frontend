@@ -316,7 +316,7 @@ const isReadonly = computed(() => {
 // [REVISI] Izinkan toggle Marketplace untuk KON dan K05
 const isUserMarketplaceEligible = computed(() => {
   const cabang = authStore.user?.cabang || "";
-  return cabang === "KON" || cabang === "K05" || cabang === "K02";
+  return cabang === "KON" || cabang === "K05" || cabang === "K02" || cabang === "KF1";
 });
 
 const isKpr = computed(() => authStore.user?.cabang === "KPR");

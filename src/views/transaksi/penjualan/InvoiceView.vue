@@ -220,7 +220,7 @@ const formMpFee = reactive({
 // Deteksi apakah user login adalah cabang marketplace
 const isMarketplaceBranch = computed(() => {
   const cabang = authStore.user?.cabang;
-  return cabang === "KON" || cabang === "K05";
+  return cabang === "KON" || cabang === "K05" || cabang === "K02" || cabang === "KF1";
 });
 
 const openChangeMpFeeModal = () => {
@@ -426,16 +426,20 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "Customer", key: "Nama", width: 250 },
   ];
 
-  // Syarat tampil: (KON atau K05) DAN toggle aktif
-  const isEligibleBranch = authStore.user?.cabang === "KON" || authStore.user?.cabang === "K05";
-
-  if (isEligibleBranch && hasMarketplaceData.value) {
+  // Kolom marketplace tampil untuk semua cabang (termasuk KDC)
+  // selama hasil query memuat pesanan marketplace
+  if (hasMarketplaceData.value) {
     list.push(
       { title: "Marketplace", key: "Marketplace", width: 120 },
       { title: "No. Pesanan", key: "NoPesanan", width: 180 },
       { title: "No. Resi", key: "NoResi", width: 180 }
     );
   }
+
+  // Biaya Platform: cabang marketplace (KON, K05, K02, KF1) dan KDC
+  const showBiayaPlatform =
+    hasMarketplaceData.value && (isMarketplaceBranch.value || authStore.user?.cabang === "KDC");
+
   list.push(
     { title: "Posting", key: "Posting", width: 100 },
     { title: "No. SO", key: "NomorSO", width: 180 },
@@ -444,16 +448,16 @@ const headers = computed<DataTableHeader[]>(() => {
     { title: "Jatuh Tempo", key: "Tempo", width: 120 },
     { title: "Last Payment", key: "LastPayment", width: 120 },
     { title: "Total Sblm Diskon", key: "TotalSebelumDiskon", width: 150 },
-    { title: "Diskon 1", key: "Dis%", width: 160 }, // [FIX] Ganti judulnya
+    { title: "Diskon 1", key: "Dis%", width: 160 },
     { title: "Diskon 2", key: "DiskonMapsPersen", width: 150 },
     { title: "Total Diskon (Rp)", key: "Diskon", width: 150 }
   );
-  if (isEligibleBranch && hasMarketplaceData.value) {
+  if (showBiayaPlatform) {
     list.push({ title: "Biaya Platform", key: "BiayaPlatform", width: 120 });
   }
   list.push(
     { title: "DP", key: "Dp", width: 120 },
-    { title: "Biaya Kirim", key: "Biayakirim", width: 120 },
+    { title: "Biayakirim", key: "Biayakirim", width: 120 },
     { title: "Nominal", key: "Nominal", width: 150 },
     { title: "Piutang", key: "Piutang", width: 150 },
     { title: "Bayar", key: "Bayar", width: 150 },

@@ -170,10 +170,14 @@ watch(
   products,
   (list) => {
     const groups = new Map<string, string[]>();
+    // Cover & hero memakai foto utama (galeri pertama), bukan foto acak
+    const mainPhoto = (p: Product) => p.galeri[0]?.url ?? p.gambar;
+
     list.forEach((p) => {
-      if (!p.gambar) return;
+      const main = mainPhoto(p);
+      if (!main) return;
       if (!groups.has(p.kategori)) groups.set(p.kategori, []);
-      groups.get(p.kategori)!.push(p.gambar);
+      groups.get(p.kategori)!.push(main);
     });
 
     const picked: Record<string, string> = {};
@@ -189,7 +193,7 @@ watch(
     const hero = shuffle(Object.values(picked)).slice(0, 8);
     if (hero.length < 8) {
       const extra = shuffle(
-        list.map((p) => p.gambar).filter((g): g is string => !!g && !hero.includes(g))
+        list.map(mainPhoto).filter((g): g is string => !!g && !hero.includes(g))
       );
       hero.push(...extra.slice(0, 8 - hero.length));
     }

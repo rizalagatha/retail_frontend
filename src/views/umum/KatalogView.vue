@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useDisplay } from "vuetify";
 import api from "@/services/api";
@@ -240,30 +240,37 @@ const visible = computed(() => filtered.value.slice(0, displayCount.value));
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
-const setupObserver = async () => {
-  await nextTick();
-  observer?.disconnect();
-  if (!sentinel.value) return;
-  observer = new IntersectionObserver(
-    (e) => {
-      if (e[0].isIntersecting && displayCount.value < filtered.value.length) {
-        displayCount.value += 20;
-        setupObserver();
-      }
-    },
-    { rootMargin: "300px" }
-  );
-  observer.observe(sentinel.value);
+const onIntersect = (entries: IntersectionObserverEntry[]) => {
+  if (!entries[0].isIntersecting) return;
+  if (displayCount.value >= filtered.value.length) return;
+  displayCount.value += 20;
+  // Re-observe supaya terpicu lagi kalau konten masih pendek
+  const el = sentinel.value;
+  if (el && observer) {
+    observer.unobserve(el);
+    nextTick(() => observer?.observe(el));
+  }
+};
+
+// Function ref: observer menempel otomatis setiap kali elemen sentinel dibuat ulang
+// (penting karena grid sekarang ikut transisi dan elemennya diganti saat filter berubah)
+const setSentinel = (el: unknown) => {
+  sentinel.value = (el as HTMLElement) || null;
+  if (!el) return;
+  observer ??= new IntersectionObserver(onIntersect, { rootMargin: "300px" });
+  observer.disconnect();
+  observer.observe(el as Element);
 };
 
 watch(filtered, () => {
   displayCount.value = 20;
-  setupObserver();
 });
-watch([phase, isLoading], () => {
-  window.scrollTo({ top: 0 });
-  setupObserver();
-});
+
+const scrollTop = () => window.scrollTo({ top: 0 });
+
+// --- Gambar: fade-in saat selesai dimuat ---
+const imgFailed = reactive<Record<string, boolean>>({});
+const onImgLoad = (e: Event) => (e.target as HTMLImageElement).classList.add("is-loaded");
 
 // --- Navigasi ---
 const pilihKategori = (nama: string) =>
@@ -274,18 +281,99 @@ const goBack = () =>
 // --- Detail ---
 const detailVisible = ref(false);
 const selected = ref<Product | null>(null);
+const detailIndex = ref(0);
+
 const openDetail = (p: Product) => {
   selected.value = p;
+  detailIndex.value = 0;
   detailVisible.value = true;
 };
+
+const detailImages = computed<string[]>(() => {
+  const s = selected.value;
+  if (!s) return [];
+  if (s.galeri.length) return s.galeri.map((g) => g.url);
+  return s.gambar ? [s.gambar] : [];
+});
+
+// Harga per ukuran dipecah per kolom, maksimal 7 ukuran per kolom
+const PRICE_PER_COLUMN = 7;
+const priceColumns = computed(() => {
+  const list = selected.value?.ukuranHarga ?? [];
+  const cols: { ukuran: string; harga: number }[][] = [];
+  for (let i = 0; i < list.length; i += PRICE_PER_COLUMN) {
+    cols.push(list.slice(i, i + PRICE_PER_COLUMN));
+  }
+  return cols;
+});
+
+// --- Lightbox (gambar fullscreen) ---
+const lightboxOpen = ref(false);
+const lbDx = ref(0);
+const lbDy = ref(0);
+const lbDir = ref(1);
+
+const openLightbox = (index: number, e?: Event) => {
+  const el = e?.currentTarget as HTMLElement | null;
+  if (el) {
+    // Titik asal animasi = posisi gambar yang diklik (relatif ke tengah layar)
+    const r = el.getBoundingClientRect();
+    lbDx.value = r.left + r.width / 2 - window.innerWidth / 2;
+    lbDy.value = r.top + r.height / 2 - window.innerHeight / 2;
+  } else {
+    lbDx.value = 0;
+    lbDy.value = 0;
+  }
+  detailIndex.value = index;
+  lightboxOpen.value = true;
+};
+const closeLightbox = () => {
+  lightboxOpen.value = false;
+};
+const lbStep = (dir: 1 | -1) => {
+  const n = detailImages.value.length;
+  if (n < 2) return;
+  lbDir.value = dir;
+  detailIndex.value = (detailIndex.value + dir + n) % n;
+};
+
+let touchX = 0;
+const onLbTouchStart = (e: TouchEvent) => {
+  touchX = e.changedTouches[0].clientX;
+};
+const onLbTouchEnd = (e: TouchEvent) => {
+  const d = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(d) > 50) lbStep(d < 0 ? 1 : -1);
+};
+
+// Capture phase: Esc menutup lightbox saja, tidak ikut menutup dialog detail
+const onLbKey = (e: KeyboardEvent) => {
+  if (!lightboxOpen.value) return;
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    closeLightbox();
+  } else if (e.key === "ArrowLeft") {
+    e.stopPropagation();
+    lbStep(-1);
+  } else if (e.key === "ArrowRight") {
+    e.stopPropagation();
+    lbStep(1);
+  }
+};
+
+watch(detailVisible, (v) => {
+  if (!v) lightboxOpen.value = false;
+});
 
 onMounted(() => {
   document.title = "Katalog Produk - Kaosan";
   loadCatalog();
+  window.addEventListener("keydown", onLbKey, true);
 });
 onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
+  window.removeEventListener("keydown", onLbKey, true);
 });
 </script>
 
@@ -313,134 +401,180 @@ onUnmounted(() => {
       /></router-link>
     </header>
 
-    <!-- KATEGORI -->
-    <main v-if="phase === 'category'" class="k-container">
-      <p class="k-hint">Pilih jenis kain untuk melihat koleksi kami.</p>
+    <!-- Transisi antar halaman: kategori <-> produk -->
+    <Transition name="k-page" mode="out-in" appear @before-enter="scrollTop">
+      <!-- ============ KATEGORI ============ -->
+      <main v-if="phase === 'category'" key="category" class="k-container">
+        <p class="k-hint">Pilih jenis kain untuk melihat koleksi kami.</p>
 
-      <div v-if="isLoading" class="k-cat-grid">
-        <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
-      </div>
-      <div v-else-if="hasError" class="k-state">
-        <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
-        <div class="k-state-title">Gagal memuat katalog</div>
-        <v-btn color="#D32F2F" class="text-white text-none" @click="loadCatalog">Coba Lagi</v-btn>
-      </div>
-      <div v-else class="k-cat-grid">
-        <button class="k-cat-card k-enter" style="--i: 0" @click="pilihKategori('ALL')">
-          <div class="k-cat-cover k-cat-cover--mosaic">
-            <img v-for="(src, n) in semuaCovers" :key="n" :src="src" alt="" loading="lazy" />
+        <Transition name="k-fade" mode="out-in">
+          <div v-if="isLoading" key="loading" class="k-cat-grid">
+            <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
           </div>
-          <div class="k-cat-body">
-            <div class="k-cat-name">SEMUA</div>
-            <div class="k-cat-count">{{ products.length }} produk</div>
-          </div>
-        </button>
 
-        <button
-          v-for="(kat, i) in kategoriList"
-          :key="kat.nama"
-          class="k-cat-card k-enter"
-          :style="{ '--i': i + 1 }"
-          @click="pilihKategori(kat.nama)"
-        >
-          <div class="k-cat-cover">
-            <img v-if="kat.cover" :src="kat.cover" :alt="kat.nama" loading="lazy" />
-            <div v-else class="k-cat-tex" v-html="getFabricTexture(kat.nama)"></div>
-          </div>
-          <div class="k-cat-body">
-            <div class="k-cat-name">{{ kat.nama }}</div>
-            <div class="k-cat-count">{{ kat.jumlah }} produk</div>
-          </div>
-        </button>
-      </div>
-    </main>
-
-    <!-- PRODUK -->
-    <template v-else>
-      <div class="k-toolbar">
-        <div class="k-toolbar-inner">
-          <div class="k-chips">
-            <router-link :to="{ name: ROUTE_NAME }" class="k-chip">
-              <v-icon size="14">mdi-layers-outline</v-icon>
-              {{ selectedKategori === "ALL" ? "Semua Kategori" : selectedKategori }}
-              <v-icon size="14">mdi-pencil-outline</v-icon>
-            </router-link>
-            <div class="k-lengan">
-              <button
-                v-for="opt in lenganOptions"
-                :key="opt.value"
-                class="k-lengan-btn"
-                :class="{ 'k-lengan-btn--active': lengan === opt.value }"
-                @click="setLengan(opt.value)"
-              >
-                {{ opt.label }}
-              </button>
-            </div>
-          </div>
-          <v-text-field
-            v-model="searchInput"
-            placeholder="Cari nama / warna..."
-            variant="outlined"
-            density="compact"
-            hide-details
-            clearable
-            bg-color="white"
-            prepend-inner-icon="mdi-magnify"
-            class="k-search"
-          />
-        </div>
-      </div>
-
-      <main class="k-container">
-        <div v-if="isLoading" class="k-grid">
-          <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
-        </div>
-        <div v-else-if="filtered.length === 0" class="k-state">
-          <v-icon size="48" color="grey">mdi-magnify-close</v-icon>
-          <div class="k-state-title">
-            {{ searchTerm ? `Tidak ada hasil untuk "${searchTerm}"` : "Produk tidak ditemukan" }}
-          </div>
-        </div>
-        <template v-else>
-          <div class="k-count">{{ filtered.length }} produk</div>
-          <div class="k-grid">
-            <article
-              v-for="(p, i) in visible"
-              :key="p.kode"
-              class="k-card k-enter"
-              :style="{ '--i': i % 20 }"
-              tabindex="0"
-              @click="openDetail(p)"
-              @keydown.enter="openDetail(p)"
+          <div v-else-if="hasError" key="error" class="k-state">
+            <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
+            <div class="k-state-title">Gagal memuat katalog</div>
+            <v-btn color="#D32F2F" class="text-white text-none" @click="loadCatalog"
+              >Coba Lagi</v-btn
             >
-              <div class="k-card-img">
-                <v-img v-if="p.gambar" :src="p.gambar" cover aspect-ratio="1">
-                  <template #placeholder><div class="k-img-loading"></div></template>
-                  <template #error
-                    ><div class="k-tex" v-html="getFabricTexture(p.kategori)"></div
-                  ></template>
-                </v-img>
-                <div v-else class="k-tex" v-html="getFabricTexture(p.kategori)"></div>
-              </div>
-              <div class="k-card-body">
-                <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
-                <div v-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
-                  {{ formatHarga(p.hargaMin, p.hargaMax) }}
-                </div>
-                <div v-else class="k-card-price k-card-price--na">Hubungi store untuk harga</div>
-              </div>
-            </article>
           </div>
-          <div ref="sentinel" class="k-sentinel"></div>
-          <div v-if="displayCount < filtered.length" class="k-more">
-            <v-progress-circular indeterminate color="#D32F2F" size="22" />
-          </div>
-        </template>
-      </main>
-    </template>
 
-    <!-- DETAIL (tanpa stok) -->
-    <v-dialog v-model="detailVisible" max-width="860" scrollable :fullscreen="xs">
+          <div v-else key="ready" class="k-cat-grid">
+            <button class="k-cat-card k-enter" style="--i: 0" @click="pilihKategori('ALL')">
+              <div class="k-cat-cover k-cat-cover--mosaic">
+                <img
+                  v-for="(src, n) in semuaCovers"
+                  :key="n"
+                  :src="src"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  @load="onImgLoad"
+                />
+              </div>
+              <div class="k-cat-body">
+                <div class="k-cat-name">SEMUA</div>
+                <div class="k-cat-count">{{ products.length }} produk</div>
+              </div>
+            </button>
+
+            <button
+              v-for="(kat, i) in kategoriList"
+              :key="kat.nama"
+              class="k-cat-card k-enter"
+              :style="{ '--i': (i + 1) % 12 }"
+              @click="pilihKategori(kat.nama)"
+            >
+              <div class="k-cat-cover">
+                <img
+                  v-if="kat.cover && !imgFailed['cat-' + kat.nama]"
+                  :src="kat.cover"
+                  :alt="kat.nama"
+                  loading="lazy"
+                  decoding="async"
+                  @load="onImgLoad"
+                  @error="imgFailed['cat-' + kat.nama] = true"
+                />
+                <div v-else class="k-cat-tex" v-html="getFabricTexture(kat.nama)"></div>
+              </div>
+              <div class="k-cat-body">
+                <div class="k-cat-name">{{ kat.nama }}</div>
+                <div class="k-cat-count">{{ kat.jumlah }} produk</div>
+              </div>
+            </button>
+          </div>
+        </Transition>
+      </main>
+
+      <!-- ============ PRODUK ============ -->
+      <div v-else key="products">
+        <div class="k-toolbar">
+          <div class="k-toolbar-inner">
+            <div class="k-chips">
+              <router-link :to="{ name: ROUTE_NAME }" class="k-chip">
+                <v-icon size="14">mdi-layers-outline</v-icon>
+                {{ selectedKategori === "ALL" ? "Semua Kategori" : selectedKategori }}
+                <v-icon size="14">mdi-pencil-outline</v-icon>
+              </router-link>
+              <div class="k-lengan">
+                <button
+                  v-for="opt in lenganOptions"
+                  :key="opt.value"
+                  class="k-lengan-btn"
+                  :class="{ 'k-lengan-btn--active': lengan === opt.value }"
+                  @click="setLengan(opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+            <v-text-field
+              v-model="searchInput"
+              placeholder="Cari nama / warna..."
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              bg-color="white"
+              prepend-inner-icon="mdi-magnify"
+              class="k-search"
+            />
+          </div>
+        </div>
+
+        <main class="k-container">
+          <!-- Key berubah saat kain/lengan berganti -> grid cross-fade -->
+          <Transition name="k-fade" mode="out-in" @before-enter="scrollTop">
+            <div v-if="isLoading" key="loading" class="k-grid">
+              <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
+            </div>
+
+            <div v-else-if="filtered.length === 0" key="empty" class="k-state">
+              <v-icon size="48" color="grey">mdi-magnify-close</v-icon>
+              <div class="k-state-title">
+                {{
+                  searchTerm ? `Tidak ada hasil untuk "${searchTerm}"` : "Produk tidak ditemukan"
+                }}
+              </div>
+            </div>
+
+            <div v-else :key="`grid-${selectedKategori}-${lengan}`">
+              <div class="k-count">{{ filtered.length }} produk</div>
+              <div class="k-grid">
+                <article
+                  v-for="(p, i) in visible"
+                  :key="p.kode"
+                  class="k-card k-enter"
+                  :style="{ '--i': i % 12 }"
+                  tabindex="0"
+                  @click="openDetail(p)"
+                  @keydown.enter="openDetail(p)"
+                >
+                  <div class="k-card-img">
+                    <div class="k-img-loading"></div>
+                    <img
+                      v-if="p.gambar && !imgFailed[p.kode]"
+                      :src="p.gambar"
+                      :alt="p.nama"
+                      class="k-img"
+                      loading="lazy"
+                      decoding="async"
+                      @load="onImgLoad"
+                      @error="imgFailed[p.kode] = true"
+                    />
+                    <div v-else class="k-tex" v-html="getFabricTexture(p.kategori)"></div>
+                  </div>
+                  <div class="k-card-body">
+                    <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
+                    <div v-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
+                      {{ formatHarga(p.hargaMin, p.hargaMax) }}
+                    </div>
+                    <div v-else class="k-card-price k-card-price--na">
+                      Hubungi store untuk harga
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div :ref="setSentinel" class="k-sentinel"></div>
+              <div v-if="displayCount < filtered.length" class="k-more">
+                <v-progress-circular indeterminate color="#D32F2F" size="22" />
+              </div>
+            </div>
+          </Transition>
+        </main>
+      </div>
+    </Transition>
+
+    <!-- ============ DETAIL PRODUK ============ -->
+    <v-dialog
+      v-model="detailVisible"
+      max-width="920"
+      scrollable
+      :fullscreen="xs"
+      :transition="xs ? 'k-sheet' : 'k-dialog'"
+    >
       <v-card v-if="selected" class="k-detail">
         <div
           class="k-detail-bar"
@@ -462,14 +596,22 @@ onUnmounted(() => {
           <div class="k-detail-layout">
             <div class="k-detail-media">
               <v-carousel
-                v-if="selected.galeri.length"
+                v-if="detailImages.length"
+                v-model="detailIndex"
                 height="100%"
                 hide-delimiter-background
-                show-arrows="hover"
+                :hide-delimiters="detailImages.length < 2"
+                :show-arrows="detailImages.length > 1 ? 'hover' : false"
                 class="k-carousel"
               >
-                <v-carousel-item v-for="(img, i) in selected.galeri" :key="i">
-                  <v-img :src="img.url" cover height="100%">
+                <v-carousel-item v-for="(src, i) in detailImages" :key="i">
+                  <v-img
+                    :src="src"
+                    cover
+                    height="100%"
+                    class="k-zoomable"
+                    @click="openLightbox(i, $event)"
+                  >
                     <template #error>
                       <div class="k-img-broken">
                         <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
@@ -478,11 +620,13 @@ onUnmounted(() => {
                   </v-img>
                 </v-carousel-item>
               </v-carousel>
-              <div v-else-if="selected.gambar" class="k-carousel">
-                <v-img :src="selected.gambar" cover height="100%" />
-              </div>
               <div v-else class="k-carousel">
                 <div class="k-tex" v-html="getFabricTexture(selected.kategori)"></div>
+              </div>
+
+              <div v-if="detailImages.length" class="k-zoom-hint">
+                <v-icon size="14">mdi-magnify-plus-outline</v-icon>
+                Ketuk untuk memperbesar
               </div>
             </div>
 
@@ -491,15 +635,22 @@ onUnmounted(() => {
               <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
               <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
 
-              <div v-if="selected.ukuranHarga.length" class="k-detail-label">Harga per ukuran</div>
-              <div v-if="selected.ukuranHarga.length" class="k-price-list">
-                <div v-for="u in selected.ukuranHarga" :key="u.ukuran" class="k-price-row">
-                  <span class="k-size">{{ u.ukuran }}</span>
-                  <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
-                    {{ u.harga ? rp(u.harga) : "Hubungi store" }}
-                  </span>
+              <template v-if="priceColumns.length">
+                <div class="k-detail-label">Harga per ukuran</div>
+                <div
+                  class="k-price-cols"
+                  :style="{ gridTemplateColumns: `repeat(${priceColumns.length}, minmax(0, 1fr))` }"
+                >
+                  <div v-for="(col, ci) in priceColumns" :key="ci" class="k-price-list">
+                    <div v-for="u in col" :key="u.ukuran" class="k-price-row">
+                      <span class="k-size">{{ u.ukuran }}</span>
+                      <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
+                        {{ u.harga ? rp(u.harga) : "Hubungi store" }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </template>
 
               <div class="k-note">
                 <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
@@ -513,6 +664,46 @@ onUnmounted(() => {
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- ============ LIGHTBOX ============ -->
+    <Teleport to="body">
+      <Transition name="k-lb">
+        <div
+          v-if="lightboxOpen"
+          class="k-lb"
+          role="dialog"
+          aria-modal="true"
+          :style="{ '--dx': lbDx + 'px', '--dy': lbDy + 'px', '--dir': lbDir }"
+          @click="closeLightbox"
+          @touchstart.passive="onLbTouchStart"
+          @touchend.passive="onLbTouchEnd"
+        >
+          <button class="k-lb-btn k-lb-close" aria-label="Tutup" @click.stop="closeLightbox">
+            <v-icon>mdi-close</v-icon>
+          </button>
+
+          <template v-if="detailImages.length > 1">
+            <button class="k-lb-btn k-lb-prev" aria-label="Sebelumnya" @click.stop="lbStep(-1)">
+              <v-icon>mdi-chevron-left</v-icon>
+            </button>
+            <button class="k-lb-btn k-lb-next" aria-label="Berikutnya" @click.stop="lbStep(1)">
+              <v-icon>mdi-chevron-right</v-icon>
+            </button>
+            <div class="k-lb-count">{{ detailIndex + 1 }} / {{ detailImages.length }}</div>
+          </template>
+
+          <Transition name="k-lb-slide" mode="out-in">
+            <img
+              :key="detailIndex"
+              :src="detailImages[detailIndex]"
+              alt=""
+              class="k-lb-img"
+              @click.stop
+            />
+          </Transition>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -1044,6 +1235,271 @@ onUnmounted(() => {
   .k-card,
   .k-cat-card {
     transition: none;
+  }
+}
+
+/* ============ TRANSISI HALAMAN ============ */
+.k-page-enter-active {
+  transition: opacity 0.32s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-page-leave-active {
+  transition: opacity 0.16s ease;
+}
+.k-page-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.k-page-leave-to {
+  opacity: 0;
+}
+
+.k-fade-enter-active {
+  transition: opacity 0.3s ease;
+}
+.k-fade-leave-active {
+  transition: opacity 0.14s ease;
+}
+.k-fade-enter-from,
+.k-fade-leave-to {
+  opacity: 0;
+}
+
+/* ============ GAMBAR: SHIMMER -> FADE-IN ============ */
+.k-card-img .k-img-loading,
+.k-card-img .k-img,
+.k-card-img .k-tex {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.k-card-img .k-tex {
+  opacity: 1;
+  background: #f5f5f5;
+}
+.k-img {
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-img.is-loaded {
+  opacity: 1;
+}
+.k-card:hover .k-img.is-loaded {
+  transform: scale(1.04);
+}
+
+.k-cat-cover {
+  background: linear-gradient(90deg, #ececec 25%, #f6f6f6 50%, #ececec 75%);
+  background-size: 200% 100%;
+  animation: k-shimmer 1.3s infinite linear;
+}
+.k-cat-cover img {
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-cat-cover img.is-loaded {
+  opacity: 1;
+}
+
+/* ============ DETAIL ============ */
+.k-detail-media {
+  position: relative;
+}
+.k-zoomable {
+  cursor: zoom-in;
+}
+.k-zoom-hint {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.k-price-cols {
+  display: grid;
+  gap: 10px;
+  align-items: start;
+}
+.k-price-row {
+  gap: 6px;
+  padding: 6px 10px;
+}
+.k-price-row .k-size {
+  min-width: 34px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.k-price-val {
+  font-size: 12px;
+}
+.k-price-val--na {
+  font-size: 10px;
+}
+
+@media (min-width: 700px) {
+  .k-detail-media {
+    flex: 0 0 42%;
+    height: 460px;
+  }
+}
+
+/* ============ LIGHTBOX ============ */
+.k-lb {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  cursor: zoom-out;
+  touch-action: pan-y;
+}
+.k-lb-img {
+  max-width: 94vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 6px;
+  cursor: default;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.k-lb-btn {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.k-lb-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.k-lb-close {
+  top: 16px;
+  right: 16px;
+}
+.k-lb-prev {
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.k-lb-next {
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.k-lb-count {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Buka/tutup: backdrop fade, gambar melesat dari/ke posisi thumbnail */
+.k-lb-enter-active,
+.k-lb-leave-active {
+  transition: opacity 0.3s ease;
+}
+.k-lb-enter-from,
+.k-lb-leave-to {
+  opacity: 0;
+}
+.k-lb-enter-active .k-lb-img,
+.k-lb-leave-active .k-lb-img {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-lb-enter-from .k-lb-img,
+.k-lb-leave-to .k-lb-img {
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(0.45);
+}
+
+/* Ganti gambar di dalam lightbox */
+.k-lb-slide-enter-active,
+.k-lb-slide-leave-active {
+  transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-lb-slide-enter-from {
+  opacity: 0;
+  transform: translateX(calc(var(--dir, 1) * 40px));
+}
+.k-lb-slide-leave-to {
+  opacity: 0;
+  transform: translateX(calc(var(--dir, 1) * -40px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-page-enter-active,
+  .k-page-leave-active,
+  .k-fade-enter-active,
+  .k-fade-leave-active,
+  .k-lb-enter-active,
+  .k-lb-leave-active,
+  .k-lb-slide-enter-active,
+  .k-lb-slide-leave-active,
+  .k-img,
+  .k-cat-cover img {
+    transition: none !important;
+  }
+}
+</style>
+
+<style>
+/* Dialog detail: desktop = naik + zoom halus, HP = bottom sheet */
+.k-dialog-enter-active {
+  transition: opacity 0.3s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-dialog-leave-active {
+  transition: opacity 0.18s ease, transform 0.22s ease-in;
+}
+.k-dialog-enter-from,
+.k-dialog-leave-to {
+  opacity: 0;
+  transform: translateY(24px) scale(0.96);
+}
+
+.k-sheet-enter-active {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-sheet-leave-active {
+  transition: transform 0.26s ease-in;
+}
+.k-sheet-enter-from,
+.k-sheet-leave-to {
+  transform: translateY(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-dialog-enter-active,
+  .k-dialog-leave-active,
+  .k-sheet-enter-active,
+  .k-sheet-leave-active {
+    transition: none !important;
   }
 }
 </style>

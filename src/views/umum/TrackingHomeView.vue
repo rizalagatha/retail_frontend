@@ -672,79 +672,64 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="tracking-layout bg-grey-lighten-4">
-    <header
-      class="bg-white elevation-2 px-4 px-md-10 py-3 d-flex align-center position-sticky w-100"
-      style="top: 0; z-index: 100"
-    >
-      <a
-        href="https://kaosanofficial.com"
-        target="_blank"
-        class="d-flex align-center text-decoration-none"
-      >
-        <img :src="LogoKaosan" height="40" alt="Logo Kaosan" class="cursor-pointer" />
-      </a>
-      <v-spacer></v-spacer>
-      <div class="d-none d-sm-flex gap-4 text-body-2 font-weight-medium text-grey-darken-3">
-        <a
-          href="https://kaosanofficial.com"
-          target="_blank"
-          class="text-decoration-none text-grey-darken-3"
-          >Beranda</a
-        >
-        <a
-          href="https://kaosanofficial.com/layanan"
-          target="_blank"
-          class="text-decoration-none text-grey-darken-3"
-          >Layanan</a
-        >
-        <v-btn
-          v-if="isInternalNetwork"
-          color="#D32F2F"
-          variant="flat"
-          size="small"
-          class="text-white font-weight-bold text-none px-4 rounded-pill ml-2"
-          prepend-icon="mdi-login-variant"
-          @click="router.push({ path: '/login', query: { redirect: '/admin-katalog' } })"
-        >
-          Staff Login
-        </v-btn>
+  <div class="tracking-layout t-page">
+    <!-- HEADER -->
+    <header class="t-header">
+      <div class="t-header-inner">
+        <a href="https://kaosanofficial.com" target="_blank" class="t-brand">
+          <img :src="LogoKaosan" height="36" alt="Kaosan" />
+        </a>
+        <nav class="t-nav">
+          <a href="https://kaosanofficial.com" target="_blank">Beranda</a>
+          <a href="https://kaosanofficial.com/layanan" target="_blank">Layanan</a>
+          <router-link to="/katalog">Katalog</router-link>
+          <v-btn
+            v-if="isInternalNetwork"
+            color="#B71C1C"
+            variant="flat"
+            size="small"
+            class="text-white font-weight-bold text-none px-4"
+            prepend-icon="mdi-login-variant"
+            @click="router.push({ path: '/login', query: { redirect: '/admin-katalog' } })"
+          >
+            Staff Login
+          </v-btn>
+        </nav>
       </div>
     </header>
 
-    <div class="hero-banner d-flex flex-column align-center justify-center text-center px-4">
-      <h1
-        class="text-h4 text-md-h3 font-weight-black text-white mb-2"
-        style="text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2)"
-      >
-        Lacak Pesanan Kaosan
-      </h1>
-      <p class="text-subtitle-1 text-md-h6 text-white opacity-90 font-weight-regular">
-        Pantau status produksi dan pengiriman pesanan Anda dengan mudah
-      </p>
-    </div>
+    <!-- HERO -->
+    <section class="t-hero">
+      <div class="t-hero-inner">
+        <div class="t-eyebrow">Lacak Pesanan</div>
+        <h1 class="t-hero-title">Sudah sampai <em>mana</em> pesananmu?</h1>
+        <p class="t-hero-sub">
+          Masukkan nomor resi untuk melihat proses produksi sampai pesanan siap diambil.
+        </p>
+      </div>
+    </section>
 
-    <v-container class="search-container mb-10">
-      <v-card class="rounded-lg elevation-4 pa-2 pa-sm-4 bg-white mb-8" max-width="800" mx-auto>
-        <div class="d-flex flex-column flex-sm-row gap-2 align-start">
+    <main class="t-main">
+      <!-- PANEL PENCARIAN -->
+      <section class="t-search">
+        <div class="t-search-row">
           <v-text-field
             v-model="searchInput"
-            placeholder="Masukkan Nomor Resi Pesanan (Contoh: KSNK...)"
+            placeholder="Nomor resi, contoh: KSNK01..."
             variant="outlined"
-            color="#D32F2F"
+            color="#B71C1C"
             bg-color="white"
             hide-details="auto"
-            class="flex-grow-1 w-100 search-field-red"
+            class="t-search-input search-field-red"
             density="comfortable"
             prepend-inner-icon="mdi-magnify"
             :error-messages="errorMessage"
             @keyup.enter="cariPesanan"
           ></v-text-field>
-
           <v-btn
-            color="#D32F2F"
+            color="#B71C1C"
             height="48"
-            class="text-white px-8 font-weight-bold text-subtitle-1 w-100 w-sm-auto mt-2 mt-sm-0"
+            class="text-white px-8 font-weight-bold text-none t-search-btn"
             :loading="isLoading"
             @click="cariPesanan"
           >
@@ -753,33 +738,27 @@ onMounted(() => {
         </div>
 
         <v-expand-transition>
-          <div v-if="isFound && soData" class="mt-6 border-t pt-6 px-2">
-            <div class="d-flex justify-space-between align-center mb-4 flex-wrap gap-2">
+          <div v-if="isFound && soData" class="t-found">
+            <div class="t-found-head">
               <div>
-                <div class="text-caption text-grey-darken-1">Pelanggan</div>
-                <div class="text-h6 font-weight-bold text-grey-darken-3" style="line-height: 1.2">
-                  {{ soData.penerima }}
-                </div>
+                <div class="t-found-label">Atas nama</div>
+                <div class="t-found-name">{{ soData.penerima }}</div>
               </div>
-              <v-chip color="success" variant="flat" class="font-weight-bold">
-                <v-icon start size="small">mdi-check-circle</v-icon>
-                Pesanan Ditemukan
-              </v-chip>
+              <span class="t-found-badge">
+                <v-icon size="14">mdi-check</v-icon> Pesanan ditemukan
+              </span>
             </div>
 
-            <p class="text-subtitle-2 font-weight-bold text-grey-darken-2 mb-2">
-              Pilih Barang yang Ingin Dilacak Spesifik:
-            </p>
-
+            <div class="t-found-label mb-2">Pilih barang yang ingin dilacak</div>
             <v-select
               v-model="selectedItem"
               :items="soData.items"
               item-title="title"
               item-value="value"
-              placeholder="-- Pilih Barang --"
+              placeholder="Pilih barang"
               variant="outlined"
               density="comfortable"
-              color="#D32F2F"
+              color="#B71C1C"
               hide-details="auto"
               class="mb-4 search-field-red"
             ></v-select>
@@ -787,268 +766,177 @@ onMounted(() => {
             <v-btn
               block
               size="large"
-              color="#D32F2F"
-              class="font-weight-bold text-white mt-2"
+              color="#B71C1C"
+              class="font-weight-bold text-white text-none"
               :disabled="!selectedItem"
               @click="lanjutLacak"
             >
-              Lihat Rincian Proses
-              <v-icon right class="ml-2">mdi-arrow-right</v-icon>
+              Lihat rincian proses
+              <v-icon end>mdi-arrow-right</v-icon>
             </v-btn>
           </div>
         </v-expand-transition>
-      </v-card>
 
+        <ol v-if="!isFound" class="t-steps">
+          <li><span>1</span> Masukkan nomor resi dari struk atau WhatsApp</li>
+          <li><span>2</span> Pilih barang yang ingin dilacak</li>
+          <li><span>3</span> Lihat tahapan dari produksi sampai siap</li>
+        </ol>
+      </section>
+
+      <!-- PROMO -->
       <v-expand-transition>
-        <div
-          v-if="!isLoadingPromo && activePromos.length > 0"
-          class="promo-section mb-10"
-          style="max-width: 900px; margin: 0 auto"
-        >
-          <div class="d-flex align-center mb-4 px-2">
-            <v-icon color="#D32F2F" size="28" class="mr-2">mdi-ticket-percent</v-icon>
-            <h2 class="text-h6 font-weight-bold text-grey-darken-3 mb-0">
-              Promo Spesial Buat Kamu!
-            </h2>
+        <section v-if="!isLoadingPromo && activePromos.length > 0" class="t-section">
+          <div class="t-section-head">
+            <h2 class="t-section-title">Promo yang sedang berlaku</h2>
+            <span class="t-section-note">{{ activePromos.length }} promo</span>
           </div>
 
-          <v-row>
-            <v-col cols="12" sm="6" md="4" v-for="(promo, index) in activePromos" :key="index">
-              <v-card
-                elevation="2"
-                class="promo-card rounded-xl h-100 d-flex flex-column position-relative overflow-hidden bg-white"
-              >
-                <!-- Header merah -->
-                <div
-                  class="bg-brand py-2 px-4 text-white d-flex justify-space-between align-center"
+          <div class="t-promo-grid">
+            <article v-for="(promo, index) in activePromos" :key="index" class="t-promo">
+              <div class="t-promo-tag">
+                {{ promo.pro_jenis === 2 ? "Bundling" : "Diskon" }}
+              </div>
+              <h3 class="t-promo-title">{{ promo.pro_judul }}</h3>
+
+              <div class="t-promo-value">
+                <template v-if="promo.pro_diskon > 0">{{ promo.pro_diskon }}%</template>
+                <template v-else-if="promo.pro_disrp > 0">{{
+                  formatRupiah(promo.pro_disrp)
+                }}</template>
+                <template v-else-if="promo.pro_rpvoucher > 0">{{
+                  formatRupiah(promo.pro_rpvoucher)
+                }}</template>
+                <template v-else-if="promo.pro_totalqty > 0"
+                  >Beli {{ promo.pro_totalqty }}</template
                 >
-                  <span
-                    style="
-                      font-size: 11px;
-                      font-weight: 600;
-                      letter-spacing: 0.4px;
-                      text-transform: uppercase;
-                    "
-                  >
-                    {{ promo.pro_jenis === 2 ? "Bundling Spesial" : "Diskon Spesial" }}
-                  </span>
-                  <v-icon size="16" color="white">mdi-ticket-percent</v-icon>
+                <template v-else>Harga spesial</template>
+                <small v-if="promo.pro_diskon > 0"> diskon</small>
+                <small v-else-if="promo.pro_disrp > 0"> potongan</small>
+                <small v-else-if="promo.pro_rpvoucher > 0"> voucher</small>
+              </div>
+
+              <div v-if="promo.pro_totalrp > 0 || promo.pro_totalqty > 0" class="t-promo-min">
+                <template v-if="promo.pro_totalrp > 0">
+                  Min. belanja {{ formatRupiah(promo.pro_totalrp) }}
+                </template>
+                <template v-else>Min. {{ promo.pro_totalqty }} item</template>
+              </div>
+
+              <p class="t-promo-desc">
+                {{ promo.pro_keterangan || "Berlaku untuk pemesanan di Kaosan." }}
+              </p>
+
+              <div class="t-promo-foot">
+                <div class="t-promo-left">
+                  <span>Berakhir dalam</span>
+                  <strong :class="{ 't-urgent': daysLeft(promo.pro_tanggal2) <= 7 }">
+                    {{ daysLeft(promo.pro_tanggal2) }} hari
+                  </strong>
                 </div>
-
-                <v-card-text class="pa-3 flex-grow-1 d-flex flex-column" style="gap: 6px">
-                  <!-- Judul -->
-                  <div style="font-size: 13px; font-weight: 500; line-height: 1.3; color: inherit">
-                    {{ promo.pro_judul }}
-                  </div>
-
-                  <!-- Nilai diskon -->
-                  <div style="font-size: 22px; font-weight: 500; color: #d32f2f; line-height: 1.1">
-                    <template v-if="promo.pro_diskon > 0">Diskon {{ promo.pro_diskon }}%</template>
-                    <template v-else-if="promo.pro_disrp > 0"
-                      >Hemat {{ formatRupiah(promo.pro_disrp) }}</template
-                    >
-                    <template v-else-if="promo.pro_rpvoucher > 0"
-                      >Voucher {{ formatRupiah(promo.pro_rpvoucher) }}</template
-                    >
-                    <template v-else-if="promo.pro_totalqty > 0"
-                      >Beli {{ promo.pro_totalqty }} Lebih Hemat</template
-                    >
-                    <template v-else>Harga Spesial</template>
-                  </div>
-
-                  <!-- Syarat minimum -->
-                  <div
-                    v-if="promo.pro_totalrp > 0 || promo.pro_totalqty > 0"
-                    style="
-                      display: inline-flex;
-                      align-items: center;
-                      gap: 4px;
-                      background: #fff3e0;
-                      border-radius: 4px;
-                      padding: 3px 8px;
-                      font-size: 11px;
-                      color: #e65100;
-                      font-weight: 500;
-                      width: fit-content;
-                    "
-                  >
-                    <v-icon size="12" color="orange-darken-3">mdi-shopping</v-icon>
-                    <span v-if="promo.pro_totalrp > 0"
-                      >Min. belanja {{ formatRupiah(promo.pro_totalrp) }}</span
-                    >
-                    <span v-else>Min. {{ promo.pro_totalqty }} item</span>
-                  </div>
-
-                  <!-- Keterangan -->
-                  <div
-                    style="font-size: 11px; line-height: 1.4; flex: 1"
-                    class="text-grey-darken-1"
-                  >
-                    {{ promo.pro_keterangan || "Berlaku untuk pemesanan di Kaosan." }}
-                  </div>
-                </v-card-text>
-
-                <!-- Footer: counter + tombol klaim -->
-                <div
-                  style="
-                    border-top: 0.5px solid #f0f0f0;
-                    padding: 10px 12px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                  "
-                >
-                  <div style="display: flex; flex-direction: column; gap: 1px">
-                    <span style="font-size: 10px; color: #9e9e9e">Berakhir dalam</span>
-                    <span
-                      style="font-size: 13px; font-weight: 500"
-                      :style="{ color: daysLeft(promo.pro_tanggal2) <= 7 ? '#D32F2F' : 'inherit' }"
-                    >
-                      {{ daysLeft(promo.pro_tanggal2) }} hari lagi
-                    </span>
-                  </div>
-                  <v-btn
-                    size="small"
-                    color="#D32F2F"
-                    variant="flat"
-                    class="text-white font-weight-bold text-none rounded-pill px-5"
-                    @click="klaimPromo(promo)"
-                  >
-                    Klaim
-                  </v-btn>
-                </div>
-
-                <!-- Kupon cutout tetap dipertahankan tapi dipindah ke atas footer -->
-                <div class="coupon-cutout left"></div>
-                <div class="coupon-cutout right"></div>
-              </v-card>
-            </v-col>
-          </v-row>
-        </div>
+                <button class="t-promo-btn" @click="klaimPromo(promo)">Klaim</button>
+              </div>
+            </article>
+          </div>
+        </section>
       </v-expand-transition>
 
-      <v-row justify="center" style="max-width: 900px; margin: 0 auto">
-        <v-col cols="12" sm="3">
-          <v-card
-            elevation="0"
-            class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
-            @click="router.push('/katalog')"
-          >
-            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-shopping-outline</v-icon>
-            <div>
-              <div class="font-weight-bold text-subtitle-2">Katalog Produk</div>
-              <div class="text-caption text-grey-darken-1">Lihat koleksi kaos kami</div>
-            </div>
-          </v-card>
-        </v-col>
-        <v-col cols="12" sm="3">
-          <v-card
-            elevation="0"
-            class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
-            @click="router.push('/cek-stok')"
-          >
-            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-store-search-outline</v-icon>
-            <div>
-              <div class="font-weight-bold text-subtitle-2">(BETA) Cek Stok Store</div>
-              <div class="text-caption text-grey-darken-1">Lihat ketersediaan barang ready</div>
-            </div>
-          </v-card>
-        </v-col>
-        <v-col cols="12" sm="4">
-          <v-card
-            elevation="0"
-            class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
-            @click="openEstimasi"
-          >
-            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-calculator-variant-outline</v-icon>
-            <div>
-              <div class="font-weight-bold text-subtitle-2">(BETA) Estimasi Harga Custom</div>
-              <div class="text-caption text-grey-darken-1">Hitung biaya sablon & bordir</div>
-            </div>
-          </v-card>
-        </v-col>
-        <v-col cols="12" sm="4">
-          <v-card
-            elevation="0"
-            class="border rounded-lg pa-4 d-flex align-center h-100 bg-white card-hover"
-            @click="openBantuan"
-          >
-            <v-icon size="40" color="#D32F2F" class="mr-4">mdi-help-circle-outline</v-icon>
-            <div>
-              <div class="font-weight-bold text-subtitle-2">Pusat Bantuan</div>
-              <div class="text-caption text-grey-darken-1">Hubungi CS Kaosan</div>
-            </div>
-          </v-card>
-        </v-col>
-      </v-row>
-    </v-container>
+      <!-- LAYANAN -->
+      <section class="t-section">
+        <div class="t-section-head">
+          <h2 class="t-section-title">Layanan Kaosan</h2>
+        </div>
 
-    <footer class="bg-white border-t mt-auto py-8">
-      <v-container class="px-4 px-md-10">
+        <div class="t-service-grid">
+          <button class="t-service" @click="router.push('/katalog')">
+            <span class="t-service-icon"><v-icon size="22">mdi-hanger</v-icon></span>
+            <span class="t-service-text">
+              <span class="t-service-name">Katalog Produk</span>
+              <span class="t-service-desc">Lihat koleksi berdasarkan jenis kain</span>
+            </span>
+            <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
+          </button>
+
+          <button class="t-service" @click="router.push('/cek-stok')">
+            <span class="t-service-icon"><v-icon size="22">mdi-store-search-outline</v-icon></span>
+            <span class="t-service-text">
+              <span class="t-service-name">Cek Stok Store <em class="t-beta">Beta</em></span>
+              <span class="t-service-desc">Ketersediaan barang siap jual per store</span>
+            </span>
+            <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
+          </button>
+
+          <button class="t-service" @click="openEstimasi">
+            <span class="t-service-icon"
+              ><v-icon size="22">mdi-calculator-variant-outline</v-icon></span
+            >
+            <span class="t-service-text">
+              <span class="t-service-name">Estimasi Harga Custom <em class="t-beta">Beta</em></span>
+              <span class="t-service-desc">Hitung biaya sablon dan bordir</span>
+            </span>
+            <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
+          </button>
+
+          <button class="t-service" @click="openBantuan">
+            <span class="t-service-icon"><v-icon size="22">mdi-headset</v-icon></span>
+            <span class="t-service-text">
+              <span class="t-service-name">Pusat Bantuan</span>
+              <span class="t-service-desc">Hubungi CS di store terdekat</span>
+            </span>
+            <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="t-footer">
+      <div class="t-footer-inner">
         <v-expand-transition>
-          <div v-if="isFound && soData?.kontakKomplain" class="mb-8">
-            <div
-              class="text-caption font-weight-bold text-grey-darken-3 mb-2"
-              style="font-size: 13px !important"
-            >
-              Hubungi Kami Untuk Layanan Pengaduan Konsumen KAOSAN:
-            </div>
-            <div class="text-caption text-grey-darken-2" style="font-size: 13px !important">
-              {{ soData.kontakKomplain }} (WhatsApp)
-            </div>
+          <div v-if="isFound && soData?.kontakKomplain" class="t-complaint">
+            <div class="t-complaint-title">Layanan pengaduan konsumen KAOSAN</div>
+            <div class="t-complaint-text">{{ soData.kontakKomplain }} (WhatsApp)</div>
 
-            <div
-              class="text-caption font-weight-bold text-grey-darken-3 mb-2 mt-4"
-              style="font-size: 13px !important"
-            >
-              Layanan Pengaduan Konsumen, Direktorat Jenderal Perlindungan Konsumen dan Tertib
-              Niaga, Kementerian Perdagangan Republik Indonesia:
+            <div class="t-complaint-title mt-4">
+              Direktorat Jenderal Perlindungan Konsumen dan Tertib Niaga, Kementerian Perdagangan
+              Republik Indonesia
             </div>
-            <div class="text-caption text-grey-darken-2" style="font-size: 13px !important">
-              0853 111 1010 (WhatsApp)
-            </div>
-
-            <v-divider class="my-6"></v-divider>
+            <div class="t-complaint-text">0853 111 1010 (WhatsApp)</div>
           </div>
         </v-expand-transition>
 
-        <div class="d-flex flex-column flex-md-row align-center justify-space-between">
-          <div class="text-caption text-grey-darken-1 mb-4 mb-md-0 d-flex align-center">
-            <img
-              :src="LogoKaosan"
-              height="20"
-              alt="Logo Kaosan"
-              class="mr-3 opacity-60 grayscale"
-            />
-            Hak Cipta &copy; {{ new Date().getFullYear() }} KAOSAN. Semua hak dilindungi
-            undang-undang.
+        <div class="t-footer-row">
+          <div class="t-copy">
+            <img :src="LogoKaosan" height="20" alt="Kaosan" class="grayscale" />
+            <span
+              >&copy; {{ new Date().getFullYear() }} KAOSAN. Semua hak dilindungi
+              undang-undang.</span
+            >
           </div>
 
-          <div class="d-flex align-center gap-2">
+          <div class="t-social">
             <v-btn
               icon
               variant="text"
-              color="grey-darken-4"
+              color="grey-darken-3"
               size="small"
               href="https://instagram.com/kaosan.official"
               target="_blank"
               class="social-btn"
             >
-              <v-icon size="24" class="social-icon">mdi-instagram</v-icon>
+              <v-icon size="22" class="social-icon">mdi-instagram</v-icon>
             </v-btn>
-
             <v-btn
               icon
               variant="text"
-              color="grey-darken-4"
+              color="grey-darken-3"
               size="small"
               href="https://www.facebook.com/kaosanofficiall"
               target="_blank"
               class="social-btn"
             >
-              <v-icon size="24" class="social-icon">mdi-facebook</v-icon>
+              <v-icon size="22" class="social-icon">mdi-facebook</v-icon>
             </v-btn>
-
             <v-btn
               icon
               variant="text"
@@ -1059,7 +947,6 @@ onMounted(() => {
             >
               <img :src="TiktokLogo" alt="TikTok" class="social-img" />
             </v-btn>
-
             <v-btn
               icon
               variant="text"
@@ -1070,7 +957,6 @@ onMounted(() => {
             >
               <img :src="ShopeeLogo" alt="Shopee" class="social-img" />
             </v-btn>
-
             <v-btn
               icon
               variant="text"
@@ -1083,7 +969,7 @@ onMounted(() => {
             </v-btn>
           </div>
         </div>
-      </v-container>
+      </div>
     </footer>
 
     <v-dialog v-model="isPromoDialogVisible" max-width="400px" :scrim="true">
@@ -2804,6 +2690,491 @@ onMounted(() => {
   }
   .search-container {
     margin-top: -40px;
+  }
+}
+
+/* ================= TRACKING HOME: TAMPILAN BARU ================= */
+.t-page {
+  --t-red: #b71c1c;
+  --t-red-soft: #fdecea;
+  --t-ink: #1f1a19;
+  --t-muted: #6f6663;
+  --t-line: #e9dfdb;
+  --t-bg: #faf6f4;
+  --t-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  background: var(--t-bg) !important;
+  color: var(--t-ink);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ---------- Header ---------- */
+.t-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--t-line);
+}
+.t-header-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  height: 60px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.t-brand {
+  display: inline-flex;
+}
+.t-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.t-nav a {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t-ink);
+  text-decoration: none;
+  position: relative;
+}
+.t-nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -4px;
+  height: 2px;
+  background: var(--t-red);
+  transition: right 0.2s ease;
+}
+.t-nav a:hover::after {
+  right: 0;
+}
+
+/* ---------- Hero ---------- */
+.t-hero {
+  background: var(--t-red);
+  color: #fff;
+  padding: 56px 20px 104px;
+}
+.t-hero-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+.t-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  margin-bottom: 14px;
+}
+.t-hero-title {
+  margin: 0;
+  max-width: 16ch;
+  font-family: var(--t-serif);
+  font-weight: 600;
+  font-size: clamp(34px, 6vw, 60px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+.t-hero-title em {
+  font-style: italic;
+  font-weight: 500;
+}
+.t-hero-sub {
+  margin: 16px 0 0;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+/* ---------- Main ---------- */
+.t-main {
+  max-width: 1040px;
+  margin: -64px auto 0;
+  padding: 0 20px 56px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ---------- Panel pencarian ---------- */
+.t-search {
+  max-width: 760px;
+  margin: 0 auto 56px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--t-line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(60, 20, 15, 0.1);
+}
+.t-search-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.t-search-input {
+  flex: 1;
+}
+.t-search-btn {
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+.t-steps {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 16px 0 0;
+  border-top: 1px dashed var(--t-line);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.t-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--t-muted);
+}
+.t-steps li span {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--t-red);
+  background: var(--t-red-soft);
+}
+
+.t-found {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--t-line);
+}
+.t-found-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.t-found-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t-muted);
+}
+.t-found-name {
+  font-family: var(--t-serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.t-found-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2e7d32;
+  background: #e8f5e9;
+}
+
+/* ---------- Section ---------- */
+.t-section {
+  margin-bottom: 48px;
+}
+.t-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--t-line);
+}
+.t-section-title {
+  margin: 0;
+  font-family: var(--t-serif);
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.t-section-note {
+  font-size: 12px;
+  color: var(--t-muted);
+}
+
+/* ---------- Promo ---------- */
+.t-promo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.t-promo {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--t-line);
+  border-left: 4px solid var(--t-red);
+  border-radius: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.t-promo:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(60, 20, 15, 0.1);
+}
+.t-promo-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t-red);
+}
+.t-promo-title {
+  margin: 6px 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.t-promo-value {
+  font-family: var(--t-serif);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--t-red);
+}
+.t-promo-value small {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t-muted);
+}
+.t-promo-min {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a5a00;
+}
+.t-promo-desc {
+  flex: 1;
+  margin: 10px 0 16px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--t-muted);
+}
+.t-promo-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px dashed var(--t-line);
+}
+.t-promo-left {
+  display: flex;
+  flex-direction: column;
+  font-size: 10.5px;
+  color: var(--t-muted);
+}
+.t-promo-left strong {
+  font-size: 13px;
+  color: var(--t-ink);
+}
+.t-promo-left strong.t-urgent {
+  color: var(--t-red);
+}
+.t-promo-btn {
+  padding: 8px 20px;
+  border: 1.5px solid var(--t-red);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t-red);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.t-promo-btn:hover {
+  background: var(--t-red);
+  color: #fff;
+}
+
+/* ---------- Layanan ---------- */
+.t-service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.t-service {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--t-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+.t-service:hover,
+.t-service:focus-visible {
+  border-color: var(--t-red);
+  transform: translateY(-2px);
+  outline: none;
+}
+.t-service-icon {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--t-red);
+  background: var(--t-red-soft);
+}
+.t-service-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.t-service-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+.t-service-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--t-muted);
+}
+.t-beta {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-red);
+  background: var(--t-red-soft);
+}
+.t-service-arrow {
+  color: #b9aca7;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+.t-service:hover .t-service-arrow {
+  color: var(--t-red);
+  transform: translateX(3px);
+}
+
+/* ---------- Footer ---------- */
+.t-footer {
+  margin-top: auto;
+  background: #fff;
+  border-top: 1px solid var(--t-line);
+}
+.t-footer-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px;
+}
+.t-complaint {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--t-line);
+}
+.t-complaint-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+.t-complaint-text {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--t-muted);
+}
+.t-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.t-copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--t-muted);
+}
+.t-social {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 599px) {
+  .t-nav a:not(:last-child) {
+    display: none;
+  }
+  .t-hero {
+    padding: 36px 16px 92px;
+  }
+  .t-main {
+    padding: 0 14px 40px;
+  }
+  .t-search {
+    padding: 14px;
+    margin-bottom: 40px;
+  }
+  .t-search-row {
+    flex-direction: column;
+  }
+  .t-search-btn {
+    width: 100%;
+  }
+  .t-steps {
+    grid-template-columns: 1fr;
+  }
+  .t-service-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 900px) {
+  .t-service-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .t-service {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 20px;
+  }
+  .t-service-arrow {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-promo,
+  .t-service,
+  .t-service-arrow,
+  .t-nav a::after {
+    transition: none;
   }
 }
 </style>

@@ -38,6 +38,7 @@ interface SoHeader {
 
   DpKurang: "Y" | "N";
   MinimalDp: number;
+  DpOtorisasi: number;
   Netto: number;
   [key: string]: unknown;
 }
@@ -569,8 +570,8 @@ const printData = () => {
     return;
   }
 
-  // [BARU] Hard block — DP belum memenuhi minimal, tidak bisa dicetak sama sekali
-  if (item.DpKurang === "Y") {
+  // Hard block — DP belum memenuhi minimal dan belum diotorisasi
+  if (item.DpKurang === "Y" && Number(item.DpOtorisasi) !== 1) {
     toast.error(
       `Tidak bisa cetak: DP belum memenuhi syarat. DP saat ini ${formatRupiah(
         Number(item.Dp || 0)
@@ -1578,12 +1579,23 @@ onBeforeRouteLeave((to, from, next) => {
                   <span>{{ item.Status }}</span>
                   <v-tooltip
                     v-if="item.DpKurang === 'Y'"
-                    text="DP belum memenuhi minimal"
+                    :text="
+                      Number(item.DpOtorisasi) === 1
+                        ? 'DP kurang, sudah diotorisasi'
+                        : 'DP belum memenuhi minimal'
+                    "
                     location="top"
                   >
                     <template #activator="{ props }">
-                      <v-icon v-bind="props" size="14" color="orange-darken-2"
-                        >mdi-alert-circle</v-icon
+                      <v-icon
+                        v-bind="props"
+                        size="14"
+                        :color="
+                          Number(item.DpOtorisasi) === 1 ? 'green-darken-2' : 'orange-darken-2'
+                        "
+                        >{{
+                          Number(item.DpOtorisasi) === 1 ? "mdi-check-circle" : "mdi-alert-circle"
+                        }}</v-icon
                       >
                     </template>
                   </v-tooltip>

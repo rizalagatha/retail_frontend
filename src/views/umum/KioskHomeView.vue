@@ -174,6 +174,11 @@ const wake = () => {
   arm();
 };
 
+// Di luar layar tunggu: sentuhan hanya mengatur ulang timer. Di layar tunggu, penutupan ditangani lapisan .kh-attract-wake
+const onPointer = () => {
+  if (!attract.value) arm();
+};
+
 let photoTimer: ReturnType<typeof setInterval> | undefined;
 let promoTimer: ReturnType<typeof setInterval> | undefined;
 let stokTimer: ReturnType<typeof setInterval> | undefined;
@@ -190,7 +195,7 @@ onMounted(() => {
   }, PROMO_ROTATE_MS);
   stokTimer = setInterval(loadStok, STOK_POLL_MS);
   slowTimer = setInterval(loadPromos, 600_000); // kiosk menyala berhari-hari, promo perlu disegarkan
-  window.addEventListener("pointerdown", wake, { passive: true });
+  window.addEventListener("pointerdown", onPointer, { passive: true });
 });
 onUnmounted(() => {
   clearTimeout(idleTimer);
@@ -199,7 +204,7 @@ onUnmounted(() => {
   clearInterval(stokTimer);
   clearInterval(slowTimer);
   cancelAnimationFrame(raf);
-  window.removeEventListener("pointerdown", wake);
+  window.removeEventListener("pointerdown", onPointer);
 });
 </script>
 
@@ -338,6 +343,7 @@ onUnmounted(() => {
           allow="autoplay"
           tabindex="-1"
         ></iframe>
+        <div class="kh-attract-wake" @pointerdown="wake"></div>
         <div class="kh-attract-hint"><span class="kh-pulse"></span>Sentuh layar untuk mulai</div>
       </div>
     </Transition>
@@ -587,7 +593,7 @@ onUnmounted(() => {
   width: clamp(110px, 12vw, 210px);
   filter: drop-shadow(0 10px 14px rgba(60, 20, 15, 0.2));
   animation: kh-shirt-bob 5s ease-in-out infinite;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .kh-studio-body {
   fill: #b71c1c;
@@ -917,6 +923,19 @@ onUnmounted(() => {
   border: none;
   pointer-events: none; /* sentuhan ditangkap beranda untuk menutup layar tunggu */
 }
+/* Lapisan penutup layar tunggu: semua area kecuali sudut kanan-bawah 120px (tombol unmute) */
+.kh-attract-wake {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 120px),
+    calc(100% - 120px) calc(100% - 120px),
+    calc(100% - 120px) 100%,
+    0 100%
+  );
+}
 .kh-attract-hint {
   position: absolute;
   left: 50%;
@@ -932,6 +951,7 @@ onUnmounted(() => {
   background: rgba(20, 8, 6, 0.7);
   backdrop-filter: blur(6px);
   transform: translateX(-50%);
+  pointer-events: none;
 }
 .kh-pulse {
   width: 12px;
@@ -1037,6 +1057,17 @@ onUnmounted(() => {
     width: 100vh;
     height: 100vw;
     transform: translate(-50%, -50%) rotate(var(--kh-rot));
+  }
+  /* iframe diputar 90deg: sudut kanan-bawah asli pindah ke kiri-bawah */
+  .kh-attract-wake {
+    clip-path: polygon(
+      0 0,
+      100% 0,
+      100% 100%,
+      120px 100%,
+      120px calc(100% - 120px),
+      0 calc(100% - 120px)
+    );
   }
 }
 

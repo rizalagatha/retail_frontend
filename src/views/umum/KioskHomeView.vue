@@ -342,6 +342,7 @@ onUnmounted(() => {
           title="Signage Kaosan"
           allow="autoplay"
           tabindex="-1"
+          style="pointer-events: auto"
         ></iframe>
         <div class="kh-attract-wake" @pointerdown="wake"></div>
         <div class="kh-attract-hint"><span class="kh-pulse"></span>Sentuh layar untuk mulai</div>

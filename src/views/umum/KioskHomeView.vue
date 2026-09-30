@@ -968,10 +968,4 @@ onUnmounted(() => {
     display: none;
   }
 }
-
-@media (max-height: 900px) {
-  .kh-tile--lacak .kh-tile-desc {
-    display: none;
-  }
-}
 </style>

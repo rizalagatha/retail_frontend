@@ -648,9 +648,16 @@
 }
 
 .k-cat-cover {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
   background: linear-gradient(90deg, #ececec 25%, #f6f6f6 50%, #ececec 75%);
   background-size: 200% 100%;
   animation: k-shimmer 1.3s infinite linear;
+}
+.k-cat-cover > .ph {
+  position: absolute;
+  inset: 0;
 }
 .k-cat-cover img {
   opacity: 0;

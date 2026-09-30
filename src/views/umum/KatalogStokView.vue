@@ -6,7 +6,7 @@ import { useDisplay } from "vuetify";
 import api from "@/services/api";
 import { getFabricTexture } from "@/utils/fabricTextures";
 import LogoKaosan from "@/assets/logo.png";
-import { isKiosk } from "@/composables/useKiosk";
+import { isKiosk, PAMERAN_KODE } from "@/composables/useKiosk";
 
 // --- Tipe Data ---
 interface StoreItem {
@@ -53,6 +53,7 @@ const ROUTE_NAME = "Katalog Stok";
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const LOW_STOCK_TOTAL = 5; // total stok semua ukuran <= ini dianggap "sisa sedikit"
+const POLL_MS = 20_000;
 
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
@@ -89,29 +90,34 @@ const imgBuster = ref("");
 const isLoadingStok = ref(false);
 const stokError = ref(false);
 
-const loadStok = async (kode: string, force = false) => {
+const loadStok = async (kode: string, force = false, silent = false) => {
+  // Kiosk: cache pendek agar stok pameran tidak basi; silent = penyegaran latar tanpa skeleton
+  const ttl = isKiosk.value ? 10_000 : CACHE_TTL_MS;
   const cached = stokCache.get(kode);
-  if (cached && !force && Date.now() - cached.at < CACHE_TTL_MS) {
+  if (!silent && cached && !force && Date.now() - cached.at < ttl) {
     stokResults.value = cached.items;
     imgBuster.value = cached.buster;
     stokError.value = false;
     return;
   }
 
-  isLoadingStok.value = true;
-  stokError.value = false;
-  stokResults.value = [];
+  if (!silent) {
+    isLoadingStok.value = true;
+    stokError.value = false;
+    stokResults.value = [];
+  }
   try {
     const { data } = await api.get("/so/public/cek-stok", { params: { cabang: kode, q: "" } });
-    const buster = `?t=${Date.now()}`;
+    // Penyegaran latar memakai buster lama agar foto tidak diunduh ulang tiap 20 detik
+    const buster = silent && imgBuster.value ? imgBuster.value : `?t=${Date.now()}`;
     stokCache.set(kode, { items: data, buster, at: Date.now() });
     if (tokoParam.value !== kode) return; // user sudah pindah toko saat menunggu
     stokResults.value = data;
     imgBuster.value = buster;
   } catch {
-    if (tokoParam.value === kode) stokError.value = true;
+    if (!silent && tokoParam.value === kode) stokError.value = true;
   } finally {
-    if (tokoParam.value === kode) isLoadingStok.value = false;
+    if (!silent && tokoParam.value === kode) isLoadingStok.value = false;
   }
 };
 
@@ -305,6 +311,7 @@ const goBack = () => {
 
 const headerTitle = computed(() => {
   if (phase.value === "store") return "Cek Stok Store";
+  if (isKiosk.value && tokoParam.value === PAMERAN_KODE) return "Stok Pameran";
   const toko = currentStore.value?.nama || tokoParam.value;
   return phase.value === "category" ? toko : `${toko}`;
 });
@@ -343,6 +350,7 @@ watch(
 
 // Toko yang tidak dikenal -> kembali ke daftar toko
 watch([stores, tokoParam], () => {
+  if (isKiosk.value) return;
   if (isLoadingStores.value || !tokoParam.value) return;
   if (!stores.value.some((s) => s.kode === tokoParam.value)) {
     router.replace({ name: ROUTE_NAME });
@@ -369,14 +377,23 @@ watch([headerTitle, headerSub], () => {
   document.title = `${headerTitle.value} - Katalog Kaosan`;
 });
 
+let pollTimer: ReturnType<typeof setInterval> | undefined;
+
 onMounted(() => {
   fetchStores();
   document.title = `${headerTitle.value} - Katalog Kaosan`;
+
+  if (isKiosk.value) {
+    pollTimer = setInterval(() => {
+      if (tokoParam.value && !document.hidden) loadStok(tokoParam.value, true, true);
+    }, POLL_MS);
+  }
 });
 
 onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
+  clearInterval(pollTimer);
 });
 </script>
 

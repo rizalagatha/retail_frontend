@@ -2,6 +2,7 @@ import { ref } from "vue";
 import type { Router } from "vue-router";
 
 const STORAGE_KEY = "kaosan_kiosk";
+export const PAMERAN_KODE = "B02"; // kode cabang pameran, satu sumber untuk seluruh kiosk
 const IDLE_MS = 90_000; // tanpa sentuhan sebelum peringatan muncul
 export const WARN_SECONDS = 15; // hitung mundur sebelum kembali ke beranda
 

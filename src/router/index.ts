@@ -376,7 +376,7 @@ const routes = [
     },
   },
   {
-    path: "/cek-stok/:toko?/:kategori?",
+    path: "/cek-stok/:kategori?",
     name: "Katalog Stok",
     component: KatalogStokView,
     meta: { title: "Cek Stok Store", layout: "PrintLayout", requiresAuth: false, public: true },

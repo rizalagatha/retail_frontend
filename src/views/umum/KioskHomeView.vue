@@ -267,11 +267,7 @@ onUnmounted(() => {
         </button>
 
         <!-- STOK PAMERAN: angka hidup -->
-        <button
-          class="kh-tile kh-tile--stok"
-          style="--i: 2"
-          @click="router.push(`/cek-stok/${PAMERAN_KODE}`)"
-        >
+        <button class="kh-tile kh-tile--stok" style="--i: 2" @click="router.push('/cek-stok')">
           <span class="kh-live"><i class="kh-live-dot"></i>Stok langsung</span>
           <span class="kh-stok-num">{{ stokTotal === null ? "-" : rupiah(stokShown) }}</span>
           <span class="kh-tile-text">
@@ -279,7 +275,7 @@ onUnmounted(() => {
             <span class="kh-tile-desc">
               {{
                 stokModels
-                  ? `pcs siap di ${stokModels} model, berkurang otomatis saat terjual`
+                  ? `pcs siap di ${stokModels} model`
                   : "Ketersediaan barang di pameran ini"
               }}
             </span>
@@ -453,7 +449,7 @@ onUnmounted(() => {
 .kh-grid {
   display: grid;
   grid-template-columns: 1.15fr 1fr;
-  grid-template-rows: 1fr 1fr 0.7fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
   grid-template-areas:
     "katalog lacak"
     "katalog stok"
@@ -696,12 +692,22 @@ onUnmounted(() => {
 }
 .kh-stok-num {
   font-family: var(--kh-display);
-  font-size: clamp(56px, 6vw, 112px);
+  font-size: clamp(44px, min(6vw, 9vh), 104px);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   color: #b71c1c;
+}
+.kh-tile--stok {
+  gap: 6px;
+}
+.kh-tile--stok .kh-tile-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Info & promo */
@@ -752,10 +758,12 @@ onUnmounted(() => {
 }
 .kh-coupon-val b {
   font-family: var(--kh-display);
-  font-size: clamp(22px, 2.4vw, 40px);
+  font-size: clamp(18px, 2vw, 34px);
   font-weight: 800;
   line-height: 1.05;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
 }
 .kh-coupon-body {
   flex: 1;
@@ -900,7 +908,7 @@ onUnmounted(() => {
   }
   .kh-grid {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1.3fr 1fr 0.8fr;
+    grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr) auto;
     grid-template-areas:
       "katalog katalog"
       "lacak stok"
@@ -912,6 +920,14 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
     justify-content: space-between;
+  }
+  .kh-tile--info .kh-tile-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .kh-tile--info .kh-tile-title {
+    white-space: nowrap;
+    font-size: clamp(22px, 2.2vw, 38px);
   }
   .kh-coupon {
     min-width: 0;
@@ -944,6 +960,18 @@ onUnmounted(() => {
   .kh-step-dot {
     border-color: #fff;
     background: #fff;
+  }
+}
+
+@media (max-height: 820px) {
+  .kh-tile--info .kh-tile-desc {
+    display: none;
+  }
+}
+
+@media (max-height: 900px) {
+  .kh-tile--lacak .kh-tile-desc {
+    display: none;
   }
 }
 </style>

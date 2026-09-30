@@ -1,0 +1,32 @@
+/* Dialog detail: desktop = naik + zoom halus, HP = bottom sheet */
+.k-dialog-enter-active {
+  transition: opacity 0.3s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-dialog-leave-active {
+  transition: opacity 0.18s ease, transform 0.22s ease-in;
+}
+.k-dialog-enter-from,
+.k-dialog-leave-to {
+  opacity: 0;
+  transform: translateY(24px) scale(0.96);
+}
+
+.k-sheet-enter-active {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.k-sheet-leave-active {
+  transition: transform 0.26s ease-in;
+}
+.k-sheet-enter-from,
+.k-sheet-leave-to {
+  transform: translateY(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-dialog-enter-active,
+  .k-dialog-leave-active,
+  .k-sheet-enter-active,
+  .k-sheet-leave-active {
+    transition: none !important;
+  }
+}

@@ -1,20 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useToast } from "vue-toastification";
 import { useDisplay } from "vuetify";
 import api from "@/services/api";
-import { getFabricTexture } from "@/utils/fabricTextures";
 import LogoKaosan from "@/assets/logo.png";
+import SiteFooter from "@/components/SiteFooter.vue";
+import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { isKiosk, PAMERAN_KODE } from "@/composables/useKiosk";
 
-// --- Tipe Data ---
-interface StoreItem {
-  kode: string;
-  nama: string;
-}
-
-interface StokItem {
+interface StokRow {
   kode: string;
   jenis_kain: string;
   jenis_kaos: string;
@@ -29,100 +23,81 @@ interface StokItem {
   galeri?: { url: string; index: number }[] | string | null;
 }
 
-interface GroupedStokItem {
+interface SizeStock {
+  ukuran: string;
+  harga: number;
+  stok: number;
+}
+
+interface Product {
   kode: string;
   nama: string;
+  kategori: string;
+  lengan: string;
   hargaMin: number;
   hargaMax: number;
-  jenis_kain_final: string;
-  lengan: string;
-  total_terjual: number;
-  total_stok: number;
-  gambar_url: string | null;
+  totalStok: number;
+  terjual: number;
+  sizes: SizeStock[];
+  gambar: string | null;
   urutan: number;
   galeri: { url: string; index: number }[];
-  variants: StokItem[];
+  coverIndex: number;
 }
+
+type StokState = "ok" | "low" | "out";
 
 const route = useRoute();
 const router = useRouter();
-const toast = useToast();
-const { xs } = useDisplay();
+const { xs, mdAndUp } = useDisplay();
 
 const ROUTE_NAME = "Katalog Stok";
-const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const LOW_STOCK_TOTAL = 5; // total stok semua ukuran <= ini dianggap "sisa sedikit"
 const POLL_MS = 20_000;
+const HANYA_ADA_STOK = true; // false = barang habis tetap tampil dengan label "Habis"
+const STOK_MENIPIS_TOTAL = 5; // total semua ukuran <= ini: "Sisa sedikit"
+const STOK_MENIPIS_UKURAN = 3; // stok satu ukuran <= ini: oranye
 
+const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
+const formatHarga = (min: number, max: number) => {
+  if (!max || max <= 0) return null;
+  if (min === max) return rp(min);
+  return `${rp(min)} - ${new Intl.NumberFormat("id-ID").format(max)}`;
+};
+
 // --- Fase dari URL ---
-const tokoParam = computed(() => (route.params.toko as string) || "");
 const kategoriParam = computed(() => (route.params.kategori as string) || "");
-const phase = computed<"store" | "category" | "products">(() =>
-  !tokoParam.value ? "store" : !kategoriParam.value ? "category" : "products"
+const phase = computed<"category" | "products">(() =>
+  kategoriParam.value ? "products" : "category"
 );
 const selectedKategori = computed(() =>
   kategoriParam.value === "semua" ? "ALL" : kategoriParam.value
 );
 
-// --- Daftar toko ---
-const stores = ref<StoreItem[]>([]);
-const isLoadingStores = ref(true);
-const currentStore = computed(() => stores.value.find((s) => s.kode === tokoParam.value) || null);
+// --- Data (stok B02, disegarkan berkala) ---
+const rows = ref<StokRow[]>([]);
+const isLoading = ref(true);
+const hasError = ref(false);
 
-const fetchStores = async () => {
-  try {
-    const { data } = await api.get("/so/public/stores");
-    stores.value = data;
-  } catch {
-    toast.error("Gagal memuat daftar toko.");
-  } finally {
-    isLoadingStores.value = false;
-  }
-};
-
-// --- Data stok (di-cache per toko) ---
-const stokCache = new Map<string, { items: StokItem[]; buster: string; at: number }>();
-const stokResults = ref<StokItem[]>([]);
-const imgBuster = ref("");
-const isLoadingStok = ref(false);
-const stokError = ref(false);
-
-const loadStok = async (kode: string, force = false, silent = false) => {
-  // Kiosk: cache pendek agar stok pameran tidak basi; silent = penyegaran latar tanpa skeleton
-  const ttl = isKiosk.value ? 10_000 : CACHE_TTL_MS;
-  const cached = stokCache.get(kode);
-  if (!silent && cached && !force && Date.now() - cached.at < ttl) {
-    stokResults.value = cached.items;
-    imgBuster.value = cached.buster;
-    stokError.value = false;
-    return;
-  }
-
+const loadStok = async (silent = false) => {
   if (!silent) {
-    isLoadingStok.value = true;
-    stokError.value = false;
-    stokResults.value = [];
+    isLoading.value = true;
+    hasError.value = false;
   }
   try {
-    const { data } = await api.get("/so/public/cek-stok", { params: { cabang: kode, q: "" } });
-    // Penyegaran latar memakai buster lama agar foto tidak diunduh ulang tiap 20 detik
-    const buster = silent && imgBuster.value ? imgBuster.value : `?t=${Date.now()}`;
-    stokCache.set(kode, { items: data, buster, at: Date.now() });
-    if (tokoParam.value !== kode) return; // user sudah pindah toko saat menunggu
-    stokResults.value = data;
-    imgBuster.value = buster;
+    const { data } = await api.get("/so/public/cek-stok", {
+      params: { cabang: PAMERAN_KODE, q: "" },
+    });
+    rows.value = data;
   } catch {
-    if (!silent && tokoParam.value === kode) stokError.value = true;
+    if (!silent) hasError.value = true;
   } finally {
-    if (!silent && tokoParam.value === kode) isLoadingStok.value = false;
+    if (!silent) isLoading.value = false;
   }
 };
 
-// --- Pengelompokan per kode barang ---
-const getSizeRank = (size: string) => {
+const sizeRank = (size: string) => {
   const s = (size || "").toUpperCase().trim();
   const ranks: Record<string, number> = {
     XS: 1,
@@ -142,74 +117,127 @@ const getSizeRank = (size: string) => {
   return isNaN(n) ? 999 : 20 + n;
 };
 
-const masterGrouped = computed<GroupedStokItem[]>(() => {
-  const map = new Map<string, GroupedStokItem>();
-  const bust = imgBuster.value;
+// Foto kartu dipilih sekali per kode, agar tidak berganti tiap stok disegarkan
+const coverPick = new Map<string, number>();
+const pickCover = (kode: string, total: number) => {
+  if (!total) return 0;
+  if (!coverPick.has(kode)) coverPick.set(kode, Math.floor(Math.random() * total));
+  return coverPick.get(kode)!;
+};
 
-  stokResults.value.forEach((item) => {
-    if (!map.has(item.kode)) {
+const products = computed<Product[]>(() => {
+  const map = new Map<string, Product>();
+
+  rows.value.forEach((r) => {
+    let p = map.get(r.kode);
+    if (!p) {
       let galeri: { url: string; index: number }[] = [];
       try {
-        const raw = item.galeri
-          ? typeof item.galeri === "string"
-            ? JSON.parse(item.galeri)
-            : item.galeri
-          : [];
-        galeri = raw.map((g: { url: string; index: number }) => ({
-          ...g,
-          url: g.url ? `${g.url}${bust}` : g.url,
-        }));
+        galeri = r.galeri ? (typeof r.galeri === "string" ? JSON.parse(r.galeri) : r.galeri) : [];
       } catch {
         galeri = [];
       }
 
-      let kategori = (item.jenis_kain || "").trim() || "LAIN-LAIN";
-      const namaUp = (item.nama || "").toUpperCase();
-      const kaosUp = (item.jenis_kaos || "").toUpperCase();
-      if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS")) {
+      let kategori = (r.jenis_kain || "").trim() || "LAIN-LAIN";
+      const namaUp = (r.nama || "").toUpperCase();
+      const kaosUp = (r.jenis_kaos || "").toUpperCase();
+      if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
         kategori = "KAOS ANAK";
-      } else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) {
-        kategori = "TUNIK";
-      }
+      else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) kategori = "TUNIK";
 
-      const harga = Number(item.harga) || 0;
-      map.set(item.kode, {
-        kode: item.kode,
-        nama: item.nama,
-        hargaMin: harga > 0 ? harga : Number.MAX_SAFE_INTEGER,
-        hargaMax: harga,
-        jenis_kain_final: kategori,
-        lengan: (item.lengan || "").toUpperCase(),
-        total_terjual: 0,
-        total_stok: 0,
-        gambar_url: item.gambar_url ? `${item.gambar_url}${bust}` : null,
-        urutan: item.urutan || 9999,
+      const coverIndex = pickCover(r.kode, galeri.length);
+      p = {
+        kode: r.kode,
+        nama: r.nama,
+        kategori,
+        lengan: (r.lengan || "").toUpperCase(),
+        hargaMin: 0,
+        hargaMax: 0,
+        totalStok: 0,
+        terjual: 0,
+        sizes: [],
+        gambar: galeri.length ? galeri[coverIndex].url : r.gambar_url ?? null,
+        urutan: r.urutan || 9999,
         galeri,
-        variants: [],
-      });
+        coverIndex,
+      };
+      map.set(r.kode, p);
     }
 
-    const g = map.get(item.kode)!;
-    const harga = Number(item.harga) || 0;
-    g.total_stok += Number(item.stok) || 0;
-    g.total_terjual += Number(item.total_terjual) || 0;
-    if (harga > g.hargaMax) g.hargaMax = harga;
-    if (harga > 0 && harga < g.hargaMin) g.hargaMin = harga;
-    g.variants.push(item);
+    const stok = Math.max(0, Number(r.stok) || 0);
+    p.sizes.push({ ukuran: r.ukuran, harga: Number(r.harga) || 0, stok });
+    p.totalStok += stok;
+    p.terjual += Number(r.total_terjual) || 0;
   });
 
-  const result = Array.from(map.values());
-  result.forEach((g) => {
-    if (g.hargaMin === Number.MAX_SAFE_INTEGER) g.hargaMin = 0;
-    g.variants.sort((a, b) => getSizeRank(a.ukuran) - getSizeRank(b.ukuran));
+  map.forEach((p) => {
+    p.sizes.sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
+    const prices = p.sizes.map((s) => s.harga).filter((h) => h > 0);
+    p.hargaMin = prices.length ? Math.min(...prices) : 0;
+    p.hargaMax = prices.length ? Math.max(...prices) : 0;
   });
-  return result;
+
+  return [...map.values()];
 });
+
+const stocked = computed(() =>
+  HANYA_ADA_STOK ? products.value.filter((p) => p.totalStok > 0) : products.value
+);
+
+// --- Cover & hero (dipilih sekali saat data pertama tiba) ---
+const coverMap = ref<Record<string, string>>({});
+const semuaCovers = ref<string[]>([]);
+const heroImages = ref<string[]>([]);
+
+const shuffle = <T>(arr: T[]) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+const mainPhoto = (p: Product) => p.galeri[0]?.url ?? p.gambar;
+
+let coversReady = false;
+watch(
+  stocked,
+  (list) => {
+    if (coversReady || !list.length) return;
+    coversReady = true;
+
+    const groups = new Map<string, string[]>();
+    list.forEach((p) => {
+      const main = mainPhoto(p);
+      if (!main) return;
+      if (!groups.has(p.kategori)) groups.set(p.kategori, []);
+      groups.get(p.kategori)!.push(main);
+    });
+
+    const picked: Record<string, string> = {};
+    groups.forEach((imgs, kategori) => {
+      picked[kategori] = imgs[Math.floor(Math.random() * imgs.length)];
+    });
+    coverMap.value = picked;
+    semuaCovers.value = shuffle(Object.values(picked)).slice(0, 4);
+
+    const hero = shuffle(Object.values(picked)).slice(0, 8);
+    if (hero.length < 8) {
+      const extra = shuffle(
+        list.map(mainPhoto).filter((g): g is string => !!g && !hero.includes(g))
+      );
+      hero.push(...extra.slice(0, 8 - hero.length));
+    }
+    heroImages.value = hero;
+  },
+  { immediate: true }
+);
 
 const kategoriList = computed(() => {
   const count: Record<string, number> = {};
-  masterGrouped.value.forEach((i) => {
-    count[i.jenis_kain_final] = (count[i.jenis_kain_final] || 0) + 1;
+  stocked.value.forEach((p) => {
+    count[p.kategori] = (count[p.kategori] || 0) + 1;
   });
   return Object.keys(count)
     .sort((a, b) => {
@@ -217,195 +245,258 @@ const kategoriList = computed(() => {
       if (b === "LAIN-LAIN") return -1;
       return count[b] - count[a];
     })
-    .map((nama) => ({ nama, jumlah: count[nama] }));
+    .map((nama) => ({ nama, jumlah: count[nama], cover: coverMap.value[nama] || null }));
 });
 
-// --- Filter (lengan & pencarian disimpan di query URL) ---
+// --- Filter (di query URL) ---
 const lengan = computed(() => String(route.query.lengan || "SEMUA").toUpperCase());
-const searchTerm = computed(() => String(route.query.q || ""));
 const searchInput = ref(String(route.query.q || ""));
-
+const searchTerm = ref(searchInput.value.trim());
 const lenganOptions = [
   { label: "Semua", value: "SEMUA" },
   { label: "Pendek", value: "PENDEK" },
   { label: "Panjang", value: "PANJANG" },
 ];
 
-const setLengan = (value: string) => {
-  router.replace({ query: { ...route.query, lengan: value === "SEMUA" ? undefined : value } });
+const setLengan = (v: string) =>
+  router.replace({
+    query: {
+      ...route.query,
+      q: searchTerm.value || undefined,
+      lengan: v === "SEMUA" ? undefined : v,
+    },
+  });
+
+// Kata kunci disimpan di URL tanpa memicu router, agar fokus kolom tidak hilang
+const syncSearchToUrl = (q: string) => {
+  const url = new URL(window.location.href);
+  if (q) url.searchParams.set("q", q);
+  else url.searchParams.delete("q");
+  window.history.replaceState(window.history.state, "", url);
 };
 
 let searchTimer: ReturnType<typeof setTimeout>;
 watch(searchInput, (v) => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
-    router.replace({ query: { ...route.query, q: v.trim() || undefined } });
-  }, 300);
+    searchTerm.value = v?.trim() || "";
+    syncSearchToUrl(searchTerm.value);
+  }, 400);
 });
 
-const filteredProducts = computed(() => {
-  let data = [...masterGrouped.value];
-
-  if (selectedKategori.value !== "ALL") {
-    data = data.filter((i) => i.jenis_kain_final === selectedKategori.value);
-  }
-  if (lengan.value !== "SEMUA") {
-    data = data.filter((i) => i.lengan.includes(lengan.value));
-  }
+const filtered = computed(() => {
+  let data = [...stocked.value];
+  if (selectedKategori.value !== "ALL")
+    data = data.filter((p) => p.kategori === selectedKategori.value);
+  if (lengan.value !== "SEMUA") data = data.filter((p) => p.lengan.includes(lengan.value));
   if (searchTerm.value) {
     const q = searchTerm.value.toLowerCase();
-    data = data.filter((i) => i.nama.toLowerCase().includes(q) || i.kode.toLowerCase().includes(q));
+    data = data.filter((p) => p.nama.toLowerCase().includes(q) || p.kode.toLowerCase().includes(q));
   }
-
-  data.sort((a, b) => {
-    if (a.urutan !== b.urutan) return a.urutan - b.urutan;
-    if (b.total_terjual !== a.total_terjual) return b.total_terjual - a.total_terjual;
-    return a.nama.localeCompare(b.nama);
-  });
-  return data;
+  return data.sort(
+    (a, b) =>
+      Number(!a.gambar) - Number(!b.gambar) ||
+      a.urutan - b.urutan ||
+      b.terjual - a.terjual ||
+      a.nama.localeCompare(b.nama)
+  );
 });
 
-// --- Load more (infinite scroll) ---
+// --- Load more ---
 const displayCount = ref(20);
-const visibleProducts = computed(() => filteredProducts.value.slice(0, displayCount.value));
+const visible = computed(() => filtered.value.slice(0, displayCount.value));
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
-const setupObserver = () => {
-  observer?.disconnect();
-  if (!sentinel.value) return;
-  observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0].isIntersecting && displayCount.value < filteredProducts.value.length) {
-        displayCount.value += 20;
-      }
-    },
-    { rootMargin: "300px" }
-  );
-  observer.observe(sentinel.value);
+const onIntersect = (entries: IntersectionObserverEntry[]) => {
+  if (!entries[0].isIntersecting) return;
+  if (displayCount.value >= filtered.value.length) return;
+  displayCount.value += 20;
+  const el = sentinel.value;
+  if (el && observer) {
+    observer.unobserve(el);
+    nextTick(() => observer?.observe(el));
+  }
 };
 
-watch(displayCount, async () => {
-  await nextTick();
-  setupObserver();
-});
+const setSentinel = (el: unknown) => {
+  sentinel.value = (el as HTMLElement) || null;
+  if (!el) return;
+  observer ??= new IntersectionObserver(onIntersect, { rootMargin: "300px" });
+  observer.disconnect();
+  observer.observe(el as Element);
+};
 
-watch([filteredProducts], () => {
+watch(filtered, () => {
   displayCount.value = 20;
 });
 
+// Stagger kartu hanya sekali saat masuk ke halaman produk
+const firstGrid = ref(true);
+watch(selectedKategori, () => {
+  firstGrid.value = false;
+});
+watch(phase, (p) => {
+  if (p === "category") firstGrid.value = true;
+});
+
+const scrollTop = () => window.scrollTo({ top: 0 });
+
+const searchEl = ref<HTMLInputElement | null>(null);
+const onSlashKey = (e: KeyboardEvent) => {
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (e.key !== "/" || tag === "INPUT" || tag === "TEXTAREA") return;
+  e.preventDefault();
+  searchEl.value?.focus();
+};
+
+const imgFailed = reactive<Record<string, boolean>>({});
+const onImgLoad = (e: Event) => (e.target as HTMLImageElement).classList.add("is-loaded");
+
+// --- Status stok ---
+const totalState = (n: number): StokState =>
+  n <= 0 ? "out" : n <= STOK_MENIPIS_TOTAL ? "low" : "ok";
+const sizeState = (n: number): StokState =>
+  n <= 0 ? "out" : n <= STOK_MENIPIS_UKURAN ? "low" : "ok";
+const sizeLabel = (n: number) =>
+  n <= 0 ? "Habis" : n <= STOK_MENIPIS_UKURAN ? `Sisa ${n}` : `${n} pcs`;
+
 // --- Navigasi ---
-const pilihStore = (kode: string) => router.push({ name: ROUTE_NAME, params: { toko: kode } });
 const pilihKategori = (nama: string) =>
   router.push({
     name: ROUTE_NAME,
-    params: { toko: tokoParam.value, kategori: nama === "ALL" ? "semua" : nama },
+    params: { kategori: nama === "ALL" ? "semua" : nama },
+    query: { ...route.query, q: searchTerm.value || undefined },
   });
+const goBack = () =>
+  phase.value === "products" ? router.push({ name: ROUTE_NAME }) : router.push(homePath.value);
 
-const goBack = () => {
-  if (phase.value === "products")
-    router.push({ name: ROUTE_NAME, params: { toko: tokoParam.value } });
-  else if (phase.value === "category" && !isKiosk.value) router.push({ name: ROUTE_NAME });
-  else router.push(homePath.value);
-};
-
-const headerTitle = computed(() => {
-  if (phase.value === "store") return "Cek Stok Store";
-  if (isKiosk.value && tokoParam.value === PAMERAN_KODE) return "Stok Pameran";
-  const toko = currentStore.value?.nama || tokoParam.value;
-  return phase.value === "category" ? toko : `${toko}`;
-});
-const headerSub = computed(() => {
-  if (phase.value === "store") return "Pilih store untuk melihat barang ready";
-  if (phase.value === "category") return "Pilih kategori jenis kain";
-  return selectedKategori.value === "ALL" ? "Semua kategori" : selectedKategori.value;
-});
-
-// --- Detail produk ---
-const isDetailVisible = ref(false);
-const selectedProduct = ref<GroupedStokItem | null>(null);
-const isFullscreenVisible = ref(false);
-const fullscreenIndex = ref(0);
-
-const openDetail = (p: GroupedStokItem) => {
-  selectedProduct.value = p;
-  isDetailVisible.value = true;
-};
-const openFullscreen = (i: number) => {
-  fullscreenIndex.value = i;
-  isFullscreenVisible.value = true;
-};
-
-const isLowStock = (p: GroupedStokItem) => p.total_stok > 0 && p.total_stok <= LOW_STOCK_TOTAL;
-
-// --- Sinkronisasi dengan route ---
-watch(
-  tokoParam,
-  (kode) => {
-    if (kode) loadStok(kode);
-    else stokResults.value = [];
-  },
-  { immediate: true }
+const headerSub = computed(() =>
+  phase.value === "category"
+    ? "Pilih jenis kain"
+    : selectedKategori.value === "ALL"
+    ? "Semua kategori"
+    : selectedKategori.value
 );
 
-// Toko yang tidak dikenal -> kembali ke daftar toko
-watch([stores, tokoParam], () => {
-  if (isKiosk.value) return;
-  if (isLoadingStores.value || !tokoParam.value) return;
-  if (!stores.value.some((s) => s.kode === tokoParam.value)) {
-    router.replace({ name: ROUTE_NAME });
-  }
-});
+// --- Detail (dibaca dari data terbaru, jadi stok di dialog ikut berubah) ---
+const detailVisible = ref(false);
+const selectedKode = ref<string | null>(null);
+const selected = computed(() => products.value.find((p) => p.kode === selectedKode.value) ?? null);
+const detailIndex = ref(0);
 
-watch([phase, kategoriParam], async () => {
-  searchInput.value = String(route.query.q || "");
-  displayCount.value = 20;
-  window.scrollTo({ top: 0 });
-  await nextTick();
-  setupObserver();
-});
+const openDetail = (p: Product) => {
+  selectedKode.value = p.kode;
+  detailIndex.value = p.coverIndex;
+  detailVisible.value = true;
+};
 
-watch(
-  () => [phase.value, isLoadingStok.value],
-  async () => {
-    await nextTick();
-    setupObserver();
-  }
+const selectedHarga = computed(() =>
+  selected.value ? formatHarga(selected.value.hargaMin, selected.value.hargaMax) : null
 );
 
-watch([headerTitle, headerSub], () => {
-  document.title = `${headerTitle.value} - Katalog Kaosan`;
+const detailImages = computed<string[]>(() => {
+  const s = selected.value;
+  if (!s) return [];
+  if (s.galeri.length) return s.galeri.map((g) => g.url);
+  return s.gambar ? [s.gambar] : [];
+});
+
+// Ukuran dipecah per kolom (maksimal 7); di HP satu kolom saja
+const perColumn = computed(() => (xs.value ? 20 : 7));
+const sizeColumns = computed(() => {
+  const list = selected.value?.sizes ?? [];
+  const cols: SizeStock[][] = [];
+  for (let i = 0; i < list.length; i += perColumn.value) {
+    cols.push(list.slice(i, i + perColumn.value));
+  }
+  return cols;
+});
+
+// --- Lightbox ---
+const lightboxOpen = ref(false);
+const lbDx = ref(0);
+const lbDy = ref(0);
+const lbDir = ref(1);
+
+const openLightbox = (index: number, e?: Event) => {
+  const el = e?.currentTarget as HTMLElement | null;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    lbDx.value = r.left + r.width / 2 - window.innerWidth / 2;
+    lbDy.value = r.top + r.height / 2 - window.innerHeight / 2;
+  } else {
+    lbDx.value = 0;
+    lbDy.value = 0;
+  }
+  detailIndex.value = index;
+  lightboxOpen.value = true;
+};
+const closeLightbox = () => {
+  lightboxOpen.value = false;
+};
+const lbStep = (dir: 1 | -1) => {
+  const n = detailImages.value.length;
+  if (n < 2) return;
+  lbDir.value = dir;
+  detailIndex.value = (detailIndex.value + dir + n) % n;
+};
+
+let touchX = 0;
+const onLbTouchStart = (e: TouchEvent) => {
+  touchX = e.changedTouches[0].clientX;
+};
+const onLbTouchEnd = (e: TouchEvent) => {
+  const d = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(d) > 50) lbStep(d < 0 ? 1 : -1);
+};
+
+const onLbKey = (e: KeyboardEvent) => {
+  if (!lightboxOpen.value) return;
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    closeLightbox();
+  } else if (e.key === "ArrowLeft") {
+    e.stopPropagation();
+    lbStep(-1);
+  } else if (e.key === "ArrowRight") {
+    e.stopPropagation();
+    lbStep(1);
+  }
+};
+
+watch(detailVisible, (v) => {
+  if (!v) lightboxOpen.value = false;
 });
 
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 
 onMounted(() => {
-  fetchStores();
-  document.title = `${headerTitle.value} - Katalog Kaosan`;
-
-  if (isKiosk.value) {
-    pollTimer = setInterval(() => {
-      if (tokoParam.value && !document.hidden) loadStok(tokoParam.value, true, true);
-    }, POLL_MS);
-  }
+  document.title = "Stok Pameran - Kaosan";
+  loadStok();
+  pollTimer = setInterval(() => {
+    if (!document.hidden) loadStok(true);
+  }, POLL_MS);
+  window.addEventListener("keydown", onLbKey, true);
+  window.addEventListener("keydown", onSlashKey);
 });
-
 onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
   clearInterval(pollTimer);
+  window.removeEventListener("keydown", onLbKey, true);
+  window.removeEventListener("keydown", onSlashKey);
 });
 </script>
 
 <template>
   <div class="k-page">
-    <!-- HEADER -->
     <header class="k-header">
       <v-btn icon variant="text" size="small" aria-label="Kembali" @click="goBack">
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
       <div class="k-header-title">
-        <div class="k-title">{{ headerTitle }}</div>
+        <div class="k-title">Stok Pameran</div>
         <div class="k-sub">{{ headerSub }}</div>
       </div>
       <v-spacer />
@@ -414,93 +505,188 @@ onUnmounted(() => {
       </router-link>
     </header>
 
-    <!-- ================= FASE 1: PILIH TOKO ================= -->
-    <main v-if="phase === 'store'" class="k-container">
-      <p class="k-hint">Pilih store untuk melihat ketersediaan barang siap jual.</p>
-
-      <div v-if="isLoadingStores" class="k-store-grid">
-        <div v-for="n in 8" :key="n" class="k-skel k-skel-store"></div>
-      </div>
-
-      <div v-else class="k-store-grid">
-        <button
-          v-for="(store, i) in stores"
-          :key="store.kode"
-          class="k-store-card k-enter"
-          :style="{ '--i': i }"
-          @click="pilihStore(store.kode)"
-        >
-          <span class="k-store-avatar"><v-icon color="#D32F2F" size="22">mdi-store</v-icon></span>
-          <span class="k-store-text">
-            <span class="k-store-name">{{ store.nama }}</span>
-            <span class="k-store-sub">Store Kaosan</span>
-          </span>
-          <v-icon color="#D32F2F" size="20">mdi-chevron-right</v-icon>
-        </button>
-      </div>
-    </main>
-
-    <!-- ================= FASE 2: PILIH KATEGORI ================= -->
-    <main v-else-if="phase === 'category'" class="k-container">
-      <p class="k-hint">Pilih kategori jenis kain yang ingin dilihat.</p>
-
-      <div v-if="isLoadingStok" class="k-cat-grid">
-        <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
-      </div>
-
-      <div v-else-if="stokError" class="k-state">
-        <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
-        <div class="k-state-title">Gagal memuat data stok</div>
-        <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok(tokoParam, true)">
-          Coba Lagi
-        </v-btn>
-      </div>
-
-      <div v-else-if="masterGrouped.length === 0" class="k-state">
-        <v-icon size="48" color="grey">mdi-package-variant-closed</v-icon>
-        <div class="k-state-title">Stok di store ini sedang kosong</div>
-      </div>
-
-      <div v-else class="k-cat-grid">
-        <button class="k-cat-card k-enter" style="--i: 0" @click="pilihKategori('ALL')">
-          <div class="k-cat-tex" v-html="getFabricTexture('SEMUA')"></div>
-          <div class="k-cat-body">
-            <div class="k-cat-name">SEMUA</div>
-            <div class="k-cat-count">{{ masterGrouped.length }} item</div>
-          </div>
-        </button>
-
-        <button
-          v-for="(kat, i) in kategoriList"
-          :key="kat.nama"
-          class="k-cat-card k-enter"
-          :style="{ '--i': i + 1 }"
-          @click="pilihKategori(kat.nama)"
-        >
-          <div class="k-cat-tex" v-html="getFabricTexture(kat.nama)"></div>
-          <div class="k-cat-body">
-            <div class="k-cat-name">{{ kat.nama }}</div>
-            <div class="k-cat-count">{{ kat.jumlah }} item</div>
-          </div>
-        </button>
-      </div>
-    </main>
-
-    <!-- ================= FASE 3: GRID PRODUK ================= -->
-    <template v-else>
-      <div class="k-toolbar">
-        <div class="k-toolbar-inner">
-          <div class="k-chips">
-            <router-link
-              :to="{ name: ROUTE_NAME, params: { toko: tokoParam } }"
-              class="k-chip k-chip-link"
+    <Transition name="k-page" mode="out-in" appear @before-enter="scrollTop">
+      <!-- ============ KATEGORI ============ -->
+      <div v-if="phase === 'category'" key="category">
+        <section v-if="!isLoading && heroImages.length" class="k-hero">
+          <div class="k-hero-grid">
+            <div
+              v-for="(src, i) in heroImages"
+              :key="src"
+              class="k-hero-tile"
+              :style="{ '--i': i }"
             >
-              <v-icon size="14">mdi-layers-outline</v-icon>
-              {{ selectedKategori === "ALL" ? "Semua Kategori" : selectedKategori }}
-              <v-icon size="14">mdi-pencil-outline</v-icon>
-            </router-link>
+              <img :src="src" alt="" decoding="async" @load="onImgLoad" />
+            </div>
+          </div>
 
-            <div class="k-lengan">
+          <div class="k-hero-overlay">
+            <div class="k-hero-eyebrow">Stok Pameran</div>
+            <h1 class="k-hero-title">Stok <em>langsung</em> dari pameran.</h1>
+            <p class="k-hero-sub">Jumlah tiap ukuran berkurang otomatis saat terjual.</p>
+            <div class="k-hero-actions">
+              <button class="k-hero-btn k-hero-btn--solid" @click="pilihKategori('ALL')">
+                Lihat semua stok
+              </button>
+              <router-link to="/katalog" class="k-hero-btn k-hero-btn--ghost">
+                Lihat katalog
+              </router-link>
+            </div>
+          </div>
+        </section>
+
+        <main class="k-container">
+          <p class="k-hint">Pilih jenis kain untuk melihat stok yang tersedia.</p>
+          <Transition name="k-fade" mode="out-in">
+            <div v-if="isLoading" key="loading" class="k-cat-grid">
+              <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
+            </div>
+
+            <div v-else-if="hasError" key="error" class="k-state">
+              <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
+              <div class="k-state-title">Gagal memuat stok</div>
+              <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok()">
+                Coba Lagi
+              </v-btn>
+            </div>
+
+            <div v-else-if="!stocked.length" key="empty" class="k-state">
+              <v-icon size="48" color="grey">mdi-package-variant-closed</v-icon>
+              <div class="k-state-title">Belum ada stok pameran yang tersedia</div>
+            </div>
+
+            <div v-else key="ready" class="k-cat-grid">
+              <button class="k-cat-card k-enter" style="--i: 0" @click="pilihKategori('ALL')">
+                <div class="k-cat-cover k-cat-cover--mosaic">
+                  <img
+                    v-for="(src, n) in semuaCovers"
+                    :key="n"
+                    :src="src"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    @load="onImgLoad"
+                  />
+                </div>
+                <div class="k-cat-body">
+                  <div class="k-cat-name">SEMUA</div>
+                  <div class="k-cat-count">{{ stocked.length }} model</div>
+                </div>
+              </button>
+
+              <button
+                v-for="(kat, i) in kategoriList"
+                :key="kat.nama"
+                class="k-cat-card k-enter"
+                :style="{ '--i': (i + 1) % 12 }"
+                @click="pilihKategori(kat.nama)"
+              >
+                <div class="k-cat-cover">
+                  <img
+                    v-if="kat.cover && !imgFailed['cat-' + kat.nama]"
+                    :src="kat.cover"
+                    :alt="kat.nama"
+                    loading="lazy"
+                    decoding="async"
+                    @load="onImgLoad"
+                    @error="imgFailed['cat-' + kat.nama] = true"
+                  />
+                  <ProductPlaceholder v-else />
+                </div>
+                <div class="k-cat-body">
+                  <div class="k-cat-name">{{ kat.nama }}</div>
+                  <div class="k-cat-count">{{ kat.jumlah }} model</div>
+                </div>
+              </button>
+            </div>
+          </Transition>
+        </main>
+      </div>
+
+      <!-- ============ PRODUK ============ -->
+      <div v-else key="products">
+        <div v-if="!mdAndUp" class="k-toolbar">
+          <div class="k-toolbar-inner">
+            <div class="k-chips">
+              <router-link :to="{ name: ROUTE_NAME }" class="k-chip">
+                <v-icon size="14">mdi-layers-outline</v-icon>
+                {{ selectedKategori === "ALL" ? "Semua Kategori" : selectedKategori }}
+                <v-icon size="14">mdi-pencil-outline</v-icon>
+              </router-link>
+              <div class="k-lengan">
+                <button
+                  v-for="opt in lenganOptions"
+                  :key="opt.value"
+                  class="k-lengan-btn"
+                  :class="{ 'k-lengan-btn--active': lengan === opt.value }"
+                  @click="setLengan(opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+            <v-text-field
+              v-model="searchInput"
+              placeholder="Cari nama / warna..."
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              bg-color="white"
+              prepend-inner-icon="mdi-magnify"
+              class="k-search"
+            />
+          </div>
+        </div>
+
+        <div class="k-container k-shop" :class="{ 'k-shop--side': mdAndUp }">
+          <aside v-if="mdAndUp" class="k-side">
+            <label class="k-searchbox">
+              <v-icon size="18" class="k-searchbox-icon">mdi-magnify</v-icon>
+              <input
+                ref="searchEl"
+                v-model="searchInput"
+                type="search"
+                class="k-searchbox-input"
+                placeholder="Cari kaos atau warna"
+                autocomplete="off"
+                aria-label="Cari produk"
+              />
+              <button
+                v-if="searchInput"
+                type="button"
+                class="k-searchbox-clear"
+                aria-label="Hapus pencarian"
+                @click.prevent="searchInput = ''"
+              >
+                <v-icon size="14">mdi-close</v-icon>
+              </button>
+              <kbd v-else class="k-searchbox-key">/</kbd>
+            </label>
+
+            <div class="k-side-title">Jenis kain</div>
+            <nav class="k-side-list">
+              <button
+                class="k-side-item"
+                :class="{ 'k-side-item--active': selectedKategori === 'ALL' }"
+                @click="pilihKategori('ALL')"
+              >
+                <span>Semua</span><small>{{ stocked.length }}</small>
+              </button>
+              <button
+                v-for="kat in kategoriList"
+                :key="kat.nama"
+                class="k-side-item"
+                :class="{ 'k-side-item--active': selectedKategori === kat.nama }"
+                @click="pilihKategori(kat.nama)"
+              >
+                <span>{{ kat.nama }}</span
+                ><small>{{ kat.jumlah }}</small>
+              </button>
+            </nav>
+
+            <div class="k-side-title">Lengan</div>
+            <div class="k-lengan k-lengan--wrap">
               <button
                 v-for="opt in lenganOptions"
                 :key="opt.value"
@@ -511,111 +697,114 @@ onUnmounted(() => {
                 {{ opt.label }}
               </button>
             </div>
-          </div>
 
-          <v-text-field
-            v-model="searchInput"
-            placeholder="Cari nama / kode warna..."
-            variant="outlined"
-            density="compact"
-            hide-details
-            clearable
-            bg-color="white"
-            prepend-inner-icon="mdi-magnify"
-            class="k-search"
-          />
+            <router-link to="/katalog" class="k-side-help">
+              <v-icon size="16">mdi-hanger</v-icon>
+              Lihat katalog lengkap
+            </router-link>
+          </aside>
+
+          <main class="k-shop-main">
+            <Transition name="k-swap">
+              <div v-if="isLoading" key="loading" class="k-grid">
+                <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
+              </div>
+
+              <div v-else-if="hasError" key="error" class="k-state">
+                <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
+                <div class="k-state-title">Gagal memuat stok</div>
+                <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok()">
+                  Coba Lagi
+                </v-btn>
+              </div>
+
+              <div v-else-if="filtered.length === 0" key="empty" class="k-state">
+                <v-icon size="48" color="grey">mdi-magnify-close</v-icon>
+                <div class="k-state-title">
+                  {{
+                    searchTerm ? `Tidak ada hasil untuk "${searchTerm}"` : "Barang tidak ditemukan"
+                  }}
+                </div>
+              </div>
+
+              <div v-else :key="`grid-${selectedKategori}-${lengan}`">
+                <div class="k-count">{{ filtered.length }} model</div>
+                <div class="k-grid">
+                  <article
+                    v-for="(p, i) in visible"
+                    :key="p.kode"
+                    :class="['k-card', { 'k-enter': firstGrid }]"
+                    :style="{ '--i': i % 12 }"
+                    tabindex="0"
+                    @click="openDetail(p)"
+                    @keydown.enter="openDetail(p)"
+                  >
+                    <div class="k-card-img">
+                      <div v-if="p.gambar && !imgFailed[p.kode]" class="k-img-loading"></div>
+                      <img
+                        v-if="p.gambar && !imgFailed[p.kode]"
+                        :src="p.gambar"
+                        :alt="p.nama"
+                        class="k-img"
+                        loading="lazy"
+                        decoding="async"
+                        @load="onImgLoad"
+                        @error="imgFailed[p.kode] = true"
+                      />
+                      <ProductPlaceholder v-else class="k-ph" />
+
+                      <span v-if="totalState(p.totalStok) === 'out'" class="k-badge k-badge-out">
+                        Habis
+                      </span>
+                      <span
+                        v-else-if="totalState(p.totalStok) === 'low'"
+                        class="k-badge k-badge-low"
+                      >
+                        Sisa sedikit
+                      </span>
+                    </div>
+                    <div class="k-card-body">
+                      <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
+                      <div v-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
+                        {{ formatHarga(p.hargaMin, p.hargaMax) }}
+                      </div>
+                      <div v-else class="k-card-price k-card-price--na">
+                        Tanya petugas untuk harga
+                      </div>
+                      <div class="k-card-stock" :class="`k-card-stock--${totalState(p.totalStok)}`">
+                        <i></i>{{ p.totalStok > 0 ? `${p.totalStok} pcs siap` : "Habis" }}
+                      </div>
+                    </div>
+                  </article>
+                </div>
+
+                <div :ref="setSentinel" class="k-sentinel"></div>
+                <div v-if="displayCount < filtered.length" class="k-more">
+                  <v-progress-circular indeterminate color="#D32F2F" size="22" />
+                </div>
+              </div>
+            </Transition>
+          </main>
         </div>
       </div>
+    </Transition>
 
-      <main class="k-container">
-        <div v-if="isLoadingStok" class="k-grid">
-          <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
-        </div>
+    <SiteFooter max-width="1360px" />
 
-        <div v-else-if="stokError" class="k-state">
-          <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
-          <div class="k-state-title">Gagal memuat data stok</div>
-          <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok(tokoParam, true)">
-            Coba Lagi
-          </v-btn>
-        </div>
-
-        <div v-else-if="filteredProducts.length === 0" class="k-state">
-          <v-icon size="48" color="grey">mdi-magnify-close</v-icon>
-          <div class="k-state-title">
-            {{ searchTerm ? `Tidak ada hasil untuk "${searchTerm}"` : "Barang tidak ditemukan" }}
-          </div>
-          <div class="k-state-sub">Coba kata kunci lain atau ubah filter lengan.</div>
-        </div>
-
-        <template v-else>
-          <div class="k-count">{{ filteredProducts.length }} produk</div>
-
-          <div class="k-grid">
-            <article
-              v-for="(item, i) in visibleProducts"
-              :key="item.kode"
-              class="k-card k-enter"
-              :style="{ '--i': i % 20 }"
-              tabindex="0"
-              @click="openDetail(item)"
-              @keydown.enter="openDetail(item)"
-            >
-              <div class="k-card-img">
-                <v-img v-if="item.gambar_url" :src="item.gambar_url" cover aspect-ratio="1">
-                  <template #placeholder>
-                    <div class="k-img-loading"></div>
-                  </template>
-                  <template #error>
-                    <div class="k-tex" v-html="getFabricTexture(item.jenis_kain_final)"></div>
-                  </template>
-                </v-img>
-                <div v-else class="k-tex" v-html="getFabricTexture(item.jenis_kain_final)"></div>
-
-                <span v-if="item.total_stok <= 0" class="k-badge k-badge-out">Habis</span>
-                <span v-else-if="isLowStock(item)" class="k-badge k-badge-low">Sisa sedikit</span>
-
-                <span v-if="item.total_terjual > 0" class="k-badge k-badge-sold">
-                  <v-icon size="11">mdi-fire</v-icon>
-                  {{ item.total_terjual.toLocaleString("id-ID") }} terjual
-                </span>
-                <span class="k-badge k-badge-size">{{ item.variants.length }} Ukuran</span>
-              </div>
-
-              <div class="k-card-body">
-                <h3 class="k-card-name" :title="item.nama">{{ item.nama }}</h3>
-                <div class="k-card-price">
-                  <template v-if="item.hargaMin !== item.hargaMax">
-                    {{ rp(item.hargaMin) }} -
-                    {{ new Intl.NumberFormat("id-ID").format(item.hargaMax) }}
-                  </template>
-                  <template v-else>{{ rp(item.hargaMin) }}</template>
-                </div>
-                <div class="k-card-code" :title="item.kode">Kode: {{ item.kode }}</div>
-              </div>
-            </article>
-          </div>
-
-          <div ref="sentinel" class="k-sentinel"></div>
-          <div v-if="displayCount < filteredProducts.length" class="k-more">
-            <v-progress-circular indeterminate color="#D32F2F" size="22" />
-          </div>
-          <div v-else class="k-end">
-            Semua {{ filteredProducts.length }} produk sudah ditampilkan
-          </div>
-        </template>
-      </main>
-    </template>
-
-    <!-- ================= DIALOG DETAIL UKURAN ================= -->
-    <v-dialog v-model="isDetailVisible" max-width="420" scrollable :fullscreen="xs">
-      <v-card class="k-detail">
+    <!-- ============ DETAIL ============ -->
+    <v-dialog
+      v-model="detailVisible"
+      max-width="920"
+      scrollable
+      :fullscreen="xs"
+      :transition="xs ? 'k-sheet' : 'k-dialog'"
+    >
+      <v-card v-if="selected" class="k-detail">
         <div
           class="k-detail-bar"
           style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
         >
-          <v-icon color="white" size="18" class="mr-2">mdi-tshirt-crew</v-icon>
-          <span class="k-detail-bar-title">Rincian Ukuran</span>
+          <span class="k-detail-bar-title">Stok Pameran</span>
           <v-spacer />
           <v-btn
             icon="mdi-close"
@@ -623,725 +812,244 @@ onUnmounted(() => {
             variant="text"
             size="small"
             aria-label="Tutup"
-            @click="isDetailVisible = false"
+            @click="detailVisible = false"
           />
         </div>
 
-        <v-card-text v-if="selectedProduct" class="pa-4">
-          <v-carousel
-            v-if="selectedProduct.galeri.length > 0"
-            height="340"
-            hide-delimiter-background
-            show-arrows="hover"
-            class="k-carousel"
-          >
-            <v-carousel-item v-for="(img, i) in selectedProduct.galeri" :key="i">
-              <v-img
-                :src="img.url"
-                cover
+        <v-card-text class="pa-4 pa-sm-6">
+          <div class="k-detail-layout">
+            <div class="k-detail-media">
+              <v-carousel
+                v-if="detailImages.length"
+                v-model="detailIndex"
                 height="100%"
-                style="cursor: zoom-in"
-                @click="openFullscreen(i)"
+                hide-delimiter-background
+                :hide-delimiters="detailImages.length < 2"
+                :show-arrows="detailImages.length > 1 ? 'hover' : false"
+                class="k-carousel"
               >
-                <template #error>
-                  <div class="k-img-broken">
-                    <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
-                  </div>
-                </template>
-              </v-img>
-            </v-carousel-item>
-          </v-carousel>
-          <div v-else class="k-carousel k-carousel-tex">
-            <div class="k-tex" v-html="getFabricTexture(selectedProduct.jenis_kain_final)"></div>
-          </div>
+                <v-carousel-item v-for="(src, i) in detailImages" :key="i">
+                  <v-img
+                    :src="src"
+                    cover
+                    height="100%"
+                    class="k-zoomable"
+                    @click="openLightbox(i, $event)"
+                  >
+                    <template #error>
+                      <div class="k-img-broken">
+                        <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
+                      </div>
+                    </template>
+                  </v-img>
+                </v-carousel-item>
+              </v-carousel>
+              <div v-else class="k-carousel">
+                <ProductPlaceholder />
+              </div>
 
-          <h2 class="k-detail-name">{{ selectedProduct.nama }}</h2>
-          <div class="k-detail-code">Kode: {{ selectedProduct.kode }}</div>
-
-          <div class="k-detail-label">Pilih Ukuran</div>
-          <div class="k-sizes">
-            <div
-              v-for="v in selectedProduct.variants"
-              :key="v.ukuran"
-              class="k-size"
-              tabindex="0"
-              :class="{
-                'k-size--out': Number(v.stok) <= 0,
-                'k-size--low': Number(v.stok) > 0 && Number(v.stok) <= 3,
-                'k-size--ok': Number(v.stok) > 3,
-              }"
-            >
-              {{ v.ukuran }}
-              <span v-if="Number(v.stok) <= 0" class="k-size-strike"></span>
-              <v-tooltip activator="parent" location="top" open-on-click>
-                {{ Number(v.stok) <= 0 ? "Stok Habis" : `Sisa Stok: ${v.stok} Pcs` }}
-              </v-tooltip>
+              <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
+                <v-icon size="16">mdi-magnify-plus-outline</v-icon>
+                <span class="k-zoom-hint-text">Perbesar</span>
+              </div>
             </div>
-          </div>
 
-          <div class="k-legend">
-            <span><i class="k-dot k-dot-ok"></i>Tersedia</span>
-            <span><i class="k-dot k-dot-low"></i>Menipis</span>
-            <span><i class="k-dot k-dot-out"></i>Habis</span>
+            <div class="k-detail-info">
+              <h2 class="k-detail-name">{{ selected.nama }}</h2>
+              <div class="k-detail-code">Kode: {{ selected.kode }}</div>
+              <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+              <div v-else class="k-detail-price k-card-price--na">Tanya petugas untuk harga</div>
+
+              <div class="k-total" :class="`k-total--${totalState(selected.totalStok)}`">
+                <i></i>
+                {{ selected.totalStok > 0 ? `Total ${selected.totalStok} pcs siap` : "Stok habis" }}
+              </div>
+
+              <template v-if="sizeColumns.length">
+                <div class="k-detail-label">Stok dan harga per ukuran</div>
+                <div
+                  class="k-price-cols"
+                  :style="{ gridTemplateColumns: `repeat(${sizeColumns.length}, minmax(0, 1fr))` }"
+                >
+                  <div v-for="(col, ci) in sizeColumns" :key="ci" class="k-price-list">
+                    <div
+                      v-for="s in col"
+                      :key="s.ukuran"
+                      class="k-price-row k-srow"
+                      :class="{ 'k-srow--out': s.stok <= 0 }"
+                    >
+                      <span class="k-size">{{ s.ukuran }}</span>
+                      <span class="k-price-val" :class="{ 'k-price-val--na': !s.harga }">
+                        {{ s.harga ? rp(s.harga) : "-" }}
+                      </span>
+                      <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
+                        {{ sizeLabel(s.stok) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <div class="k-note">
+                <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
+                <span>
+                  Stok diperbarui otomatis dan bisa berubah saat ada penjualan.
+                  <router-link to="/katalog">Lihat katalog lengkap</router-link>.
+                </span>
+              </div>
+            </div>
           </div>
         </v-card-text>
       </v-card>
     </v-dialog>
 
-    <!-- ================= FULLSCREEN GAMBAR ================= -->
-    <v-dialog v-model="isFullscreenVisible" fullscreen>
-      <div class="k-fs">
-        <v-btn
-          icon="mdi-close"
-          variant="flat"
-          color="white"
-          size="small"
-          class="k-fs-close"
-          @click="isFullscreenVisible = false"
-        />
-        <v-carousel
-          v-if="selectedProduct?.galeri?.length"
-          v-model="fullscreenIndex"
-          height="100vh"
-          hide-delimiter-background
-          show-arrows="hover"
-          style="background: transparent"
+    <!-- ============ LIGHTBOX ============ -->
+    <Teleport to="body">
+      <Transition name="k-lb">
+        <div
+          v-if="lightboxOpen"
+          class="k-lb"
+          role="dialog"
+          aria-modal="true"
+          :style="{ '--dx': lbDx + 'px', '--dy': lbDy + 'px', '--dir': lbDir }"
+          @click="closeLightbox"
+          @touchstart.passive="onLbTouchStart"
+          @touchend.passive="onLbTouchEnd"
         >
-          <v-carousel-item v-for="(img, i) in selectedProduct.galeri" :key="i">
-            <div class="k-fs-slide" @click="isFullscreenVisible = false">
-              <v-img :src="img.url" contain max-height="95vh" max-width="95vw" @click.stop />
-            </div>
-          </v-carousel-item>
-        </v-carousel>
-      </div>
-    </v-dialog>
+          <button class="k-lb-btn k-lb-close" aria-label="Tutup" @click.stop="closeLightbox">
+            <v-icon>mdi-close</v-icon>
+          </button>
+
+          <template v-if="detailImages.length > 1">
+            <button class="k-lb-btn k-lb-prev" aria-label="Sebelumnya" @click.stop="lbStep(-1)">
+              <v-icon>mdi-chevron-left</v-icon>
+            </button>
+            <button class="k-lb-btn k-lb-next" aria-label="Berikutnya" @click.stop="lbStep(1)">
+              <v-icon>mdi-chevron-right</v-icon>
+            </button>
+            <div class="k-lb-count">{{ detailIndex + 1 }} / {{ detailImages.length }}</div>
+          </template>
+
+          <Transition name="k-lb-slide" mode="out-in">
+            <img
+              :key="detailIndex"
+              :src="detailImages[detailIndex]"
+              alt=""
+              class="k-lb-img"
+              @click.stop
+            />
+          </Transition>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
+<style scoped src="../../styles/katalog.css"></style>
+<style src="../../styles/katalog-global.css"></style>
+
 <style scoped>
-.k-page {
-  --k-red: #d32f2f;
-  --k-red-dark: #b71c1c;
-  --k-header-h: 56px;
-  min-height: 100vh;
-  background: #f5f5f5;
-}
-
-/* ---------- HEADER ---------- */
-.k-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  height: var(--k-header-h);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 12px;
-  background: linear-gradient(135deg, var(--k-red) 0%, var(--k-red-dark) 100%);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(183, 28, 28, 0.35);
-}
-.k-header :deep(.v-btn) {
-  color: #fff;
-}
-.k-header-title {
-  min-width: 0;
-  margin-left: 4px;
-}
-.k-title {
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.k-sub {
-  font-size: 11px;
-  opacity: 0.85;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.k-home-link {
-  display: inline-flex;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-}
-
-/* ---------- LAYOUT ---------- */
-.k-container {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 16px 12px 40px;
-}
-.k-hint {
-  font-size: 12px;
-  color: #666;
-  margin: 0 0 12px;
-}
-
-/* ---------- TOOLBAR STICKY ---------- */
-.k-toolbar {
-  position: sticky;
-  top: var(--k-header-h);
-  z-index: 40;
-  background: rgba(245, 245, 245, 0.96);
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid #e8e8e8;
-}
-.k-toolbar-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.k-chips {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.k-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  background: #ffebee;
-  color: var(--k-red-dark);
-  border: 1px solid #ffcdd2;
-  text-decoration: none;
-}
-.k-chip-link:hover {
-  background: #ffcdd2;
-}
-.k-lengan {
-  display: flex;
-  gap: 6px;
-}
-.k-lengan-btn {
-  padding: 4px 14px;
-  border-radius: 999px;
-  border: 1.5px solid #e0e0e0;
-  background: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  color: #777;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.k-lengan-btn:hover {
-  border-color: var(--k-red);
-  color: var(--k-red);
-}
-.k-lengan-btn--active {
-  border-color: var(--k-red) !important;
-  background: var(--k-red) !important;
-  color: #fff !important;
-}
-.k-search :deep(.v-field--focused .v-field__outline) {
-  color: var(--k-red) !important;
-}
-.k-search :deep(.v-field) {
-  border-radius: 10px;
-}
-
-/* ---------- PILIH TOKO ---------- */
-.k-store-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-.k-store-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1.5px solid #eee;
-  border-radius: 14px;
-  background: #fff;
-  text-align: left;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-}
-.k-store-card:hover,
-.k-store-card:focus-visible {
-  transform: translateY(-2px);
-  border-color: #ffcdd2;
-  box-shadow: 0 6px 16px rgba(211, 47, 47, 0.14);
-  outline: none;
-}
-.k-store-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #ffebee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.k-store-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.k-store-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #333;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.k-store-sub {
-  font-size: 11px;
-  color: #888;
-}
-
-/* ---------- PILIH KATEGORI ---------- */
-.k-cat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-.k-cat-card {
-  border: 1px solid #eee;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-  padding: 0;
-  text-align: center;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-.k-cat-card:hover,
-.k-cat-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-  outline: none;
-}
-.k-cat-tex {
-  line-height: 0;
-}
-.k-cat-tex :deep(svg) {
-  width: 100%;
-  height: auto;
-}
-.k-cat-body {
-  padding: 8px;
-}
-.k-cat-name {
-  font-size: 12px;
-  font-weight: 800;
-  color: #333;
-}
-.k-cat-count {
-  font-size: 10px;
-  color: #999;
-}
-
-/* ---------- GRID PRODUK ---------- */
-.k-count {
-  font-size: 11px;
-  color: #777;
-  margin-bottom: 8px;
-}
-.k-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-.k-card {
-  background: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.k-card:hover,
-.k-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(211, 47, 47, 0.16);
-  border-color: #ffcdd2;
-  outline: none;
-}
-.k-card-img {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  background: #eee;
-  overflow: hidden;
-}
-.k-tex {
-  width: 100%;
-  height: 100%;
-  opacity: 0.85;
-}
-.k-tex :deep(svg) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.k-img-loading {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, #eee 25%, #f7f7f7 50%, #eee 75%);
-  background-size: 200% 100%;
-  animation: k-shimmer 1.3s infinite linear;
-}
+/* Khusus halaman stok */
 .k-badge {
   position: absolute;
-  padding: 2px 7px;
-  border-radius: 6px;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  padding: 3px 9px;
+  border-radius: 0 0 10px 0;
   font-size: 10px;
   font-weight: 800;
-  line-height: 1.5;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-}
-.k-badge-size {
-  right: 6px;
-  bottom: 6px;
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--k-red);
-  border: 1px solid #e0e0e0;
-}
-.k-badge-sold {
-  left: 6px;
-  bottom: 6px;
-  background: rgba(0, 0, 0, 0.62);
   color: #fff;
 }
 .k-badge-low {
-  left: 0;
-  top: 0;
-  border-radius: 0 0 8px 0;
   background: #ef6c00;
-  color: #fff;
 }
 .k-badge-out {
-  left: 0;
-  top: 0;
-  border-radius: 0 0 8px 0;
   background: #616161;
-  color: #fff;
 }
-.k-card-body {
-  padding: 10px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-.k-card-name {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: #222;
-  min-height: 32px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.k-card-price {
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--k-red);
-}
-.k-card-code {
-  font-size: 10px;
-  color: #999;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.k-sentinel {
-  height: 1px;
-}
-.k-more,
-.k-end {
-  text-align: center;
-  padding: 16px;
+
+.k-card-stock,
+.k-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
-  color: #999;
-}
-
-/* ---------- STATE KOSONG / ERROR ---------- */
-.k-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 16px;
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  text-align: center;
-}
-.k-state-title {
-  font-size: 14px;
   font-weight: 700;
-  color: #444;
+  color: #2e7d32;
 }
-.k-state-sub {
-  font-size: 12px;
-  color: #999;
+.k-card-stock i,
+.k-total i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2e9e5b;
 }
-
-/* ---------- SKELETON ---------- */
-.k-skel {
-  border-radius: 12px;
-  background: linear-gradient(90deg, #ececec 25%, #f6f6f6 50%, #ececec 75%);
-  background-size: 200% 100%;
-  animation: k-shimmer 1.3s infinite linear;
+.k-card-stock--low,
+.k-total--low {
+  color: #b45309;
 }
-.k-skel-store {
-  height: 68px;
+.k-card-stock--low i,
+.k-total--low i {
+  background: #ef6c00;
 }
-.k-skel-cat {
-  height: 130px;
+.k-card-stock--out,
+.k-total--out {
+  color: #757575;
 }
-.k-skel-card {
-  aspect-ratio: 3 / 4;
-}
-@keyframes k-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+.k-card-stock--out i,
+.k-total--out i {
+  background: #9e9e9e;
 }
 
-/* ---------- ANIMASI MASUK (stagger) ---------- */
-.k-enter {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: k-fade-up 0.35s ease forwards;
-  animation-delay: calc(var(--i, 0) * 25ms);
-}
-@keyframes k-fade-up {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ---------- DETAIL DIALOG ---------- */
-.k-detail {
-  border-radius: 16px;
-  overflow: hidden;
-}
-.k-detail-bar {
-  display: flex;
-  align-items: center;
-  padding: 6px 6px 6px 14px;
-  background: linear-gradient(135deg, var(--k-red) 0%, var(--k-red-dark) 100%);
-}
-.k-detail-bar-title {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-}
-.k-carousel {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #eee;
+.k-total {
+  align-self: flex-start;
   margin-bottom: 14px;
-  background: #f5f5f5;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #e8f5e9;
 }
-.k-carousel-tex {
-  height: 340px;
+.k-total--low {
+  background: #fff1e0;
 }
-.k-img-broken {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  background: #eee;
-}
-.k-detail-name {
-  margin: 0 0 2px;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.25;
+.k-total--out {
+  background: #f0f0f0;
 }
 .k-detail-code {
-  font-size: 11px;
-  color: #888;
-  margin-bottom: 14px;
-}
-.k-detail-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: #444;
   margin-bottom: 8px;
-  padding-top: 12px;
-  border-top: 1px solid #eee;
+  font-size: 11px;
+  color: #8a7f7b;
 }
-.k-sizes {
-  display: flex;
-  flex-wrap: wrap;
+
+.k-srow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   gap: 8px;
 }
-.k-size {
-  position: relative;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 12px;
+.k-srow .k-price-val {
+  text-align: right;
+}
+.k-srow--out .k-size {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.k-stok-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
   font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  cursor: default;
+  white-space: nowrap;
 }
-.k-size--ok {
-  background: #2e7d32;
-  color: #fff;
+.k-stok-pill--ok {
+  color: #2e7d32;
+  background: #e8f5e9;
 }
-.k-size--low {
-  background: var(--k-red);
-  color: #fff;
+.k-stok-pill--low {
+  color: #b45309;
+  background: #fff1e0;
 }
-.k-size--out {
-  background: #f5f5f5;
-  color: #9e9e9e;
-  border: 1px solid #e0e0e0;
-}
-.k-size-strike {
-  position: absolute;
-  top: 50%;
-  left: -10%;
-  width: 120%;
-  height: 1.5px;
-  background: #bdbdbd;
-  transform: rotate(-45deg);
-}
-.k-legend {
-  display: flex;
-  gap: 14px;
-  margin-top: 16px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #666;
-}
-.k-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.k-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  display: inline-block;
-}
-.k-dot-ok {
-  background: #2e7d32;
-}
-.k-dot-low {
-  background: var(--k-red);
-}
-.k-dot-out {
-  background: #f5f5f5;
-  border: 1px solid #ccc;
-}
-
-/* ---------- FULLSCREEN GAMBAR ---------- */
-.k-fs {
-  background: rgba(0, 0, 0, 0.95);
-  height: 100%;
-}
-.k-fs-close {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 9999;
-}
-.k-fs-slide {
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: zoom-out;
-}
-
-.k-detail-bar {
-  flex-shrink: 0;
-  min-height: 44px;
-}
-
-/* ---------- RESPONSIF ---------- */
-@media (min-width: 600px) {
-  .k-store-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .k-cat-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .k-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
-  }
-  .k-toolbar-inner {
-    flex-direction: row;
-    align-items: center;
-  }
-  .k-chips {
-    flex-wrap: nowrap;
-  }
-  .k-search {
-    max-width: 320px;
-    margin-left: auto;
-  }
-}
-@media (min-width: 960px) {
-  .k-store-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .k-cat-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .k-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-/* ---------- HORMATI REDUCED MOTION ---------- */
-@media (prefers-reduced-motion: reduce) {
-  .k-enter {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-  .k-skel,
-  .k-img-loading {
-    animation: none;
-  }
-  .k-card,
-  .k-store-card,
-  .k-cat-card {
-    transition: none;
-  }
+.k-stok-pill--out {
+  color: #8a8a8a;
+  background: #f0f0f0;
 }
 </style>

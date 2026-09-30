@@ -252,17 +252,23 @@ onUnmounted(() => {
           </span>
         </button>
 
-        <!-- LACAK: garis progres -->
-        <button class="kh-tile kh-tile--lacak" style="--i: 1" @click="router.push('/tracking')">
+        <!-- KAOS STUDIO: kaos yang berganti warna dan area cetak -->
+        <button
+          class="kh-tile kh-tile--studio"
+          style="--i: 1"
+          @click="router.push('/kiosk/studio')"
+        >
+          <span class="kh-studio-badge">Baru</span>
+          <svg class="kh-studio-shirt" viewBox="0 0 64 64" aria-hidden="true">
+            <path
+              class="kh-studio-body"
+              d="M22 8 L8 16 L14 28 L20 25 L20 56 L44 56 L44 25 L50 28 L56 16 L42 8 C40 12 36 14 32 14 C28 14 24 12 22 8 Z"
+            />
+            <rect class="kh-studio-print" x="26" y="22" width="12" height="12" rx="1.5" />
+          </svg>
           <span class="kh-tile-text">
-            <span class="kh-tile-title">Lacak Pesanan</span>
-            <span class="kh-tile-desc">Masukkan nomor resi dari struk atau WhatsApp</span>
-          </span>
-          <span class="kh-steps" aria-hidden="true">
-            <span class="kh-steps-track"><i class="kh-steps-fill"></i></span>
-            <span v-for="s in steps" :key="s" class="kh-step">
-              <i class="kh-step-dot"></i><em>{{ s }}</em>
-            </span>
+            <span class="kh-tile-title">Kaos Studio</span>
+            <span class="kh-tile-desc">Rancang desain kaosmu, harga langsung terhitung</span>
           </span>
         </button>
 
@@ -282,8 +288,22 @@ onUnmounted(() => {
           </span>
         </button>
 
+        <!-- LACAK: garis progres -->
+        <button class="kh-tile kh-tile--lacak" style="--i: 3" @click="router.push('/tracking')">
+          <span class="kh-tile-text">
+            <span class="kh-tile-title">Lacak Pesanan</span>
+            <span class="kh-tile-desc">Masukkan nomor resi dari struk atau WhatsApp</span>
+          </span>
+          <span class="kh-steps" aria-hidden="true">
+            <span class="kh-steps-track"><i class="kh-steps-fill"></i></span>
+            <span v-for="s in steps" :key="s" class="kh-step">
+              <i class="kh-step-dot"></i><em>{{ s }}</em>
+            </span>
+          </span>
+        </button>
+
         <!-- INFO & PROMO: kupon dari promo aktif -->
-        <button class="kh-tile kh-tile--info" style="--i: 3" @click="attract = true">
+        <button class="kh-tile kh-tile--info" style="--i: 4" @click="attract = true">
           <span class="kh-tile-text">
             <span class="kh-tile-title">Info &amp; Promo</span>
             <span class="kh-tile-desc">
@@ -448,11 +468,11 @@ onUnmounted(() => {
 /* ---------- Bento ---------- */
 .kh-grid {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) auto;
   grid-template-areas:
-    "katalog lacak"
-    "katalog stok"
+    "katalog studio"
+    "stok lacak"
     "info info";
   gap: 1.6vw;
   height: min(80vh, 840px);
@@ -535,6 +555,84 @@ onUnmounted(() => {
 .kh-photo-enter-from,
 .kh-photo-leave-to {
   opacity: 0;
+}
+
+/* Kaos Studio */
+.kh-tile--studio {
+  grid-area: studio;
+  color: #1f1a19;
+  background: #faf6f4;
+}
+.kh-tile--studio .kh-tile-text {
+  position: relative;
+  z-index: 1;
+}
+.kh-studio-badge {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: clamp(11px, 0.9vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #b71c1c;
+}
+.kh-studio-shirt {
+  position: absolute;
+  top: 10%;
+  right: 5%;
+  width: clamp(110px, 12vw, 210px);
+  filter: drop-shadow(0 10px 14px rgba(60, 20, 15, 0.2));
+  animation: kh-shirt-bob 5s ease-in-out infinite;
+  pointer-events: none;
+}
+.kh-studio-body {
+  fill: #b71c1c;
+  stroke: rgba(31, 26, 25, 0.25);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  animation: kh-shirt-color 12s ease-in-out infinite;
+}
+.kh-studio-print {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2;
+  animation: kh-march 1.4s linear infinite;
+}
+@keyframes kh-shirt-color {
+  0%,
+  20% {
+    fill: #b71c1c;
+  }
+  25%,
+  45% {
+    fill: #1f3a5f;
+  }
+  50%,
+  70% {
+    fill: #2f6b4f;
+  }
+  75%,
+  95% {
+    fill: #1f1a19;
+  }
+  100% {
+    fill: #b71c1c;
+  }
+}
+@keyframes kh-shirt-bob {
+  50% {
+    transform: translateY(-6px) rotate(-1.5deg);
+  }
+}
+@keyframes kh-march {
+  to {
+    stroke-dashoffset: -8;
+  }
 }
 
 /* Lacak */
@@ -907,14 +1005,14 @@ onUnmounted(() => {
     font-size: clamp(18px, 2.6vw, 32px);
   }
   .kh-grid {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) auto;
     grid-template-areas:
       "katalog katalog"
-      "lacak stok"
+      "studio studio"
+      "stok lacak"
       "info info";
+    max-height: 78vh;
     height: 100%;
-    max-height: 72vh;
   }
   .kh-tile--info {
     flex-direction: column;
@@ -960,6 +1058,11 @@ onUnmounted(() => {
   .kh-step-dot {
     border-color: #fff;
     background: #fff;
+  }
+  .kh-studio-shirt,
+  .kh-studio-body,
+  .kh-studio-print {
+    animation: none;
   }
 }
 

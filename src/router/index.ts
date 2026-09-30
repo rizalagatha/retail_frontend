@@ -59,6 +59,7 @@ const KatalogStokView = () => import("@/views/umum/KatalogStokView.vue");
 const KioskHomeView = () => import("@/views/umum/KioskHomeView.vue");
 const KatalogView = () => import("@/views/umum/KatalogView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
+const KioskStudioView = () => import("@/views/umum/KioskStudioView.vue");
 
 // --- DTF & PESANAN ---
 const SoDtfTrialView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialView.vue");
@@ -386,6 +387,12 @@ const routes = [
     name: "Kiosk",
     component: KioskHomeView,
     meta: { title: "Kaosan", layout: "PrintLayout", requiresAuth: false, public: true },
+  },
+  {
+    path: "/kiosk/studio",
+    name: "Kiosk Studio",
+    component: KioskStudioView,
+    meta: { title: "Kaos Studio", layout: "PrintLayout", requiresAuth: false, public: true },
   },
   {
     path: "/katalog/:kategori?",

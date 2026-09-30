@@ -5,7 +5,7 @@ import { isKiosk, idleWarning, countdown, WARN_SECONDS } from "@/composables/use
 
 const route = useRoute();
 const router = useRouter();
-const showHome = computed(() => isKiosk.value && route.path !== "/kiosk");
+const showHome = computed(() => isKiosk.value && !["/kiosk", "/kiosk/studio"].includes(route.path));
 </script>
 
 <template>

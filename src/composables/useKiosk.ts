@@ -3,6 +3,14 @@ import type { Router } from "vue-router";
 
 const STORAGE_KEY = "kaosan_kiosk";
 export const PAMERAN_KODE = "B02"; // kode cabang pameran, satu sumber untuk seluruh kiosk
+// Kaos Studio (situs terpisah), dibuka di dalam iframe agar tombol Beranda dan timer diam tetap berlaku
+export const STUDIO_URL =
+  (import.meta.env.VITE_STUDIO_URL as string | undefined) ||
+  "https://kaostudio.kaosanofficial.com/";
+const STUDIO_ORIGIN = new URL(STUDIO_URL).origin;
+const STUDIO_PATH = "/kiosk/studio";
+const IDLE_STUDIO_MS = 180_000; // di studio, pelanggan boleh diam lebih lama
+
 const IDLE_MS = 90_000; // tanpa sentuhan sebelum peringatan muncul
 export const WARN_SECONDS = 15; // hitung mundur sebelum kembali ke beranda
 
@@ -53,7 +61,8 @@ export function startKiosk(router: Router) {
 
   function arm() {
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(startWarn, IDLE_MS);
+    const limit = router.currentRoute.value.path === STUDIO_PATH ? IDLE_STUDIO_MS : IDLE_MS;
+    idleTimer = setTimeout(startWarn, limit);
   }
 
   function onActivity() {
@@ -64,6 +73,14 @@ export function startKiosk(router: Router) {
   ["pointerdown", "keydown"].forEach((ev) =>
     window.addEventListener(ev, onActivity, { passive: true })
   );
+
+  // Aktivitas di dalam iframe Kaos Studio tidak sampai ke window ini, jadi studio mengirimnya lewat postMessage
+  window.addEventListener("message", (e) => {
+    if (e.origin === STUDIO_ORIGIN && e.data?.type === "kiosk-activity") onActivity();
+  });
+
+  // Pasang ulang timer tiap pindah halaman agar batasnya sesuai halaman baru
+  router.afterEach(() => arm());
 
   // Cegah menu klik kanan dan zoom (cubit di layar sentuh terbaca sebagai Ctrl+wheel)
   document.addEventListener("contextmenu", (e) => e.preventDefault());

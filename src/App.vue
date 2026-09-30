@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "./stores/authStore";
 import { useUiStore } from "@/stores/uiStore"; // Import UI Store
+import { startKiosk } from "@/composables/useKiosk";
+import KioskOverlay from "@/components/KioskOverlay.vue";
 
 const authStore = useAuthStore();
 const uiStore = useUiStore(); // Panggil UI Store
 const route = useRoute();
+const router = useRouter();
 
 onMounted(() => {
   authStore.checkAuthStatus();
   authStore.initConnectivityCheck();
+  startKiosk(router); // hanya aktif bila dibuka dengan ?kiosk=1
 });
 
 onUnmounted(() => {
@@ -37,6 +41,7 @@ watch(
 <template>
   <v-app class="desktop-app-container bg-background" :theme="uiStore.isDark ? 'dark' : 'light'">
     <component :is="layoutComponent" />
+    <KioskOverlay />
   </v-app>
 </template>
 

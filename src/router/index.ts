@@ -56,6 +56,7 @@ const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrin
 
 const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
 const KatalogStokView = () => import("@/views/umum/KatalogStokView.vue");
+const KioskHomeView = () => import("@/views/umum/KioskHomeView.vue");
 const KatalogView = () => import("@/views/umum/KatalogView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
 
@@ -379,6 +380,12 @@ const routes = [
     name: "Katalog Stok",
     component: KatalogStokView,
     meta: { title: "Cek Stok Store", layout: "PrintLayout", requiresAuth: false, public: true },
+  },
+  {
+    path: "/kiosk",
+    name: "Kiosk",
+    component: KioskHomeView,
+    meta: { title: "Kaosan", layout: "PrintLayout", requiresAuth: false, public: true },
   },
   {
     path: "/katalog/:kategori?",
@@ -2947,7 +2954,10 @@ const filteredRoutes = routes.filter((r) => {
     ];
 
     const isTrackingDetail = r.path.includes("/transaksi/penjualan/surat-pesanan/track");
-    const isKatalog = r.path.startsWith("/katalog") || r.path.startsWith("/cek-stok");
+    const isKatalog =
+      r.path.startsWith("/katalog") ||
+      r.path.startsWith("/cek-stok") ||
+      r.path.startsWith("/kiosk");
 
     return allowedPaths.includes(r.path) || isTrackingDetail || isKatalog;
   }

@@ -6,6 +6,7 @@ import { useDisplay } from "vuetify";
 import api from "@/services/api";
 import { getFabricTexture } from "@/utils/fabricTextures";
 import LogoKaosan from "@/assets/logo.png";
+import { isKiosk } from "@/composables/useKiosk";
 
 // --- Tipe Data ---
 interface StoreItem {
@@ -49,6 +50,7 @@ const toast = useToast();
 const { xs } = useDisplay();
 
 const ROUTE_NAME = "Katalog Stok";
+const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const LOW_STOCK_TOTAL = 5; // total stok semua ukuran <= ini dianggap "sisa sedikit"
 
@@ -297,8 +299,8 @@ const pilihKategori = (nama: string) =>
 const goBack = () => {
   if (phase.value === "products")
     router.push({ name: ROUTE_NAME, params: { toko: tokoParam.value } });
-  else if (phase.value === "category") router.push({ name: ROUTE_NAME });
-  else router.push("/");
+  else if (phase.value === "category" && !isKiosk.value) router.push({ name: ROUTE_NAME });
+  else router.push(homePath.value);
 };
 
 const headerTitle = computed(() => {
@@ -390,7 +392,7 @@ onUnmounted(() => {
         <div class="k-sub">{{ headerSub }}</div>
       </div>
       <v-spacer />
-      <router-link to="/" class="k-home-link">
+      <router-link :to="homePath" class="k-home-link">
         <img :src="LogoKaosan" height="28" alt="Kaosan" />
       </router-link>
     </header>

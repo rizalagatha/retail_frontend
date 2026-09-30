@@ -6,6 +6,7 @@ import api from "@/services/api";
 import { getFabricTexture } from "@/utils/fabricTextures";
 import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
+import { isKiosk } from "@/composables/useKiosk";
 
 interface CatalogRow {
   kode: string;
@@ -42,6 +43,7 @@ const router = useRouter();
 const { xs, mdAndUp } = useDisplay();
 
 const ROUTE_NAME = "Katalog";
+const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
 const formatHarga = (min: number, max: number) => {
@@ -335,8 +337,7 @@ const pilihKategori = (nama: string) =>
     query: { ...route.query, q: searchTerm.value || undefined },
   });
 const goBack = () =>
-  phase.value === "products" ? router.push({ name: ROUTE_NAME }) : router.push("/");
-
+  phase.value === "products" ? router.push({ name: ROUTE_NAME }) : router.push(homePath.value);
 // --- Detail ---
 const detailVisible = ref(false);
 const selected = ref<Product | null>(null);
@@ -457,7 +458,7 @@ onUnmounted(() => {
         </div>
       </div>
       <v-spacer />
-      <router-link to="/" class="k-home-link"
+      <router-link :to="homePath" class="k-home-link"
         ><img :src="LogoKaosan" height="28" alt="Kaosan"
       /></router-link>
     </header>

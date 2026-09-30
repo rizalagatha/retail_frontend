@@ -1,25 +1,28 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive, watch, nextTick, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useToast } from "vue-toastification";
 import { getFabricTexture } from "@/utils/fabricTextures";
 import { vReveal } from "@/directives/reveal";
 import CountUp from "@/components/CountUp.vue";
+import SiteFooter from "@/components/SiteFooter.vue";
 
 // Import logo secara aman untuk Vite/Webpack
 import LogoKaosan from "@/assets/logo.png";
-import ShopeeLogo from "@/assets/shopee.png";
-import TokpedLogo from "@/assets/tokped.png";
-import TiktokLogo from "@/assets/tiktok.png";
-
 const router = useRouter();
+const route = useRoute();
 const toast = useToast();
 
 const searchInput = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
+
+// Hapus pesan galat begitu pengguna mulai mengetik ulang
+watch(searchInput, () => {
+  errorMessage.value = "";
+});
 
 const isPromoDialogVisible = ref(false);
 const selectedPromo = ref<PromoItem | null>(null);
@@ -711,6 +714,12 @@ onMounted(() => {
   fetchPromos();
   fetchPublicStores();
   checkNetworkStatus();
+
+  // Dibuka dari tautan "Pusat Bantuan" di footer halaman lain
+  if (route.query.bantuan) {
+    openBantuan();
+    router.replace({ query: {} });
+  }
 });
 </script>
 
@@ -759,31 +768,36 @@ onMounted(() => {
     <main class="t-main">
       <!-- PANEL PENCARIAN -->
       <section class="t-search" :class="{ 't-search--loading': isLoading }">
-        <div class="t-search-row">
-          <v-text-field
+        <form
+          class="t-searchbar"
+          :class="{ 't-searchbar--error': errorMessage, 't-searchbar--busy': isLoading }"
+          @submit.prevent="cariPesanan"
+        >
+          <v-icon class="t-searchbar-icon" size="20">mdi-magnify</v-icon>
+          <input
             v-model="searchInput"
-            placeholder="Nomor resi, contoh: KSNK01..."
-            variant="outlined"
-            color="#B71C1C"
-            bg-color="white"
-            hide-details="auto"
-            class="t-search-input search-field-red"
-            density="comfortable"
-            prepend-inner-icon="mdi-magnify"
-            :error-messages="errorMessage"
-            @keyup.enter="cariPesanan"
-          ></v-text-field>
-          <v-btn
-            color="#B71C1C"
-            height="48"
-            class="text-white px-8 font-weight-bold text-none t-search-btn"
-            :loading="isLoading"
-            :disabled="isLoading"
-            @click="cariPesanan"
+            type="search"
+            class="t-searchbar-input"
+            placeholder="Masukkan nomor resi"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            aria-label="Nomor resi pesanan"
+          />
+          <button
+            v-if="searchInput"
+            type="button"
+            class="t-searchbar-clear"
+            aria-label="Hapus"
+            @click="searchInput = ''"
           >
+            <v-icon size="14">mdi-close</v-icon>
+          </button>
+          <button type="submit" class="t-searchbar-btn" :disabled="!searchInput.trim()">
             {{ isLoading ? "Mencari..." : "Lacak" }}
-          </v-btn>
-        </div>
+          </button>
+        </form>
+        <p v-if="errorMessage" class="t-searchbar-error" role="alert">{{ errorMessage }}</p>
 
         <v-expand-transition>
           <div v-if="isFound && soData" class="t-found">
@@ -953,87 +967,20 @@ onMounted(() => {
     </main>
 
     <!-- FOOTER -->
-    <footer class="t-footer">
-      <div class="t-footer-inner">
-        <v-expand-transition>
-          <div v-if="isFound && soData?.kontakKomplain" class="t-complaint">
-            <div class="t-complaint-title">Layanan pengaduan konsumen KAOSAN</div>
-            <div class="t-complaint-text">{{ soData.kontakKomplain }} (WhatsApp)</div>
+    <SiteFooter>
+      <v-expand-transition>
+        <div v-if="isFound && soData?.kontakKomplain" class="t-complaint">
+          <div class="t-complaint-title">Layanan pengaduan konsumen KAOSAN</div>
+          <div class="t-complaint-text">{{ soData.kontakKomplain }} (WhatsApp)</div>
 
-            <div class="t-complaint-title mt-4">
-              Direktorat Jenderal Perlindungan Konsumen dan Tertib Niaga, Kementerian Perdagangan
-              Republik Indonesia
-            </div>
-            <div class="t-complaint-text">0853 111 1010 (WhatsApp)</div>
+          <div class="t-complaint-title mt-4">
+            Direktorat Jenderal Perlindungan Konsumen dan Tertib Niaga, Kementerian Perdagangan
+            Republik Indonesia
           </div>
-        </v-expand-transition>
-
-        <div class="t-footer-row">
-          <div class="t-copy">
-            <img :src="LogoKaosan" height="20" alt="Kaosan" class="grayscale" />
-            <span
-              >&copy; {{ new Date().getFullYear() }} KAOSAN. Semua hak dilindungi
-              undang-undang.</span
-            >
-          </div>
-
-          <div class="t-social">
-            <v-btn
-              icon
-              variant="text"
-              color="grey-darken-3"
-              size="small"
-              href="https://instagram.com/kaosan.official"
-              target="_blank"
-              class="social-btn"
-            >
-              <v-icon size="22" class="social-icon">mdi-instagram</v-icon>
-            </v-btn>
-            <v-btn
-              icon
-              variant="text"
-              color="grey-darken-3"
-              size="small"
-              href="https://www.facebook.com/kaosanofficiall"
-              target="_blank"
-              class="social-btn"
-            >
-              <v-icon size="22" class="social-icon">mdi-facebook</v-icon>
-            </v-btn>
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              href="https://www.tiktok.com/@kaosanofficial_"
-              target="_blank"
-              class="social-btn"
-            >
-              <img :src="TiktokLogo" alt="TikTok" class="social-img" />
-            </v-btn>
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              href="https://shopee.co.id/kaosan_official"
-              target="_blank"
-              class="social-btn"
-            >
-              <img :src="ShopeeLogo" alt="Shopee" class="social-img" />
-            </v-btn>
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              href="https://www.tokopedia.com/kaosanofficial-118"
-              target="_blank"
-              class="social-btn"
-            >
-              <img :src="TokpedLogo" alt="Tokopedia" class="social-img" />
-            </v-btn>
-          </div>
+          <div class="t-complaint-text">0853 111 1010 (WhatsApp)</div>
         </div>
-      </div>
-    </footer>
+      </v-expand-transition>
+    </SiteFooter>
 
     <v-dialog v-model="isPromoDialogVisible" max-width="400px" :scrim="true">
       <v-card v-if="selectedPromo" rounded="xl" class="overflow-hidden">
@@ -2656,52 +2603,6 @@ onMounted(() => {
   transform: rotate(-45deg);
 }
 
-/* ===== FOOTER SOCIAL MEDIA ===== */
-.social-btn {
-  transition: all 0.2s ease-in-out;
-}
-.social-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* ===== FOOTER SOCIAL MEDIA ===== */
-.grayscale {
-  filter: grayscale(100%);
-}
-
-.social-btn {
-  transition: all 0.2s ease-in-out;
-}
-
-/* Mengatur ukuran gambar PNG agar pas dengan icon MDI */
-.social-img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  filter: grayscale(100%) opacity(0.8); /* Bikin abu-abu dulu */
-  transition: all 0.2s ease-in-out;
-}
-
-.social-icon {
-  transition: all 0.2s ease-in-out;
-}
-
-/* Efek saat tombol di-hover */
-.social-btn:hover {
-  transform: translateY(-3px);
-}
-
-.social-btn:hover .social-img {
-  filter: grayscale(0%) opacity(1); /* Warna asli gambar muncul */
-  transform: scale(1.1);
-}
-
-.social-btn:hover .social-icon {
-  color: #d32f2f !important; /* Warna merah untuk IG/FB */
-  transform: scale(1.1);
-}
-
 .lengan-toggle {
   display: flex;
   gap: 6px;
@@ -2875,18 +2776,6 @@ onMounted(() => {
   border-radius: 14px;
   box-shadow: 0 12px 32px rgba(60, 20, 15, 0.1);
 }
-.t-search-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.t-search-input {
-  flex: 1;
-}
-.t-search-btn {
-  flex-shrink: 0;
-  letter-spacing: 0;
-}
 .t-steps {
   list-style: none;
   margin: 18px 0 0;
@@ -2952,6 +2841,109 @@ onMounted(() => {
   font-weight: 700;
   color: #2e7d32;
   background: #e8f5e9;
+}
+
+/* Kolom resi */
+.t-searchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 56px;
+  padding: 0 6px 0 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 1.5px var(--t-line);
+  transition: box-shadow 0.18s ease;
+}
+.t-searchbar:hover {
+  box-shadow: 0 0 0 1.5px #d6c4bd;
+}
+.t-searchbar:focus-within {
+  box-shadow: 0 0 0 2px var(--t-red), 0 8px 20px rgba(183, 28, 28, 0.14);
+}
+.t-searchbar--error {
+  box-shadow: 0 0 0 2px var(--t-red);
+}
+.t-searchbar-icon {
+  flex-shrink: 0;
+  color: #a1928d;
+  transition: color 0.18s ease;
+}
+.t-searchbar:focus-within .t-searchbar-icon {
+  color: var(--t-red);
+}
+.t-searchbar-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px; /* 16px mencegah iOS memperbesar layar saat fokus */
+  font-weight: 500;
+  color: var(--t-ink);
+}
+.t-searchbar-input::placeholder {
+  font-weight: 400;
+  color: #a1928d;
+}
+.t-searchbar-input::-webkit-search-cancel-button {
+  display: none;
+}
+.t-searchbar-clear {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  color: #6f6663;
+  background: #f0e8e4;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.t-searchbar-clear:hover {
+  color: #fff;
+  background: var(--t-red);
+}
+.t-searchbar-btn {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 26px;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--t-red);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.t-searchbar-btn:hover:not(:disabled) {
+  background: #9f1717;
+}
+.t-searchbar-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.t-searchbar-btn:disabled {
+  color: #b9aca7;
+  background: #efe7e4;
+  cursor: not-allowed;
+}
+.t-searchbar--busy .t-searchbar-btn {
+  opacity: 0.7;
+  pointer-events: none;
+}
+.t-searchbar-error {
+  margin: 10px 0 0 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t-red);
 }
 
 /* ---------- Section ---------- */
@@ -3263,17 +3255,7 @@ onMounted(() => {
   transform: translateX(3px);
 }
 
-/* ---------- Footer ---------- */
-.t-footer {
-  margin-top: auto;
-  background: #fff;
-  border-top: 1px solid var(--t-line);
-}
-.t-footer-inner {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 28px 20px;
-}
+/* ---------- Pengaduan konsumen (masuk lewat slot footer) ---------- */
 .t-complaint {
   margin-bottom: 24px;
   padding-bottom: 24px;
@@ -3287,25 +3269,6 @@ onMounted(() => {
   margin-top: 2px;
   font-size: 13px;
   color: var(--t-muted);
-}
-.t-footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.t-copy {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--t-muted);
-}
-.t-social {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 /* ---------- Mobile ---------- */
@@ -3323,17 +3286,19 @@ onMounted(() => {
     padding: 14px;
     margin-bottom: 40px;
   }
-  .t-search-row {
-    flex-direction: column;
-  }
-  .t-search-btn {
-    width: 100%;
-  }
   .t-steps {
     grid-template-columns: 1fr;
   }
   .t-service-grid {
     grid-template-columns: 1fr;
+  }
+  .t-searchbar {
+    height: 52px;
+    padding-left: 14px;
+  }
+  .t-searchbar-btn {
+    height: 40px;
+    padding: 0 20px;
   }
 }
 @media (min-width: 900px) {

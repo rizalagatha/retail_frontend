@@ -5,6 +5,7 @@ import { useDisplay } from "vuetify";
 import api from "@/services/api";
 import { getFabricTexture } from "@/utils/fabricTextures";
 import LogoKaosan from "@/assets/logo.png";
+import SiteFooter from "@/components/SiteFooter.vue";
 
 interface CatalogRow {
   kode: string;
@@ -651,6 +652,11 @@ onUnmounted(() => {
                 {{ opt.label }}
               </button>
             </div>
+
+            <router-link :to="{ path: '/tracking', query: { bantuan: '1' } }" class="k-side-help">
+              <v-icon size="16">mdi-headset</v-icon>
+              Butuh bantuan? Hubungi store
+            </router-link>
           </aside>
 
           <!-- AREA PRODUK -->
@@ -717,6 +723,8 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <SiteFooter max-width="1360px" />
 
     <!-- ============ DETAIL PRODUK ============ -->
     <v-dialog
@@ -888,6 +896,8 @@ onUnmounted(() => {
 }
 
 .k-page {
+  display: flex;
+  flex-direction: column;
   --k-red: #d32f2f;
   --k-red-dark: #b71c1c;
   --k-header-h: 56px;
@@ -1923,6 +1933,20 @@ onUnmounted(() => {
 }
 .k-lengan--wrap {
   flex-wrap: wrap;
+}
+.k-side-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6f6663;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.k-side-help:hover {
+  color: var(--k-red);
 }
 
 /* Kolom pencarian sidebar */

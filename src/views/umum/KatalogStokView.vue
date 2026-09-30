@@ -190,6 +190,7 @@ const totalPcs = computed(() => stocked.value.reduce((sum, p) => sum + p.totalSt
 const coverMap = ref<Record<string, string>>({});
 const semuaCovers = ref<string[]>([]);
 const heroImages = ref<string[]>([]);
+const panelImages = ref<string[]>([]);
 
 const shuffle = <T>(arr: T[]) => {
   const a = [...arr];
@@ -232,9 +233,24 @@ watch(
       hero.push(...extra.slice(0, 8 - hero.length));
     }
     heroImages.value = hero;
+    panelImages.value = shuffle([
+      ...new Set(list.map(mainPhoto).filter((g): g is string => !!g)),
+    ]).slice(0, 12);
   },
   { immediate: true }
 );
+
+// Dua kolom foto untuk panel kiri; tiap kolom diulang sampai cukup panjang agar loop tidak bolong
+const panelColumns = computed(() => {
+  const half = Math.ceil(panelImages.value.length / 2);
+  return [panelImages.value.slice(0, half), panelImages.value.slice(half)]
+    .filter((c) => c.length)
+    .map((c) => {
+      let col = c;
+      while (col.length < 4) col = [...col, ...c];
+      return col;
+    });
+});
 
 const kategoriList = computed(() => {
   const count: Record<string, number> = {};
@@ -512,14 +528,22 @@ onUnmounted(() => {
       <div v-if="phase === 'category'" key="category" class="sp-split">
         <aside class="sp-panel">
           <div class="sp-panel-bg" aria-hidden="true">
-            <img
-              v-for="(src, i) in heroImages.slice(0, 4)"
-              :key="src + i"
-              :src="src"
-              alt=""
-              decoding="async"
-              @load="onImgLoad"
-            />
+            <div
+              v-for="(col, ci) in panelColumns"
+              :key="ci"
+              class="sp-col"
+              :class="ci % 2 ? 'sp-col--down' : 'sp-col--up'"
+              :style="{ '--speed': 55 + ci * 12 + 's' }"
+            >
+              <img
+                v-for="(src, i) in [...col, ...col]"
+                :key="i"
+                :src="src"
+                alt=""
+                decoding="async"
+                @load="onImgLoad"
+              />
+            </div>
           </div>
           <div class="sp-panel-shade"></div>
 
@@ -1079,19 +1103,43 @@ onUnmounted(() => {
   inset: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 2px;
+  gap: 6px;
+  padding: 0 6px;
+  overflow: hidden;
 }
-.sp-panel-bg img {
+.sp-col {
+  will-change: transform;
+  animation: sp-up var(--speed, 60s) linear infinite;
+}
+.sp-col--down {
+  animation-name: sp-down;
+}
+.sp-col img {
+  display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 3 / 4;
+  margin-bottom: 6px; /* margin (bukan gap) agar loop -50% pas */
+  border-radius: 10px;
   object-fit: cover;
   object-position: center 20%;
   opacity: 0;
   transition: opacity 0.6s ease;
 }
-.sp-panel-bg img.is-loaded {
+.sp-col img.is-loaded {
   opacity: 1;
+}
+@keyframes sp-up {
+  to {
+    transform: translateY(-50%);
+  }
+}
+@keyframes sp-down {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 .sp-panel-shade {
   position: absolute;
@@ -1192,10 +1240,6 @@ onUnmounted(() => {
     top: 0;
     height: auto;
   }
-  .sp-panel-bg {
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: 1fr;
-  }
   .sp-panel-body {
     min-height: 340px;
   }
@@ -1207,10 +1251,10 @@ onUnmounted(() => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sp-live i {
+  .sp-col {
     animation: none;
   }
-  .sp-panel-bg img {
+  .sp-col img {
     transition: none;
   }
 }

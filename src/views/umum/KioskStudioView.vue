@@ -34,7 +34,7 @@ const restart = () => {
 };
 
 onMounted(() => {
-  document.title = "Kaos Studio - Kaosan";
+  document.title = "KaoStudio - Kaosan";
   armSlow();
 });
 onUnmounted(() => clearTimeout(slowTimer));

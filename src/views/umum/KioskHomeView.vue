@@ -267,7 +267,7 @@ onUnmounted(() => {
             <rect class="kh-studio-print" x="26" y="22" width="12" height="12" rx="1.5" />
           </svg>
           <span class="kh-tile-text">
-            <span class="kh-tile-title">Kaos Studio</span>
+            <span class="kh-tile-title">KaoStudio</span>
             <span class="kh-tile-desc">Rancang desain kaosmu, harga langsung terhitung</span>
           </span>
         </button>

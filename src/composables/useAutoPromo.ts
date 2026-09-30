@@ -98,6 +98,10 @@ export function useAutoPromo(
   // meski promo ini tidak punya diskon faktur (pro_disrp/pro_dispersen = 0)
   const appliedTierPromoNomors = ref<string[]>([]);
 
+  // Promo Diskon Item tanpa daftar barang (berbasis aturan lanjutan) yang diterapkan ke minimal 1 item,
+  // dicatat agar nomornya tetap masuk header.nomorPromo untuk pelaporan
+  const appliedItemPromoNomors = ref<string[]>([]);
+
   // ── Fetch ──────────────────────────────────────────────
   const fetchPromos = async (cabang: string, tanggal: string): Promise<void> => {
     const key = `${cabang}|${tanggal}`;
@@ -282,13 +286,14 @@ export function useAutoPromo(
   // ── Evaluasi Per Item (promo jenis=4 / DISCOUNT, dari tpromo_barang) ──
   const evaluateItemPromos = async (): Promise<void> => {
     itemDiscountMap.value.clear();
+    appliedItemPromoNomors.value = [];
     const itemPromos = activePromos.value.filter(
       (p) => p.pro_f1 === "N" && (p.pro_jenis === 4 || p.pro_mode_barang === "DISCOUNT")
     );
     if (!itemPromos.length) return;
     const totalKeranjang = items.value.reduce((sum, item) => {
       if (!item.kode) return sum;
-      if (item.isFreeGift) return sum; // [BARU]
+      if (item.isFreeGift) return sum;
       return sum + (item.harga || 0) * (item.jumlah || 0);
     }, 0);
     for (const promo of itemPromos) {
@@ -298,7 +303,37 @@ export function useAutoPromo(
       if (promo.pro_totalqty > 0 && eligibleQty < promo.pro_totalqty) continue;
       try {
         const { data } = await api.get(`/invoice-form/lookup/promo-items/${promo.pro_nomor}`);
-        for (const pi of data || []) {
+        const listed = data || [];
+
+        // Tidak ada daftar barang: berlaku untuk semua barang di keranjang yang lolos aturan lanjutan
+        if (listed.length === 0) {
+          const persen = Number(promo.pro_dispersen) || 0; // dari DB bisa berupa string "25.00"
+          const rpTetap = Number(promo.pro_disrp) || 0;
+          if (persen <= 0 && rpTetap <= 0) continue;
+
+          let applied = false;
+          for (const item of items.value) {
+            if (!item.kode || item.isFreeGift || item.noPengajuanHarga) continue;
+            if (item.noSoDtf || /^(SO|SM)-/i.test(item.kode)) continue;
+            if (!isItemEligible(item, promo)) continue;
+
+            const key = `${item.kode}||${item.ukuran}`;
+            const rp = rpTetap > 0 ? rpTetap : Math.round(((item.harga || 0) * persen) / 100);
+            const existing = itemDiscountMap.value.get(key);
+            if (!existing || persen > existing.persen) {
+              itemDiscountMap.value.set(key, {
+                nama: item.nama || item.kode,
+                persen: rpTetap > 0 ? 0 : persen,
+                rp,
+              });
+            }
+            applied = true;
+          }
+          if (applied) appliedItemPromoNomors.value.push(promo.pro_nomor);
+          continue;
+        }
+
+        for (const pi of listed) {
           const key = `${pi.kode}||${pi.ukuran}`;
           const existing = itemDiscountMap.value.get(key);
           if (!existing || pi.discPersen > existing.persen) {
@@ -496,7 +531,7 @@ export function useAutoPromo(
       // [BARU] Sertakan promo tier (Grand Opening K12, dkk) yang diterapkan ke item
       // tapi tidak masuk hitungan faktur (pro_disrp/pro_dispersen = 0) — tetap perlu
       // tercatat di header.nomorPromo untuk pelaporan/audit.
-      for (const tierNomor of appliedTierPromoNomors.value) {
+      for (const tierNomor of [...appliedTierPromoNomors.value, ...appliedItemPromoNomors.value]) {
         if (!nomors.includes(tierNomor)) {
           const tierPromo = activePromos.value.find((p) => p.pro_nomor === tierNomor);
           if (tierPromo) {
@@ -629,6 +664,7 @@ export function useAutoPromo(
     notification.value = "";
     totalAppliedDiskon.value = 0;
     appliedTierPromoNomors.value = [];
+    appliedItemPromoNomors.value = [];
   };
 
   const clear = (): void => {

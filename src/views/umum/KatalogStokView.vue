@@ -184,6 +184,8 @@ const stocked = computed(() =>
   HANYA_ADA_STOK ? products.value.filter((p) => p.totalStok > 0) : products.value
 );
 
+const totalPcs = computed(() => stocked.value.reduce((sum, p) => sum + p.totalStok, 0));
+
 // --- Cover & hero (dipilih sekali saat data pertama tiba) ---
 const coverMap = ref<Record<string, string>>({});
 const semuaCovers = ref<string[]>([]);
@@ -507,23 +509,27 @@ onUnmounted(() => {
 
     <Transition name="k-page" mode="out-in" appear @before-enter="scrollTop">
       <!-- ============ KATEGORI ============ -->
-      <div v-if="phase === 'category'" key="category">
-        <section v-if="!isLoading && heroImages.length" class="k-hero">
-          <div class="k-hero-grid">
-            <div
-              v-for="(src, i) in heroImages"
-              :key="src"
-              class="k-hero-tile"
-              :style="{ '--i': i }"
-            >
-              <img :src="src" alt="" decoding="async" @load="onImgLoad" />
-            </div>
+      <div v-if="phase === 'category'" key="category" class="sp-split">
+        <aside class="sp-panel">
+          <div class="sp-panel-bg" aria-hidden="true">
+            <img
+              v-for="(src, i) in heroImages.slice(0, 4)"
+              :key="src + i"
+              :src="src"
+              alt=""
+              decoding="async"
+              @load="onImgLoad"
+            />
           </div>
+          <div class="sp-panel-shade"></div>
 
-          <div class="k-hero-overlay">
-            <div class="k-hero-eyebrow">Stok Pameran</div>
-            <h1 class="k-hero-title">Stok <em>langsung</em> dari pameran.</h1>
-            <p class="k-hero-sub">Jumlah tiap ukuran berkurang otomatis saat terjual.</p>
+          <div class="sp-panel-body">
+            <span class="sp-live"><i></i>Stok langsung</span>
+            <div class="sp-num">{{ isLoading ? "-" : totalPcs.toLocaleString("id-ID") }}</div>
+            <div class="sp-num-label">pcs siap di {{ stocked.length }} model</div>
+
+            <h1 class="sp-title">Stok <em>Pameran</em></h1>
+            <p class="sp-sub">Jumlah tiap ukuran berkurang otomatis saat terjual.</p>
             <div class="k-hero-actions">
               <button class="k-hero-btn k-hero-btn--solid" @click="pilihKategori('ALL')">
                 Lihat semua stok
@@ -533,9 +539,9 @@ onUnmounted(() => {
               </router-link>
             </div>
           </div>
-        </section>
+        </aside>
 
-        <main class="k-container">
+        <main class="sp-list">
           <p class="k-hint">Pilih jenis kain untuk melihat stok yang tersedia.</p>
           <Transition name="k-fade" mode="out-in">
             <div v-if="isLoading" key="loading" class="k-cat-grid">
@@ -1051,5 +1057,161 @@ onUnmounted(() => {
 .k-stok-pill--out {
   color: #8a8a8a;
   background: #f0f0f0;
+}
+
+/* ---------- Halaman kategori: panel kiri 30% + daftar kain 70% ---------- */
+.sp-split {
+  display: grid;
+  grid-template-columns: minmax(320px, 30%) minmax(0, 1fr);
+  align-items: start;
+}
+.sp-panel {
+  position: sticky;
+  top: var(--k-header-h);
+  align-self: start;
+  height: calc(100vh - var(--k-header-h));
+  overflow: hidden;
+  color: #fff;
+  background: #1a0d0b;
+}
+.sp-panel-bg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+.sp-panel-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.sp-panel-bg img.is-loaded {
+  opacity: 1;
+}
+.sp-panel-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(20, 8, 6, 0.94) 0%,
+    rgba(20, 8, 6, 0.72) 55%,
+    rgba(20, 8, 6, 0.45) 100%
+  );
+}
+.sp-panel-body {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(24px, 3vw, 44px);
+}
+.sp-live {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.14);
+}
+.sp-live i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff5252;
+  animation: sp-pulse 1.6s ease-in-out infinite;
+}
+.sp-num {
+  margin-top: 18px;
+  font-size: clamp(64px, 7vw, 132px);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.sp-num-label {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.sp-title {
+  margin: clamp(20px, 4vh, 44px) 0 0;
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-size: clamp(30px, 3vw, 52px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.sp-title em {
+  font-style: italic;
+  font-weight: 500;
+}
+.sp-sub {
+  margin: 10px 0 18px;
+  max-width: 30ch;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+.sp-list {
+  min-width: 0;
+  padding: 24px clamp(16px, 2.4vw, 40px) 48px;
+}
+.sp-list .k-cat-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+@keyframes sp-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 82, 82, 0);
+  }
+}
+
+/* HP dan layar portrait: panel ditumpuk di atas, lebih pendek */
+@media (max-width: 959px), (orientation: portrait) {
+  .sp-split {
+    grid-template-columns: 1fr;
+  }
+  .sp-panel {
+    position: relative;
+    top: 0;
+    height: auto;
+  }
+  .sp-panel-bg {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: 1fr;
+  }
+  .sp-panel-body {
+    min-height: 340px;
+  }
+  .sp-num {
+    font-size: clamp(56px, 14vw, 110px);
+  }
+  .sp-list .k-cat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-live i {
+    animation: none;
+  }
+  .sp-panel-bg img {
+    transition: none;
+  }
 }
 </style>

@@ -942,7 +942,7 @@ onUnmounted(() => {
   background: transparent;
   color-scheme: normal;
   transform: scale(var(--kh-scale, 1));
-  transform-origin: center center;
+  transform-origin: right bottom;
 }
 /* Lapisan penutup layar tunggu: semua area kecuali sudut kanan-bawah 120px (tombol unmute) */
 .kh-attract-wake {
@@ -1078,6 +1078,7 @@ onUnmounted(() => {
     width: 100vh;
     height: 100vw;
     transform: translate(-50%, -50%) rotate(var(--kh-rot)) scale(var(--kh-scale, 1));
+    transform-origin: center center;
   }
   /* iframe diputar 90deg: sudut kanan-bawah asli pindah ke kiri-bawah */
   .kh-attract-wake {

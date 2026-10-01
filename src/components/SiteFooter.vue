@@ -14,7 +14,7 @@ const year = new Date().getFullYear();
 const links = [
   { label: "Lacak Pesanan", to: "/tracking" },
   { label: "Katalog", to: "/katalog" },
-  { label: "Cek Stok Store", to: "/cek-stok" },
+  { label: "Cek Stok Store", to: "/cek-stok-store" },
   { label: "Pusat Bantuan", to: { path: "/tracking", query: { bantuan: "1" } } },
 ];
 

@@ -549,7 +549,7 @@ onUnmounted(() => {
               <button class="k-hero-btn k-hero-btn--solid" @click="pilihKategori('ALL')">
                 Lihat semua koleksi
               </button>
-              <router-link to="/cek-stok" class="k-hero-btn k-hero-btn--ghost">
+              <router-link to="/cek-stok-store" class="k-hero-btn k-hero-btn--ghost">
                 Cek stok store
               </router-link>
             </div>
@@ -884,7 +884,7 @@ onUnmounted(() => {
                   <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
                   <span>
                     Ketersediaan stok berbeda di tiap store. Cek di menu
-                    <router-link to="/cek-stok">Cek Stok Store</router-link>.
+                    <router-link to="/cek-stok-store">Cek Stok Store</router-link>.
                   </span>
                 </div>
               </div>

@@ -56,6 +56,7 @@ const ProformaPrintView = () => import("@/views/transaksi/penjualan/ProformaPrin
 
 const TrackingHomeView = () => import("@/views/umum/TrackingHomeView.vue");
 const KatalogStokView = () => import("@/views/umum/KatalogStokView.vue");
+const StokTokoView = () => import("@/views/umum/StokTokoView.vue");
 const KioskHomeView = () => import("@/views/umum/KioskHomeView.vue");
 const KatalogView = () => import("@/views/umum/KatalogView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
@@ -381,6 +382,12 @@ const routes = [
     path: "/cek-stok/:kategori?",
     name: "Katalog Stok",
     component: KatalogStokView,
+    meta: { title: "Cek Stok Store", layout: "PrintLayout", requiresAuth: false, public: true },
+  },
+  {
+    path: "/cek-stok-store/:toko?/:kategori?",
+    name: "Stok Toko",
+    component: StokTokoView,
     meta: { title: "Cek Stok Store", layout: "PrintLayout", requiresAuth: false, public: true },
   },
   {

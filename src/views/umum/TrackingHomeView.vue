@@ -931,7 +931,7 @@ onMounted(() => {
             <v-icon class="t-service-arrow" size="18">mdi-arrow-right</v-icon>
           </button>
 
-          <button class="t-service" v-reveal="1" @click="router.push('/cek-stok')">
+          <button class="t-service" v-reveal="1" @click="router.push('/cek-stok-store')">
             <span class="t-service-icon"><v-icon size="22">mdi-store-search-outline</v-icon></span>
             <span class="t-service-text">
               <span class="t-service-name">Cek Stok Store <em class="t-beta">Beta</em></span>

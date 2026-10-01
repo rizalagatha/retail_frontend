@@ -242,13 +242,17 @@ watch(
   { immediate: true }
 );
 
-// Etalase panel kiri: satu foto utama bergantian, dua kartu di belakangnya
-const showcaseIdx = ref(0);
-const panelSlides = computed(() => panelImages.value.slice(0, 6));
-const activePhoto = computed(() =>
-  panelSlides.value.length ? showcaseIdx.value % panelSlides.value.length : 0
-);
-let showcaseTimer: ReturnType<typeof setInterval> | undefined;
+// Dua kolom foto untuk panel kiri; tiap kolom diulang agar loop tidak bolong
+const panelColumns = computed(() => {
+  const half = Math.ceil(panelImages.value.length / 2);
+  return [panelImages.value.slice(0, half), panelImages.value.slice(half)]
+    .filter((c) => c.length)
+    .map((c) => {
+      let col = c;
+      while (col.length < 4) col = [...col, ...c];
+      return col;
+    });
+});
 
 const kategoriList = computed(() => {
   const count: Record<string, number> = {};
@@ -493,9 +497,6 @@ onMounted(() => {
   pollTimer = setInterval(() => {
     if (!document.hidden) loadStok(true);
   }, POLL_MS);
-  showcaseTimer = setInterval(() => {
-    showcaseIdx.value++;
-  }, 6000);
   window.addEventListener("keydown", onLbKey, true);
   window.addEventListener("keydown", onSlashKey);
 });
@@ -503,7 +504,6 @@ onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
   clearInterval(pollTimer);
-  clearInterval(showcaseTimer);
   window.removeEventListener("keydown", onLbKey, true);
   window.removeEventListener("keydown", onSlashKey);
 });
@@ -529,19 +529,24 @@ onUnmounted(() => {
       <!-- ============ KATEGORI ============ -->
       <div v-if="phase === 'category'" key="category" class="sp-split">
         <aside class="sp-panel">
-          <div class="sp-photos" aria-hidden="true">
-            <img
-              v-for="(src, i) in panelSlides"
-              :key="src"
-              :src="src"
-              alt=""
-              decoding="async"
-              class="sp-photo"
-              :class="{ 'is-active': i === activePhoto }"
-            />
+          <div class="sp-tilt" aria-hidden="true">
+            <div
+              v-for="(col, ci) in panelColumns"
+              :key="ci"
+              class="sp-col"
+              :style="{ '--speed': 70 + ci * 18 + 's' }"
+            >
+              <img
+                v-for="(src, i) in [...col, ...col]"
+                :key="i"
+                :src="src"
+                alt=""
+                decoding="async"
+                @load="onImgLoad"
+              />
+            </div>
           </div>
           <div class="sp-shade"></div>
-          <div class="sp-panel-shade"></div>
 
           <div class="sp-panel-body">
             <span class="sp-live"><i></i>Stok langsung</span>
@@ -1094,24 +1099,49 @@ onUnmounted(() => {
   color: #fff;
   background: #1a0d0b;
 }
-.sp-photos {
+.sp-tilt {
   position: absolute;
-  inset: 0;
+  inset: -20% -18%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  transform: rotate(-8deg);
 }
-.sp-photo {
-  position: absolute;
-  inset: 0;
+.sp-col {
+  will-change: transform;
+  animation: sp-up var(--speed, 70s) linear infinite;
+}
+.sp-col:nth-child(2) {
+  margin-top: -90px; /* kolom kedua mulai lebih tinggi, jadi baris foto tidak sejajar */
+}
+.sp-col img {
+  display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 3 / 4;
+  margin-bottom: 12px; /* margin (bukan gap) agar loop -50% pas */
+  border-radius: 16px;
   object-fit: cover;
   object-position: center 20%;
   opacity: 0;
-  transform: scale(1.02);
-  transition: opacity 1.2s ease, transform 8s ease-out;
+  transition: opacity 0.6s ease;
 }
-.sp-photo.is-active {
+.sp-col img.is-loaded {
   opacity: 1;
-  transform: scale(1.1);
+}
+@keyframes sp-up {
+  to {
+    transform: translateY(-50%);
+  }
+}
+.sp-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(26, 8, 8, 0.96) 0%,
+    rgba(40, 10, 10, 0.72) 45%,
+    rgba(120, 18, 18, 0.38) 100%
+  );
 }
 .sp-shade {
   position: absolute;
@@ -1255,9 +1285,11 @@ onUnmounted(() => {
   .sp-card {
     transition: none;
   }
-  .sp-photo {
-    transition: opacity 0.01s;
-    transform: none;
+  .sp-col {
+    animation: none;
+  }
+  .sp-col img {
+    transition: none;
   }
 }
 </style>

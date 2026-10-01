@@ -480,17 +480,18 @@ onUnmounted(() => {
   display: block;
   color: transparent;
   background: linear-gradient(
-    100deg,
-    #f6ead0 0%,
-    #e6cf98 38%,
-    #fff6dc 50%,
-    #c9a95e 66%,
-    #f6ead0 100%
-  );
-  background-size: 220% 100%;
+        105deg,
+        transparent 42%,
+        rgba(255, 252, 238, 0.95) 50%,
+        transparent 58%
+      )
+      no-repeat,
+    linear-gradient(180deg, #f6ead0 0%, #e6cf98 45%, #b8964f 100%);
+  background-size: 250% 100%, 100% 100%;
+  background-position: 150% 0, 0 0;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: pm-reveal 1s var(--pm-ease) 0.12s both, pm-foil 9s ease-in-out 1.2s infinite;
+  animation: pm-reveal 1s var(--pm-ease) 0.12s both, pm-glint 8s ease-in-out 1.6s infinite;
 }
 .pm-tag {
   margin: 14px 0 0;
@@ -745,13 +746,14 @@ onUnmounted(() => {
   }
 }
 
-@keyframes pm-foil {
+@keyframes pm-glint {
   0%,
-  100% {
-    background-position: 0% 0;
+  62% {
+    background-position: 150% 0, 0 0;
   }
-  50% {
-    background-position: 100% 0;
+  82%,
+  100% {
+    background-position: -50% 0, 0 0;
   }
 }
 @keyframes pm-float {

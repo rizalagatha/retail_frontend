@@ -174,47 +174,60 @@
   gap: 10px;
 }
 .k-cat-card {
-  border: 1px solid #eee;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-  padding: 0;
-  text-align: center;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  text-align: left;
 }
 .k-cat-card:hover,
 .k-cat-card:focus-visible {
-  transform: translateY(-5px);
-  box-shadow: 0 14px 28px rgba(183, 28, 28, 0.22);
-  border-color: var(--k-red);
-  outline: none;
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
 }
 .k-cat-card:active {
-  transform: translateY(-1px) scale(0.985);
-  transition-duration: 0.08s;
+  transform: none;
+  box-shadow: none;
 }
-.k-cat-card:hover .k-cat-name {
-  color: var(--k-red-dark);
-}
-.k-cat-tex {
-  line-height: 0;
-}
-.k-cat-tex :deep(svg) {
-  width: 100%;
-  height: auto;
+.k-cat-cover {
+  aspect-ratio: 4 / 5;
+  border-radius: 2px;
+  overflow: hidden;
+  background: #f1ece9;
 }
 .k-cat-body {
-  padding: 8px;
+  padding: 10px 2px 0;
 }
 .k-cat-name {
-  font-size: 12px;
-  font-weight: 800;
-  color: #333;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #1f1a19;
+}
+.k-cat-card:hover .k-cat-name {
+  color: #1f1a19;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .k-cat-count {
-  font-size: 10px;
-  color: #999;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #8a7f7b;
+}
+.k-cat-grid {
+  gap: 18px 8px;
+}
+@media (min-width: 600px) {
+  .k-cat-grid {
+    gap: 22px 10px;
+  }
+}
+@media (hover: none) {
+  .k-cat-card:hover .k-cat-name {
+    text-decoration: none;
+  }
 }
 
 .k-count {
@@ -1296,12 +1309,24 @@
   font-weight: 800;
 }
 .k-grid {
-  gap: 28px 8px;
+  gap: 18px 8px;
 }
 @media (min-width: 600px) {
   .k-grid {
-    gap: 36px 10px;
+    gap: 22px 10px;
   }
+}
+.k-card-body {
+  flex: 0 0 auto;
+  padding: 10px 2px 0;
+  gap: 3px;
+}
+.k-card-name {
+  min-height: 0;
+  line-height: 1.4;
+}
+.k-card-price {
+  margin-top: 0;
 }
 @media (hover: none) {
   .k-card:hover .k-card-name {

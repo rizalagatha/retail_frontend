@@ -138,8 +138,7 @@ const products = computed<Product[]>(() => {
       else if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
         kategori = "KAOS ANAK";
       else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) kategori = "TUNIK";
-
-      const coverIndex = pickCover(r.kode, galeri.length);
+      const coverIndex = 0;
       p = {
         kode: r.kode,
         nama: r.nama,

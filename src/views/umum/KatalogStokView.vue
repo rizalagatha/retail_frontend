@@ -244,11 +244,10 @@ watch(
 
 // Etalase panel kiri: satu foto utama bergantian, dua kartu di belakangnya
 const showcaseIdx = ref(0);
-const showcase = computed(() => {
-  const n = panelImages.value.length;
-  if (!n) return [] as string[];
-  return [0, 1, 2].map((o) => panelImages.value[(showcaseIdx.value + o) % n]);
-});
+const panelSlides = computed(() => panelImages.value.slice(0, 6));
+const activePhoto = computed(() =>
+  panelSlides.value.length ? showcaseIdx.value % panelSlides.value.length : 0
+);
 let showcaseTimer: ReturnType<typeof setInterval> | undefined;
 
 const kategoriList = computed(() => {
@@ -496,7 +495,7 @@ onMounted(() => {
   }, POLL_MS);
   showcaseTimer = setInterval(() => {
     showcaseIdx.value++;
-  }, 4500);
+  }, 6000);
   window.addEventListener("keydown", onLbKey, true);
   window.addEventListener("keydown", onSlashKey);
 });
@@ -530,19 +529,18 @@ onUnmounted(() => {
       <!-- ============ KATEGORI ============ -->
       <div v-if="phase === 'category'" key="category" class="sp-split">
         <aside class="sp-panel">
-          <div class="sp-stage" aria-hidden="true">
-            <TransitionGroup name="sp-card" tag="div" class="sp-stack">
-              <img
-                v-for="(src, i) in showcase"
-                :key="src"
-                :src="src"
-                alt=""
-                decoding="async"
-                class="sp-card"
-                :class="`sp-card--${i}`"
-              />
-            </TransitionGroup>
+          <div class="sp-photos" aria-hidden="true">
+            <img
+              v-for="(src, i) in panelSlides"
+              :key="src"
+              :src="src"
+              alt=""
+              decoding="async"
+              class="sp-photo"
+              :class="{ 'is-active': i === activePhoto }"
+            />
           </div>
+          <div class="sp-shade"></div>
           <div class="sp-panel-shade"></div>
 
           <div class="sp-panel-body">
@@ -1093,8 +1091,37 @@ onUnmounted(() => {
   align-self: start;
   height: calc(100vh - var(--k-header-h));
   overflow: hidden;
-  color: #1f1a19;
-  background: linear-gradient(165deg, #fbf3ef 0%, #f1e2dc 100%);
+  color: #fff;
+  background: #1a0d0b;
+}
+.sp-photos {
+  position: absolute;
+  inset: 0;
+}
+.sp-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 1.2s ease, transform 8s ease-out;
+}
+.sp-photo.is-active {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.sp-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(20, 8, 6, 0.92) 0%,
+    rgba(20, 8, 6, 0.55) 38%,
+    transparent 70%
+  );
 }
 .sp-panel .k-hero-btn--solid {
   color: #fff;
@@ -1118,52 +1145,6 @@ onUnmounted(() => {
   border-radius: 50%;
   background: radial-gradient(circle, rgba(183, 28, 28, 0.18), transparent 70%);
 }
-.sp-stage {
-  position: absolute;
-  inset: 4% 8% auto 8%;
-  height: 52%;
-}
-.sp-stack {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.sp-card {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 18%;
-  border-radius: 20px;
-  box-shadow: 0 18px 40px rgba(60, 20, 15, 0.22);
-  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.9s ease;
-}
-.sp-card--0 {
-  z-index: 3;
-  transform: none;
-}
-.sp-card--1 {
-  z-index: 2;
-  transform: translate(7%, 4%) rotate(4deg) scale(0.94);
-  opacity: 0.85;
-}
-.sp-card--2 {
-  z-index: 1;
-  transform: translate(-6%, 7%) rotate(-5deg) scale(0.88);
-  opacity: 0.6;
-}
-.sp-card-enter-from {
-  opacity: 0;
-  transform: translate(-6%, 7%) rotate(-5deg) scale(0.82);
-}
-.sp-card-leave-active {
-  z-index: 4;
-}
-.sp-card-leave-to {
-  opacity: 0;
-  transform: translateY(-14%) rotate(-3deg) scale(0.96);
-}
 .sp-panel-body {
   position: relative;
   height: 100%;
@@ -1183,8 +1164,8 @@ onUnmounted(() => {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: #fdecea;
-  color: #b71c1c;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
 .sp-live i {
   width: 8px;
@@ -1200,7 +1181,6 @@ onUnmounted(() => {
   line-height: 0.9;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
-  color: #b71c1c;
 }
 .sp-num-label {
   margin-top: 8px;
@@ -1259,7 +1239,7 @@ onUnmounted(() => {
     margin: 16px 8vw 0;
   }
   .sp-panel-body {
-    min-height: 0;
+    min-height: 420px;
   }
   .sp-num {
     font-size: clamp(56px, 14vw, 110px);
@@ -1274,6 +1254,10 @@ onUnmounted(() => {
   }
   .sp-card {
     transition: none;
+  }
+  .sp-photo {
+    transition: opacity 0.01s;
+    transform: none;
   }
 }
 </style>

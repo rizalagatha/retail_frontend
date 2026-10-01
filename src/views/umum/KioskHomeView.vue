@@ -174,6 +174,17 @@ const wake = () => {
   arm();
 };
 
+// Perbesar iframe signage agar video 1280x720 mengisi layar (tepi hitam terpotong)
+const VIDEO_W = 1280;
+const VIDEO_H = 720;
+const attractScale = ref(1);
+const calcScale = () => {
+  const portrait = window.innerHeight > window.innerWidth;
+  const w = portrait ? window.innerHeight : window.innerWidth; // iframe diputar 90deg di portrait
+  const h = portrait ? window.innerWidth : window.innerHeight;
+  attractScale.value = Math.max(w / VIDEO_W, h / VIDEO_H);
+};
+
 // Di luar layar tunggu: sentuhan hanya mengatur ulang timer. Di layar tunggu, penutupan ditangani lapisan .kh-attract-wake
 const onPointer = () => {
   if (!attract.value) arm();
@@ -189,12 +200,14 @@ onMounted(() => {
   loadPromos();
   loadStok();
   arm();
+  calcScale();
   photoTimer = setInterval(() => tick.value++, PHOTO_ROTATE_MS);
   promoTimer = setInterval(() => {
     if (promos.value.length > 1) promoIdx.value++;
   }, PROMO_ROTATE_MS);
   stokTimer = setInterval(loadStok, STOK_POLL_MS);
   slowTimer = setInterval(loadPromos, 600_000); // kiosk menyala berhari-hari, promo perlu disegarkan
+  window.addEventListener("resize", calcScale);
   window.addEventListener("pointerdown", onPointer, { passive: true });
 });
 onUnmounted(() => {
@@ -204,6 +217,7 @@ onUnmounted(() => {
   clearInterval(stokTimer);
   clearInterval(slowTimer);
   cancelAnimationFrame(raf);
+  window.removeEventListener("resize", calcScale);
   window.removeEventListener("pointerdown", onPointer);
 });
 </script>
@@ -342,7 +356,7 @@ onUnmounted(() => {
           title="Signage Kaosan"
           allow="autoplay"
           tabindex="-1"
-          style="pointer-events: auto"
+          :style="{ pointerEvents: 'auto', '--kh-scale': attractScale }"
         ></iframe>
         <div class="kh-attract-wake" @pointerdown="wake"></div>
         <div class="kh-attract-hint"><span class="kh-pulse"></span>Sentuh layar untuk mulai</div>
@@ -927,6 +941,8 @@ onUnmounted(() => {
   pointer-events: none; /* sentuhan ditangkap beranda untuk menutup layar tunggu */
   background: transparent;
   color-scheme: normal;
+  transform: scale(var(--kh-scale, 1));
+  transform-origin: center center;
 }
 /* Lapisan penutup layar tunggu: semua area kecuali sudut kanan-bawah 120px (tombol unmute) */
 .kh-attract-wake {
@@ -1061,7 +1077,7 @@ onUnmounted(() => {
     left: 50%;
     width: 100vh;
     height: 100vw;
-    transform: translate(-50%, -50%) rotate(var(--kh-rot));
+    transform: translate(-50%, -50%) rotate(var(--kh-rot)) scale(var(--kh-scale, 1));
   }
   /* iframe diputar 90deg: sudut kanan-bawah asli pindah ke kiri-bawah */
   .kh-attract-wake {

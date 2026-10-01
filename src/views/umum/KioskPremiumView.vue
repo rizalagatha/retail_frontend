@@ -6,7 +6,9 @@ import LogoKaosan from "@/assets/logo.png";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { isKiosk } from "@/composables/useKiosk";
 import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
-import "@fontsource-variable/manrope";
+import "@fontsource-variable/cormorant";
+import "@fontsource-variable/cormorant/wght-italic.css";
+import "@fontsource-variable/jost";
 
 interface CatalogRow {
   nama: string;
@@ -23,6 +25,15 @@ const PHOTOS_PER_FABRIC = 3;
 // =======================
 
 const fabrics = PREMIUM_FABRICS;
+
+// Butiran emas melayang (posisi tetap, bukan acak, agar tidak berubah tiap render)
+const dust = Array.from({ length: 16 }, (_, i) => ({
+  x: (i * 37 + 8) % 100,
+  s: 2 + (i % 3),
+  d: 16 + ((i * 3) % 10),
+  dl: -((i * 1.9) % 16),
+}));
+
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -107,12 +118,19 @@ onUnmounted(() => {
 
 <template>
   <div class="pm">
+    <span
+      v-for="(p, n) in dust"
+      :key="n"
+      class="pm-dust"
+      aria-hidden="true"
+      :style="{ '--x': p.x + '%', '--s': p.s + 'px', '--d': p.d + 's', '--dl': p.dl + 's' }"
+    ></span>
     <header class="pm-top">
       <button class="pm-back" aria-label="Kembali" @click="router.push(homePath)">
         <v-icon size="22">mdi-arrow-left</v-icon>
       </button>
       <div class="pm-brand">
-        <span class="pm-brand-eyebrow">Kaosan</span>
+        <span class="pm-brand-eyebrow"><i></i>Kaosan<i></i></span>
         <span class="pm-brand-title">Premium <em>Collection</em></span>
       </div>
       <span class="pm-logo"><img :src="LogoKaosan" height="28" alt="Kaosan" /></span>
@@ -133,6 +151,7 @@ onUnmounted(() => {
       </nav>
 
       <main class="pm-stage">
+        <div class="pm-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <Transition name="pm-fade" mode="out-in">
           <article :key="idx" class="pm-card">
             <span class="pm-ghost" aria-hidden="true">{{ pad(idx + 1) }}</span>
@@ -205,7 +224,9 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   color: var(--pm-cream);
-  font-family: "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pm-serif: "Cormorant Variable", "Cormorant Garamond", Georgia, serif;
+  --pm-sans: "Jost Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--pm-sans);
   background: radial-gradient(900px 600px at 78% 30%, rgba(160, 110, 40, 0.16), transparent 70%),
     radial-gradient(700px 500px at 0% 100%, rgba(120, 18, 18, 0.28), transparent 70%), #0e0605;
 }
@@ -224,7 +245,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 2;
   flex-shrink: 0;
-  height: 76px;
+  height: 92px;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -249,8 +270,12 @@ onUnmounted(() => {
   background: rgba(216, 189, 132, 0.14);
 }
 .pm-brand {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
+  align-items: center;
   line-height: 1.1;
 }
 .pm-brand-eyebrow {
@@ -259,10 +284,21 @@ onUnmounted(() => {
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--pm-gold);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.pm-brand-eyebrow i {
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pm-gold));
+}
+.pm-brand-eyebrow i:last-child {
+  transform: scaleX(-1);
 }
 .pm-brand-title {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 26px;
+  font-family: var(--pm-serif);
+  font-size: 32px;
   font-weight: 500;
 }
 .pm-brand-title em {
@@ -333,13 +369,15 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 .pm-nav-name {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 18px;
+  font-family: var(--pm-serif);
+  font-size: 23px;
+  font-weight: 600;
   line-height: 1.2;
 }
 .pm-nav-item.is-active {
   color: var(--pm-gold);
   transform: translateX(14px);
+  text-shadow: 0 0 22px rgba(216, 189, 132, 0.35);
 }
 .pm-nav-item.is-active::before {
   width: 22px;
@@ -378,8 +416,8 @@ onUnmounted(() => {
   position: absolute;
   right: -1%;
   top: -6%;
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: clamp(180px, 26vw, 420px);
+  font-family: var(--pm-serif);
+  font-size: clamp(220px, 30vw, 480px);
   line-height: 1;
   color: transparent;
   -webkit-text-stroke: 1px rgba(216, 189, 132, 0.12);
@@ -419,9 +457,9 @@ onUnmounted(() => {
 .pm-name {
   margin: 18px 0 0;
   overflow: hidden;
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: clamp(40px, 4.6vw, 84px);
-  font-weight: 500;
+  font-family: var(--pm-serif);
+  font-size: clamp(48px, 5.6vw, 104px);
+  font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.01em;
   animation: none;
@@ -429,12 +467,24 @@ onUnmounted(() => {
 }
 .pm-name span {
   display: block;
-  animation: pm-reveal 1s var(--pm-ease) 0.12s both;
+  color: transparent;
+  background: linear-gradient(
+    100deg,
+    #f6ead0 0%,
+    #e6cf98 38%,
+    #fff6dc 50%,
+    #c9a95e 66%,
+    #f6ead0 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: pm-reveal 1s var(--pm-ease) 0.12s both, pm-foil 9s ease-in-out 1.2s infinite;
 }
 .pm-tag {
   margin: 14px 0 0;
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: clamp(20px, 1.9vw, 32px);
+  font-family: var(--pm-serif);
+  font-size: clamp(24px, 2.3vw, 40px);
   font-style: italic;
   line-height: 1.3;
   color: var(--pm-gold);
@@ -453,6 +503,7 @@ onUnmounted(() => {
   max-width: 46ch;
   margin: 0;
   font-size: clamp(15px, 1.25vw, 21px);
+  font-weight: 300;
   line-height: 1.75;
   color: rgba(243, 232, 210, 0.84);
   animation-delay: 0.5s;
@@ -488,9 +539,10 @@ onUnmounted(() => {
   border: 1px solid var(--pm-gold);
   border-radius: 999px;
   font: inherit;
+  font-family: var(--pm-sans);
   font-size: 14px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--pm-gold);
   background: transparent;
@@ -523,7 +575,8 @@ onUnmounted(() => {
   height: 100%;
   overflow: hidden;
   border-radius: var(--arch-r);
-  box-shadow: 0 0 0 5px #0e0605, 0 0 0 6px var(--pm-gold-soft), 0 24px 50px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 3px #0e0605, 0 0 0 4px #c9a95e, 0 0 0 10px #0e0605,
+    0 0 0 11px rgba(216, 189, 132, 0.3), 0 28px 56px rgba(0, 0, 0, 0.5);
   animation: pm-arch-in 1.3s var(--pm-ease) both;
   animation-delay: calc(0.25s + var(--k) * 0.16s);
 }
@@ -544,6 +597,65 @@ onUnmounted(() => {
   object-position: center 20%;
   animation: pm-zoom 1.8s var(--pm-ease) both;
   animation-delay: calc(0.25s + var(--k) * 0.16s);
+}
+
+/* ---------- Bingkai tipis + sudut emas ---------- */
+.pm-frame {
+  position: absolute;
+  inset: 2.2vh 2vw 5.5vh 1.6vw;
+  pointer-events: none;
+  border: 1px solid rgba(216, 189, 132, 0.13);
+}
+.pm-frame i {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--pm-gold);
+}
+.pm-frame i:nth-child(1) {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+.pm-frame i:nth-child(2) {
+  top: -1px;
+  right: -1px;
+  border-width: 1px 1px 0 0;
+}
+.pm-frame i:nth-child(3) {
+  bottom: -1px;
+  left: -1px;
+  border-width: 0 0 1px 1px;
+}
+.pm-frame i:nth-child(4) {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+/* ---------- Butiran emas ---------- */
+.pm-dust {
+  position: absolute;
+  z-index: 0;
+  bottom: -10px;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: #e6cf98;
+  opacity: 0;
+  pointer-events: none;
+  animation: pm-float var(--d) linear var(--dl) infinite;
+}
+
+/* ---------- Cahaya di belakang foto ---------- */
+.pm-photos::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -14% -20% -4%;
+  background: radial-gradient(closest-side, rgba(216, 189, 132, 0.24), transparent 72%);
+  animation: pm-breathe 6s ease-in-out infinite;
 }
 
 /* ---------- Progres ---------- */
@@ -622,6 +734,43 @@ onUnmounted(() => {
   }
 }
 
+@keyframes pm-foil {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+@keyframes pm-float {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.55;
+  }
+  85% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(28px, -105vh);
+    opacity: 0;
+  }
+}
+@keyframes pm-breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
 /* ---------- Portrait ---------- */
 @media (orientation: portrait) {
   .pm-body {
@@ -687,6 +836,9 @@ onUnmounted(() => {
   .pm-arch,
   .pm-arch img,
   .pm-ghost,
+  .pm-dust,
+  .pm-photos::before,
+  .pm-name span,
   .pm-progress-fill.run {
     animation: none;
   }

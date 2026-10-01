@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/cormorant": "^5.3.0",
+    "@fontsource-variable/jost": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "@handsontable/vue3": "^16.1.1",
     "@mdi/font": "^7.4.47",

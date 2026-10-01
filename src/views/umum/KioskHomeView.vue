@@ -6,6 +6,9 @@ import LogoKaosan from "@/assets/logo.png";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/manrope";
+import "@fontsource-variable/cormorant";
+import "@fontsource-variable/cormorant/wght-italic.css";
+import "@fontsource-variable/jost";
 
 interface CatalogRow {
   gambar_url: string | null;
@@ -328,10 +331,11 @@ onUnmounted(() => {
           @click="router.push('/kiosk/premium')"
         >
           <span class="kh-prem-sheen" aria-hidden="true"></span>
-          <span class="kh-tile-text">
-            <span class="kh-prem-eyebrow">Koleksi pilihan</span>
-            <span class="kh-tile-title">Premium</span>
-            <span class="kh-tile-desc">Keunggulan tiap jenis kain</span>
+          <span class="kh-prem-frame" aria-hidden="true"></span>
+          <span class="kh-prem-body">
+            <span class="kh-prem-eyebrow"><i></i>Koleksi Pilihan<i></i></span>
+            <span class="kh-prem-title">Premium</span>
+            <span class="kh-prem-desc">Keunggulan tiap jenis kain</span>
           </span>
         </button>
 
@@ -673,32 +677,6 @@ onUnmounted(() => {
 }
 
 /* Premium */
-.kh-tile--premium {
-  grid-area: premium;
-  justify-content: flex-end;
-  color: #f3e8d2;
-  background: linear-gradient(145deg, #1d0f0c, #0c0504);
-  box-shadow: inset 0 0 0 1px rgba(216, 189, 132, 0.5), 0 18px 40px rgba(0, 0, 0, 0.35);
-}
-.kh-tile--premium .kh-tile-text {
-  position: relative;
-  z-index: 1;
-}
-.kh-tile--premium .kh-tile-title {
-  font-family: "Playfair Display", Georgia, serif;
-  font-style: italic;
-  font-weight: 600;
-  color: #e6cf98;
-}
-.kh-prem-eyebrow {
-  display: block;
-  margin-bottom: 6px;
-  font-size: clamp(10px, 0.8vw, 13px);
-  font-weight: 800;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: #d8bd84;
-}
 .kh-prem-sheen {
   position: absolute;
   inset: 0;
@@ -720,6 +698,69 @@ onUnmounted(() => {
   100% {
     transform: translateX(130%);
   }
+}
+
+/* Premium */
+.kh-tile--premium {
+  grid-area: premium;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #f3e8d2;
+  background: radial-gradient(120% 140% at 50% 0%, #2a1712 0%, #130907 55%, #0a0403 100%);
+  box-shadow: inset 0 0 0 1px rgba(216, 189, 132, 0.55), 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+.kh-prem-frame {
+  position: absolute;
+  inset: 9px;
+  pointer-events: none;
+  border: 1px solid rgba(216, 189, 132, 0.28);
+  border-radius: 20px;
+}
+.kh-prem-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.kh-prem-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: "Jost Variable", system-ui, sans-serif;
+  font-size: clamp(10px, 0.8vw, 13px);
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: #d8bd84;
+}
+.kh-prem-eyebrow i {
+  width: 26px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d8bd84);
+}
+.kh-prem-eyebrow i:last-child {
+  transform: scaleX(-1);
+}
+.kh-prem-title {
+  font-family: "Cormorant Variable", "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(34px, 3.4vw, 62px);
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.05;
+  color: transparent;
+  background: linear-gradient(100deg, #f6ead0 0%, #e6cf98 45%, #c9a95e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.kh-prem-desc {
+  font-family: "Jost Variable", system-ui, sans-serif;
+  font-size: clamp(12px, 0.95vw, 16px);
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: rgba(243, 232, 210, 0.75);
 }
 
 /* Lacak */

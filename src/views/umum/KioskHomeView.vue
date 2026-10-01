@@ -321,6 +321,20 @@ onUnmounted(() => {
           </span>
         </button>
 
+        <!-- PREMIUM: koleksi kain pilihan -->
+        <button
+          class="kh-tile kh-tile--premium"
+          style="--i: 5"
+          @click="router.push('/kiosk/premium')"
+        >
+          <span class="kh-prem-sheen" aria-hidden="true"></span>
+          <span class="kh-tile-text">
+            <span class="kh-prem-eyebrow">Koleksi pilihan</span>
+            <span class="kh-tile-title">Premium</span>
+            <span class="kh-tile-desc">Keunggulan tiap jenis kain</span>
+          </span>
+        </button>
+
         <!-- INFO & PROMO: kupon dari promo aktif -->
         <button class="kh-tile kh-tile--info" style="--i: 4" @click="attract = true">
           <span class="kh-tile-text">
@@ -496,7 +510,7 @@ onUnmounted(() => {
   grid-template-areas:
     "katalog studio studio"
     "katalog stok lacak"
-    "info info info";
+    "premium info info";
   gap: 1.6vw;
   height: min(80vh, 840px);
 }
@@ -655,6 +669,56 @@ onUnmounted(() => {
 @keyframes kh-march {
   to {
     stroke-dashoffset: -8;
+  }
+}
+
+/* Premium */
+.kh-tile--premium {
+  grid-area: premium;
+  justify-content: flex-end;
+  color: #f3e8d2;
+  background: linear-gradient(145deg, #1d0f0c, #0c0504);
+  box-shadow: inset 0 0 0 1px rgba(216, 189, 132, 0.5), 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+.kh-tile--premium .kh-tile-text {
+  position: relative;
+  z-index: 1;
+}
+.kh-tile--premium .kh-tile-title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  color: #e6cf98;
+}
+.kh-prem-eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  font-size: clamp(10px, 0.8vw, 13px);
+  font-weight: 800;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #d8bd84;
+}
+.kh-prem-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(233, 208, 150, 0.2) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  animation: kh-sheen 7s ease-in-out infinite;
+}
+@keyframes kh-sheen {
+  0%,
+  55% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
   }
 }
 
@@ -1047,13 +1111,14 @@ onUnmounted(() => {
     font-size: clamp(18px, 2.6vw, 32px);
   }
   .kh-grid {
-    grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) auto;
+    grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) auto auto;
     grid-template-areas:
       "katalog katalog"
       "studio studio"
       "stok lacak"
+      "premium premium"
       "info info";
-    max-height: 78vh;
+    max-height: 84vh;
     height: 100%;
   }
   .kh-tile--info {
@@ -1116,6 +1181,9 @@ onUnmounted(() => {
   .kh-studio-shirt,
   .kh-studio-body,
   .kh-studio-print {
+    animation: none;
+  }
+  kh-prem-sheen {
     animation: none;
   }
 }

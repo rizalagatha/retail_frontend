@@ -174,60 +174,40 @@
   gap: 10px;
 }
 .k-cat-card {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: visible;
-  text-align: left;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  padding: 0;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 .k-cat-card:hover,
 .k-cat-card:focus-visible {
-  transform: none;
-  border-color: transparent;
-  box-shadow: none;
+  transform: translateY(-5px);
+  box-shadow: 0 14px 28px rgba(183, 28, 28, 0.22);
+  border-color: var(--k-red);
+  outline: none;
 }
 .k-cat-card:active {
-  transform: none;
-  box-shadow: none;
-}
-.k-cat-cover {
-  aspect-ratio: 4 / 5;
-  border-radius: 2px;
-  overflow: hidden;
-  background: #f1ece9;
-}
-.k-cat-body {
-  padding: 10px 2px 0;
-}
-.k-cat-name {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: #1f1a19;
+  transform: translateY(-1px) scale(0.985);
+  transition-duration: 0.08s;
 }
 .k-cat-card:hover .k-cat-name {
-  color: #1f1a19;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--k-red-dark);
+}
+.k-cat-body {
+  padding: 8px;
+}
+.k-cat-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #333;
 }
 .k-cat-count {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #8a7f7b;
-}
-.k-cat-grid {
-  gap: 18px 8px;
-}
-@media (min-width: 600px) {
-  .k-cat-grid {
-    gap: 22px 10px;
-  }
-}
-@media (hover: none) {
-  .k-cat-card:hover .k-cat-name {
-    text-decoration: none;
-  }
+  font-size: 10px;
+  color: #999;
 }
 
 .k-count {

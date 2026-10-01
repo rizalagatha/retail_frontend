@@ -12,7 +12,7 @@ interface PickItem {
 const props = defineProps<{
   items: PickItem[];
   modelValue: string | null;
-  allValue?: string; // nilai untuk "Lacak Semua"
+  allValue?: string;
 }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
@@ -23,30 +23,17 @@ const root = ref<HTMLElement | null>(null);
 const nameOf = (it: PickItem) =>
   (it.namaBarang || it.title.split(" - Total")[0]).replace(/\s*\(DTF\)\s*$/i, "");
 const qtyOf = (it: PickItem) => it.title.match(/Total:\s*([\d.,]+)\s*pcs/i)?.[1] ?? "";
-const kindOf = (it: PickItem) => {
-  const t = (it.namaBarang || it.title).toUpperCase();
-  if (it.dtf || t.includes("(DTF)") || t.includes("CUSTOM")) return "dtf";
-  if (t.includes("JASA")) return "jasa";
-  return "kaos";
-};
-const iconOf = (k: string) =>
-  k === "dtf"
-    ? "mdi-printer-3d-nozzle-outline"
-    : k === "jasa"
-    ? "mdi-content-cut"
-    : "mdi-tshirt-crew-outline";
+const isDtf = (it: PickItem) => !!it.dtf || /\(DTF\)/i.test(it.namaBarang || it.title);
 
 const rows = computed(() =>
   props.items
     .filter((i) => i.value !== ALL)
-    .map((i) => ({ ...i, nama: nameOf(i), qty: qtyOf(i), kind: kindOf(i) }))
-);
-const totalQty = computed(() =>
-  rows.value.reduce((s, r) => s + (parseInt(String(r.qty).replace(/\D/g, ""), 10) || 0), 0)
+    .map((i) => ({ ...i, nama: nameOf(i), qty: qtyOf(i), dtf: isDtf(i) }))
 );
 
 const selected = computed(() => rows.value.find((r) => r.value === props.modelValue) ?? null);
 const isAll = computed(() => props.modelValue === ALL);
+const pad = (n: number) => String(n).padStart(2, "0");
 
 const pick = (v: string) => {
   emit("update:modelValue", v);
@@ -74,24 +61,19 @@ onUnmounted(() => {
     <button
       type="button"
       class="tp-field"
-      :class="{ 'is-open': open, 'is-filled': selected || isAll }"
+      :class="{ 'is-open': open }"
       aria-haspopup="listbox"
       :aria-expanded="open"
       @click="open = !open"
     >
-      <span class="tp-ico" :class="selected ? `k-${selected.kind}` : isAll ? 'k-all' : ''">
-        <v-icon size="20">{{
-          selected ? iconOf(selected.kind) : isAll ? "mdi-package-variant-closed" : "mdi-magnify"
-        }}</v-icon>
-      </span>
       <span class="tp-text">
-        <small>Pilih barang yang ingin dilacak</small>
+        <small>Barang yang dilacak</small>
         <b v-if="selected">{{ selected.nama }}</b>
-        <b v-else-if="isAll">Semua barang di pesanan ini</b>
-        <b v-else class="tp-ph">Ketuk untuk memilih</b>
+        <b v-else-if="isAll">Semua barang</b>
+        <b v-else class="tp-ph">Pilih barang</b>
       </span>
       <span v-if="selected?.qty" class="tp-qty">{{ selected.qty }} pcs</span>
-      <v-icon class="tp-chev" size="22">mdi-chevron-down</v-icon>
+      <v-icon class="tp-chev" size="20">mdi-chevron-down</v-icon>
     </button>
 
     <Transition name="tp-pop">
@@ -102,41 +84,38 @@ onUnmounted(() => {
 
           <button
             type="button"
-            class="tp-all"
+            class="tp-row tp-row--all"
             :class="{ 'is-on': isAll }"
-            style="--i: 0"
+            role="option"
+            :aria-selected="isAll"
             @click="pick(ALL)"
           >
-            <span class="tp-all-ico"><v-icon size="22">mdi-package-variant-closed</v-icon></span>
-            <span class="tp-all-text">
-              <b>Lacak semua</b>
+            <span class="tp-no">&mdash;</span>
+            <span class="tp-name">
+              Semua barang
               <small>Seluruh proses pesanan sekaligus</small>
             </span>
-            <span class="tp-all-qty">{{ totalQty }}<small>pcs</small></span>
+            <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
           </button>
 
-          <div class="tp-label">Atau pilih per barang</div>
-
-          <div class="tp-list">
-            <button
-              v-for="(r, n) in rows"
-              :key="r.value"
-              type="button"
-              class="tp-row"
-              :class="{ 'is-on': r.value === modelValue }"
-              :style="{ '--i': n + 1 }"
-              role="option"
-              :aria-selected="r.value === modelValue"
-              @click="pick(r.value)"
-            >
-              <span class="tp-ico" :class="`k-${r.kind}`"
-                ><v-icon size="20">{{ iconOf(r.kind) }}</v-icon></span
-              >
-              <span class="tp-name">{{ r.nama }}</span>
-              <span class="tp-pill">{{ r.qty }} pcs</span>
-              <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
-            </button>
-          </div>
+          <button
+            v-for="(r, n) in rows"
+            :key="r.value"
+            type="button"
+            class="tp-row"
+            :class="{ 'is-on': r.value === modelValue }"
+            role="option"
+            :aria-selected="r.value === modelValue"
+            @click="pick(r.value)"
+          >
+            <span class="tp-no">{{ pad(n + 1) }}</span>
+            <span class="tp-name">
+              {{ r.nama }}
+              <small v-if="r.dtf">Cetak / custom</small>
+            </span>
+            <span class="tp-qty-col">{{ r.qty }}<i> pcs</i></span>
+            <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
+          </button>
         </div>
       </div>
     </Transition>
@@ -146,54 +125,56 @@ onUnmounted(() => {
 <style scoped>
 .tp {
   --tp-red: #b71c1c;
-  --tp-line: #eadfda;
+  --tp-line: #e9dfdb;
+  --tp-ink: #1f1a19;
+  --tp-muted: #8a7f7b;
   --tp-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  position: relative;
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* ---------- Kolom pilihan ---------- */
+/* ---------- Kolom ---------- */
 .tp-field {
   width: 100%;
-  min-height: 62px;
+  min-height: 60px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 14px 8px 10px;
-  border: 1.5px solid var(--tp-line);
-  border-radius: 18px;
+  padding: 8px 16px;
+  border: 1px solid var(--tp-line);
+  border-radius: 12px;
   font: inherit;
   text-align: left;
-  color: #1f1a19;
+  color: var(--tp-ink);
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
+  transition: border-color 0.2s ease;
 }
 .tp-field:hover {
-  border-color: #d9b9b3;
-}
-.tp-field:active {
-  transform: scale(0.99);
+  border-color: #cdbab4;
 }
 .tp-field.is-open {
   border-color: var(--tp-red);
-  box-shadow: 0 0 0 4px rgba(183, 28, 28, 0.1);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .tp-text {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 .tp-text small {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8a7f7b;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tp-muted);
 }
 .tp-text b {
   overflow: hidden;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -203,210 +184,124 @@ onUnmounted(() => {
 }
 .tp-qty {
   flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--tp-red);
-  background: #fdecea;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tp-muted);
 }
 .tp-chev {
-  color: #a1928d;
+  color: var(--tp-muted);
   transition: transform 0.35s var(--tp-ease);
 }
 .is-open .tp-chev {
   transform: rotate(180deg);
 }
 
-/* ---------- Ikon bulat ---------- */
-.tp-ico {
-  width: 42px;
-  height: 42px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #a1928d;
-  background: #f5eeea;
-}
-.tp-ico.k-kaos {
-  color: var(--tp-red);
-  background: #fdecea;
-}
-.tp-ico.k-dtf {
-  color: #5b3fa6;
-  background: #efeafb;
-}
-.tp-ico.k-jasa {
-  color: #0b6e6e;
-  background: #e2f4f2;
-}
-.tp-ico.k-all {
-  color: #fff;
-  background: var(--tp-red);
-}
-
-/* ---------- Panel ---------- */
+/* ---------- Daftar (sebaris, mendorong konten di bawahnya) ---------- */
 .tp-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 3000;
+  overflow: hidden;
 }
 .tp-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(20, 8, 6, 0.45);
-  backdrop-filter: blur(3px);
+  display: none;
 }
 .tp-panel {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: min(100%, 520px);
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  padding: 10px 16px 18px;
-  border-radius: 24px 24px 0 0;
-  background: #fffaf8;
-  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.3);
-  transform: translateX(-50%);
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--tp-red);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  background: #fff;
 }
 .tp-grab {
-  width: 42px;
-  height: 4px;
-  margin: 0 auto 12px;
-  border-radius: 2px;
-  background: #d9ccc6;
-}
-.tp-label {
-  margin: 16px 4px 8px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #8a7f7b;
-}
-.tp-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  padding: 2px 2px 4px;
+  display: none;
 }
 
-/* Kartu "Lacak semua" */
-.tp-all {
+.tp-row {
+  position: relative;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 13px 16px;
   border: none;
-  border-radius: 18px;
+  border-bottom: 1px solid var(--tp-line);
   font: inherit;
   text-align: left;
-  color: #fff;
-  background: linear-gradient(135deg, #c62828, #8e0000);
-  box-shadow: 0 10px 24px rgba(183, 28, 28, 0.28);
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.2s ease;
-}
-.tp-all:active {
-  transform: scale(0.98);
-}
-.tp-all.is-on {
-  box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--tp-red), 0 10px 24px rgba(183, 28, 28, 0.28);
-}
-.tp-all-ico {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-}
-.tp-all-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-.tp-all-text b {
-  font-size: 15px;
-  font-weight: 800;
-}
-.tp-all-text small {
-  font-size: 12px;
-  opacity: 0.85;
-}
-.tp-all-qty {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1;
-}
-.tp-all-qty small {
-  margin-left: 3px;
-  font-family: inherit;
-  font-size: 11px;
-  opacity: 0.8;
-}
-
-/* Baris barang */
-.tp-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1.5px solid var(--tp-line);
-  border-radius: 16px;
-  font: inherit;
-  text-align: left;
-  color: #1f1a19;
+  color: var(--tp-ink);
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.12s ease;
+  transition: background 0.15s ease, padding-left 0.25s var(--tp-ease);
+}
+.tp-row:last-child {
+  border-bottom: none;
+}
+.tp-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--tp-red);
+  transform: scaleY(0);
+  transition: transform 0.3s var(--tp-ease);
 }
 .tp-row:hover {
-  border-color: #e2b8b2;
-  background: #fffdfc;
-}
-.tp-row:active {
-  transform: scale(0.985);
+  background: #fdf8f6;
+  padding-left: 20px;
 }
 .tp-row.is-on {
-  border-color: var(--tp-red);
-  background: #fff5f4;
+  background: #fdf3f1;
+}
+.tp-row.is-on::before,
+.tp-row--all::before {
+  transform: scaleY(1);
+}
+.tp-row--all {
+  background: #fdf8f6;
+}
+.tp-no {
+  width: 22px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: #b9aca7;
 }
 .tp-name {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.3;
 }
-.tp-pill {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
+.tp-name small {
+  margin-top: 2px;
   font-size: 11px;
-  font-weight: 800;
-  color: #6f6663;
-  background: #f3ebe7;
+  font-weight: 500;
+  color: var(--tp-muted);
+}
+.tp-qty-col {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tp-qty-col i {
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--tp-muted);
 }
 .tp-check {
-  width: 22px;
-  height: 22px;
+  width: 18px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fff;
-  background: var(--tp-red);
+  color: var(--tp-red);
   opacity: 0;
-  transform: scale(0.4);
+  transform: scale(0.5);
   transition: opacity 0.2s ease, transform 0.35s var(--tp-ease);
 }
 .is-on .tp-check {
@@ -414,75 +309,81 @@ onUnmounted(() => {
   transform: none;
 }
 
-/* ---------- Animasi buka/tutup + baris bergantian ---------- */
+/* ---------- Animasi: tinggi mengembang ---------- */
 .tp-pop-enter-active,
 .tp-pop-leave-active {
-  transition: opacity 0.3s ease;
-}
-.tp-pop-enter-active .tp-panel,
-.tp-pop-leave-active .tp-panel {
-  transition: transform 0.5s var(--tp-ease);
+  transition: max-height 0.45s var(--tp-ease), opacity 0.25s ease;
+  max-height: 340px;
 }
 .tp-pop-enter-from,
 .tp-pop-leave-to {
+  max-height: 0;
   opacity: 0;
 }
-.tp-pop-enter-from .tp-panel,
-.tp-pop-leave-to .tp-panel {
-  transform: translate(-50%, 100%);
-}
-.tp-all,
-.tp-row {
-  animation: tp-in 0.5s var(--tp-ease) both;
-  animation-delay: calc(0.12s + var(--i, 0) * 45ms);
-}
-@keyframes tp-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-}
 
-/* Desktop: menu melayang di bawah kolom, bukan sheet dari bawah */
-@media (min-width: 700px) {
+/* ---------- HP: lembar dari bawah ---------- */
+@media (max-width: 699px) {
+  .tp-field.is-open {
+    border-radius: 12px;
+  }
   .tp-layer {
-    position: absolute;
-    inset: auto 0 auto 0;
-    top: calc(100% + 8px);
-    z-index: 50;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    overflow: visible;
+    max-height: none;
   }
   .tp-backdrop {
-    display: none;
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 8, 6, 0.45);
   }
   .tp-panel {
-    position: static;
-    width: 100%;
-    max-height: 360px;
-    padding: 12px;
-    border: 1px solid var(--tp-line);
-    border-radius: 20px;
-    box-shadow: 0 24px 50px rgba(60, 20, 15, 0.18);
-    transform: none;
-    transform-origin: top center;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 78vh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border: none;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.25);
   }
   .tp-grab {
-    display: none;
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: 10px auto 6px;
+    border-radius: 2px;
+    background: #d9ccc6;
+  }
+  .tp-pop-enter-active,
+  .tp-pop-leave-active {
+    max-height: none;
+    transition: opacity 0.25s ease;
+  }
+  .tp-pop-enter-active .tp-panel,
+  .tp-pop-leave-active .tp-panel {
+    transition: transform 0.45s var(--tp-ease);
+  }
+  .tp-pop-enter-from,
+  .tp-pop-leave-to {
+    max-height: none;
   }
   .tp-pop-enter-from .tp-panel,
   .tp-pop-leave-to .tp-panel {
-    transform: translateY(-10px) scale(0.98);
+    transform: translateY(100%);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tp-all,
-  .tp-row {
-    animation: none;
-  }
   .tp-pop-enter-active,
   .tp-pop-leave-active,
   .tp-pop-enter-active .tp-panel,
   .tp-pop-leave-active .tp-panel,
   .tp-chev,
+  .tp-row,
+  .tp-row::before,
   .tp-check {
     transition: none;
   }

@@ -918,13 +918,15 @@ onUnmounted(() => {
   inset: 0;
   z-index: 50;
   overflow: hidden;
-  background: #000;
+  background: radial-gradient(120% 90% at 50% 50%, #3a0d0d 0%, #1a0707 60%, #0d0303 100%);
 }
 .kh-attract iframe {
   width: 100%;
   height: 100%;
   border: none;
   pointer-events: none; /* sentuhan ditangkap beranda untuk menutup layar tunggu */
+  background: transparent;
+  color-scheme: normal;
 }
 /* Lapisan penutup layar tunggu: semua area kecuali sudut kanan-bawah 120px (tombol unmute) */
 .kh-attract-wake {

@@ -165,9 +165,9 @@ const allProducts = computed<Product[]>(() =>
       .map((u) => ({ ukuran: u.ukuran, harga: Number(u.harga) || 0 }))
       .sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
 
-    // Pilih 1 foto acak dari galeri sebagai foto kartu (fallback ke gambar_url)
-    const coverIndex = galeri.length ? Math.floor(Math.random() * galeri.length) : 0;
-    const gambar = galeri.length ? galeri[coverIndex].url : r.gambar_url;
+    // Foto kartu = foto utama (galeri pertama), fallback ke gambar_url
+    const coverIndex = 0;
+    const gambar = galeri.length ? galeri[0].url : r.gambar_url;
 
     return {
       kode: r.kode,

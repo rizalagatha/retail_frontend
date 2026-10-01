@@ -118,14 +118,6 @@ const sizeRank = (size: string) => {
   return isNaN(n) ? 999 : 20 + n;
 };
 
-// Foto kartu dipilih sekali per kode, agar tidak berganti tiap stok disegarkan
-const coverPick = new Map<string, number>();
-const pickCover = (kode: string, total: number) => {
-  if (!total) return 0;
-  if (!coverPick.has(kode)) coverPick.set(kode, Math.floor(Math.random() * total));
-  return coverPick.get(kode)!;
-};
-
 const products = computed<Product[]>(() => {
   const map = new Map<string, Product>();
 

@@ -1251,3 +1251,60 @@
     transition: none;
   }
 }
+
+/* ===== Gaya editorial: tanpa kartu pemisah ===== */
+.k-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.k-card:hover,
+.k-card:focus-visible {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+.k-card:active {
+  transform: none;
+  box-shadow: none;
+}
+.k-card-img {
+  aspect-ratio: 4 / 5;
+  border-radius: 2px;
+  background: #f1ece9;
+  overflow: hidden;
+}
+.k-card-body {
+  padding: 12px 2px 8px;
+  gap: 5px;
+}
+.k-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #1f1a19;
+}
+.k-card:hover .k-card-name {
+  color: #1f1a19;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.k-card-price {
+  font-size: 14px;
+  font-weight: 800;
+}
+.k-grid {
+  gap: 28px 8px;
+}
+@media (min-width: 600px) {
+  .k-grid {
+    gap: 36px 10px;
+  }
+}
+@media (hover: none) {
+  .k-card:hover .k-card-name {
+    text-decoration: none;
+  }
+}

@@ -1155,13 +1155,4 @@ onUnmounted(() => {
 .k-detail--premium .k-note a {
   color: #e6cf98;
 }
-.k-page--premium .k-cat-cover {
-  background: #241714;
-}
-.k-page--premium .k-cat-name {
-  color: #f3e8d2;
-}
-.k-page--premium .k-cat-card:hover .k-cat-name {
-  color: #e6cf98;
-}
 </style>

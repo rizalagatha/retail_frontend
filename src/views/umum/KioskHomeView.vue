@@ -420,7 +420,7 @@ onUnmounted(() => {
   z-index: 2;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(300px, 0.85fr) 1.35fr;
+  grid-template-columns: minmax(260px, 0.7fr) 1.5fr;
   align-items: center;
   gap: 4vw;
   padding: 5vh 5vw;
@@ -475,12 +475,12 @@ onUnmounted(() => {
 /* ---------- Bento ---------- */
 .kh-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) auto;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
   grid-template-areas:
-    "katalog studio"
-    "stok lacak"
-    "info info";
+    "katalog studio studio"
+    "katalog stok lacak"
+    "info info info";
   gap: 1.6vw;
   height: min(80vh, 840px);
 }
@@ -1102,5 +1102,18 @@ onUnmounted(() => {
   .kh-tile--info .kh-tile-desc {
     display: none;
   }
+}
+
+/* Tile kecil di grid 3 kolom: rapatkan label progres dan batasi deskripsi */
+.kh-tile--lacak .kh-tile-desc,
+.kh-tile--stok .kh-tile-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.kh-tile--lacak .kh-step em {
+  font-size: clamp(10px, 0.8vw, 14px);
 }
 </style>

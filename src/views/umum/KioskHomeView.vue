@@ -510,13 +510,13 @@ onUnmounted(() => {
 .kh-grid {
   display: grid;
   grid-template-columns: 1.25fr 1fr 1fr;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1.1fr) minmax(0, 1.25fr) auto;
   grid-template-areas:
     "katalog studio studio"
     "katalog stok lacak"
     "premium info info";
   gap: 1.6vw;
-  height: min(80vh, 840px);
+  height: min(86vh, 900px);
 }
 .kh-tile {
   position: relative;
@@ -544,7 +544,7 @@ onUnmounted(() => {
 .kh-tile-title {
   display: block;
   font-family: var(--kh-display);
-  font-size: clamp(26px, 2.6vw, 46px);
+  font-size: clamp(22px, min(2.4vw, 3.6vh), 44px);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.025em;
@@ -557,6 +557,10 @@ onUnmounted(() => {
   font-weight: 500;
   line-height: 1.4;
   opacity: 0.8;
+}
+.kh-tile--stok .kh-tile-title,
+.kh-tile--lacak .kh-tile-title {
+  white-space: nowrap;
 }
 
 /* Katalog */
@@ -918,7 +922,7 @@ onUnmounted(() => {
 }
 .kh-stok-num {
   font-family: var(--kh-display);
-  font-size: clamp(44px, min(6vw, 9vh), 104px);
+  font-size: clamp(40px, min(5vw, 8vh), 96px);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.04em;
@@ -926,7 +930,20 @@ onUnmounted(() => {
   color: #b71c1c;
 }
 .kh-tile--stok {
-  gap: 6px;
+  gap: 2px;
+  padding-bottom: clamp(12px, 1.6vh, 24px);
+}
+.kh-tile--stok .kh-tile-text {
+  margin-top: auto;
+}
+.kh-tile--stok .kh-tile-desc {
+  margin-top: 2px;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .kh-tile--stok .kh-tile-desc {
   display: -webkit-box;
@@ -944,13 +961,20 @@ onUnmounted(() => {
   gap: 2vw;
   color: #fff;
   background: #2a1512;
+  flex-wrap: nowrap;
+  gap: clamp(12px, 1.6vw, 28px);
+  padding-top: clamp(12px, 1.8vh, 24px);
+  padding-bottom: clamp(12px, 1.8vh, 24px);
 }
 .kh-coupon {
   --split: 36%;
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
-  min-width: clamp(260px, 26vw, 460px);
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 460px;
+  min-height: clamp(78px, 11vh, 110px);
   overflow: hidden;
   border-radius: 16px;
   color: #1f1a19;
@@ -1168,7 +1192,7 @@ onUnmounted(() => {
     justify-content: space-between;
   }
   .kh-tile--info .kh-tile-text {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
   }
   .kh-tile--info .kh-tile-title {
@@ -1229,12 +1253,6 @@ onUnmounted(() => {
   }
 }
 
-@media (max-height: 820px) {
-  .kh-tile--info .kh-tile-desc {
-    display: none;
-  }
-}
-
 /* Tile kecil di grid 3 kolom: rapatkan label progres dan batasi deskripsi */
 .kh-tile--lacak .kh-tile-desc,
 .kh-tile--stok .kh-tile-desc {
@@ -1246,5 +1264,36 @@ onUnmounted(() => {
 }
 .kh-tile--lacak .kh-step em {
   font-size: clamp(10px, 0.8vw, 14px);
+}
+
+/* 19" (5:4): kolom sempit, perbanyak ruang vertikal */
+@media (max-aspect-ratio: 4/3) and (orientation: landscape) {
+  .kh-content {
+    grid-template-columns: minmax(240px, 0.6fr) 1.6fr;
+    gap: 2vw;
+  }
+  .kh-title {
+    font-size: clamp(56px, min(7vw, 15vh), 130px);
+  }
+  .kh-tile--stok .kh-stok-num {
+    font-size: clamp(36px, min(4.4vw, 7vh), 80px);
+  }
+}
+
+/* Layar pendek (14" 1366x768 dan sejenis) */
+@media (max-height: 800px) and (orientation: landscape) {
+  .kh-tile {
+    padding: 14px 18px;
+  }
+  .kh-tile--info .kh-tile-desc,
+  .kh-tile--stok .kh-tile-desc {
+    display: none;
+  }
+  .kh-tile--stok .kh-stok-num {
+    font-size: clamp(34px, 7vh, 64px);
+  }
+  .kh-tile--premium .kh-prem-desc {
+    display: none;
+  }
 }
 </style>

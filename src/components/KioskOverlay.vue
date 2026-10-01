@@ -48,6 +48,19 @@ html.is-kiosk {
   overscroll-behavior: none;
   touch-action: manipulation;
 }
+html.theme-premium .ko-home {
+  color: #e6cf98;
+  background: linear-gradient(145deg, #1d0f0c, #0c0504);
+  border: 1px solid rgba(216, 189, 132, 0.6);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(14, 6, 5, 0.85);
+  font-family: "Jost Variable", system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+html.theme-premium .ko-home .v-icon {
+  color: #d8bd84;
+}
 html.is-kiosk body {
   user-select: none;
   -webkit-user-select: none;

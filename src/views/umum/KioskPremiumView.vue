@@ -118,10 +118,12 @@ onMounted(() => {
   tickTimer = setInterval(() => {
     if (autoplay.value) next();
   }, AUTO_MS);
+  document.documentElement.classList.add("theme-premium");
 });
 onUnmounted(() => {
   clearInterval(tickTimer);
   clearTimeout(resumeTimer);
+  document.documentElement.classList.remove("theme-premium");
 });
 </script>
 

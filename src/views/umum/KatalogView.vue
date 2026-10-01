@@ -52,6 +52,10 @@ const ROUTE_NAME = "Katalog";
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const fromPremium = computed(() => route.query.from === "premium");
 
+watch(fromPremium, (v) => document.documentElement.classList.toggle("theme-premium", v), {
+  immediate: true,
+});
+
 // Cocokkan nama produk ke kain premium (kata kunci terpanjang menang)
 const premiumFabricOf = (namaUp: string): string | null => {
   let best: string | null = null;
@@ -489,6 +493,7 @@ onUnmounted(() => {
   clearTimeout(searchTimer);
   window.removeEventListener("keydown", onDrawerKey);
   document.documentElement.style.overflow = "";
+  document.documentElement.classList.remove("theme-premium");
   window.removeEventListener("keydown", onLbKey, true);
   window.removeEventListener("keydown", onSlashKey);
 });

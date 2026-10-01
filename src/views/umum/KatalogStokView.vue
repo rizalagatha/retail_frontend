@@ -13,6 +13,7 @@ interface StokRow {
   jenis_kain: string;
   jenis_kaos: string;
   lengan: string;
+  ktg?: string;
   nama: string;
   ukuran: string;
   harga: number;
@@ -141,7 +142,8 @@ const products = computed<Product[]>(() => {
       let kategori = (r.jenis_kain || "").trim() || "LAIN-LAIN";
       const namaUp = (r.nama || "").toUpperCase();
       const kaosUp = (r.jenis_kaos || "").toUpperCase();
-      if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
+      if ((r.ktg || "").toUpperCase() === "KIDDIFY") kategori = "KIDDIFY";
+      else if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
         kategori = "KAOS ANAK";
       else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) kategori = "TUNIK";
 

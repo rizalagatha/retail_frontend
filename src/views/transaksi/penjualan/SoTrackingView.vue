@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, reactive, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAuthStore } from "@/stores/authStore";
+import CountUp from "@/components/CountUp.vue";
 
 const authStore = useAuthStore();
 const isStaff = computed(() => authStore.isAuthenticated);
@@ -111,6 +112,41 @@ const toggleSpk = (id: number) => {
   } else {
     expandedSpks.value.push(id);
   }
+};
+
+// --- Tambahan tampilan ---
+const imgFailed = reactive<Record<string, boolean>>({});
+const copied = ref(false);
+
+const copyResi = async () => {
+  try {
+    await navigator.clipboard.writeText(resiAwb.value || nomorSo.value);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 1800);
+  } catch {
+    /* clipboard tidak tersedia */
+  }
+};
+
+const currentMilestone = computed(() => milestones.value.find((m) => m.isCurrent));
+
+// Persen isi garis progres: dari pusat langkah pertama ke pusat langkah aktif
+const progressPct = computed(() => {
+  const n = milestones.value.length;
+  const i = milestones.value.findIndex((m) => m.isCurrent);
+  return n < 2 || i < 0 ? 0 : (i / (n - 1)) * 100;
+});
+
+const lastUpdate = computed(() => {
+  const l = logs.value.find((x) => x.waktu && x.waktu !== "Berjalan" && x.waktu !== "-");
+  return l ? l.waktu : "";
+});
+
+const whenParts = (w: string) => {
+  if (!w || w === "Berjalan") return { d: "Sedang", t: "berjalan" };
+  if (w === "-") return { d: "-", t: "" };
+  const [d, t] = w.split(" ");
+  return { d, t: t || "" };
 };
 
 // Fungsi pintar penentu warna Oranye / Hijau
@@ -229,11 +265,6 @@ const friendlyStaffTitle = (title: string): string => {
     return title.replace("Barang Jadi (Masuk Koli)", "Barang Jadi Dikemas");
   return title;
 };
-
-const timelineBaseDelay = computed(() => {
-  const stepCount = milestones.value.length || 5;
-  return stepCount * 150 + 500; // ikuti step-delay & durasi stepFadeIn
-});
 
 // --- DATA FETCHING ---
 const fetchTrackingData = async () => {
@@ -431,581 +462,424 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="tracking-page bg-grey-lighten-4">
-    <v-toolbar color="white" elevation="1" class="px-2 px-sm-4">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="goBackToHome" class="mr-1"></v-btn>
-
-      <div class="font-weight-bold text-grey-darken-3 text-subtitle-1 text-truncate">
-        Lacak Pesanan
+  <div class="st">
+    <header class="st-bar">
+      <div class="st-bar-in">
+        <button class="st-icon-btn" aria-label="Kembali" @click="goBackToHome">
+          <v-icon size="22">mdi-arrow-left</v-icon>
+        </button>
+        <span class="st-bar-title">Lacak Pesanan</span>
+        <button class="st-icon-btn" aria-label="Muat ulang" @click="fetchTrackingData">
+          <v-icon size="22">mdi-refresh</v-icon>
+        </button>
       </div>
+    </header>
 
-      <v-spacer></v-spacer>
-
-      <div class="d-none d-sm-flex align-center">
-        <div class="text-caption text-grey-darken-1 mr-4">
-          NO. RESI <span class="font-weight-bold text-black">{{ nomorSo }}</span>
+    <!-- LOADING -->
+    <template v-if="isLoading">
+      <section class="st-hero">
+        <div class="st-wrap">
+          <div class="st-skel" style="width: 120px; height: 14px"></div>
+          <div class="st-skel" style="width: 62%; height: 52px; margin-top: 14px"></div>
+          <div class="st-skel" style="width: 38%; height: 16px; margin-top: 16px"></div>
         </div>
-
-        <v-divider vertical class="mx-3 my-3"></v-divider>
-
-        <!-- Sembunyikan Dateline Customer (Desktop) -->
-        <div v-if="false" class="text-right mr-4">
-          <div class="text-caption text-grey-darken-1" style="line-height: 1">
-            Dateline Customer
-          </div>
-          <div class="text-caption font-weight-bold text-blue-darken-2">{{ datelineCustomer }}</div>
-        </div>
-
-        <!-- Sembunyikan Divider Dateline -->
-        <v-divider vertical class="mx-3 my-3" v-if="false"></v-divider>
-
-        <!-- Sembunyikan Standar Pelayanan (Desktop) -->
-        <div v-if="false" class="text-right mr-4">
-          <div class="text-caption text-grey-darken-1" style="line-height: 1">
-            Standar Pelayanan
-          </div>
-          <div class="text-caption font-weight-bold text-teal-darken-2">{{ estimasiSelesai }}</div>
-        </div>
-
-        <!-- Sembunyikan Divider Standar Pelayanan -->
-        <v-divider vertical class="mx-3 my-3" v-if="false"></v-divider>
-
-        <div class="text-caption font-weight-bold text-brand">
-          STATUS: {{ milestones.find((m) => m.isCurrent)?.title?.toUpperCase() || "DIPROSES" }}
-        </div>
-      </div>
-
-      <div class="d-flex d-sm-none flex-column align-end justify-center text-right">
-        <!-- Sembunyikan Dateline Customer (Mobile) -->
+      </section>
+      <div class="st-wrap">
         <div
-          v-if="false"
-          class="font-weight-medium text-blue-darken-2 mb-n1"
-          style="font-size: 0.65rem"
-        >
-          Dateline: <span class="font-weight-bold">{{ datelineCustomer }}</span>
-        </div>
-
-        <!-- Sembunyikan Standar Pelayanan (Mobile) -->
+          class="st-skel st-skel--light"
+          style="height: 150px; margin-top: -64px; border-radius: 22px"
+        ></div>
         <div
-          v-if="false"
-          class="font-weight-medium text-teal-darken-2 mb-n1"
-          style="font-size: 0.75rem"
-        >
-          Estimasi: <span class="font-weight-bold">{{ estimasiSelesai }}</span>
-        </div>
-
-        <div class="font-weight-bold text-brand mt-1" style="font-size: 0.85rem">
-          {{ milestones.find((m) => m.isCurrent)?.title?.toUpperCase() || "DIPROSES" }}
-        </div>
+          class="st-skel st-skel--light"
+          style="height: 320px; margin-top: 20px; border-radius: 20px"
+        ></div>
       </div>
-    </v-toolbar>
+    </template>
 
-    <v-container max-width="1200" class="mt-4 pb-10">
-      <div v-if="isLoading" class="d-flex flex-column align-center justify-center py-16 mt-16">
-        <v-progress-circular
-          indeterminate
-          color="#D32F2F"
-          size="64"
-          width="4"
-        ></v-progress-circular>
-        <div class="mt-4 text-subtitle-2 text-grey-darken-1">Memuat jejak pesanan...</div>
-      </div>
-
-      <div v-else>
-        <v-card elevation="0" class="rounded-lg border mb-4">
-          <v-card-text class="pa-8">
-            <div class="d-flex w-100">
-              <div
-                v-for="(step, index) in milestones"
-                :key="step.id"
-                class="stepper-item"
-                :class="{ active: step.isActive, current: step.isCurrent }"
-                :style="{ '--step-delay': `${index * 150}ms` }"
-              >
-                <div class="step-line line-left" v-if="index !== 0"></div>
-                <div class="step-line line-right" v-if="index !== milestones.length - 1"></div>
-
-                <div class="step-icon-wrapper">
-                  <div class="step-icon">
-                    <v-icon size="28">{{ step.icon }}</v-icon>
-                  </div>
-                </div>
-
-                <div class="step-title mt-3">{{ step.title }}</div>
-
-                <div class="step-time" v-if="step.waktu">
-                  {{ step.waktu }}
-                  <div v-if="step.jenisProduksi" class="font-weight-bold mt-1 text-black">
-                    {{ step.jenisProduksi }}
-                  </div>
-                </div>
-                <div
-                  class="step-time font-italic text-grey opacity-70"
-                  v-else-if="step.skippedText"
-                >
-                  {{ step.skippedText }}
-                </div>
-                <div class="step-time" v-else>&nbsp;</div>
-              </div>
-            </div>
-          </v-card-text>
-
-          <v-divider></v-divider>
-
-          <v-card-actions class="pa-4 bg-grey-lighten-5 justify-end">
-            <div class="text-caption text-grey-darken-1 mr-auto">
-              Terima kasih telah berbelanja di Kaosan!
-            </div>
-            <v-btn
-              color="grey-darken-2"
-              variant="outlined"
-              class="text-caption px-6 mr-2 bg-white"
-              @click="goBackToHome"
-              >Kembali ke Beranda</v-btn
+    <template v-else>
+      <!-- HERO STATUS -->
+      <section class="st-hero">
+        <div class="st-wrap">
+          <div class="st-eyebrow st-rise" style="--d: 0ms">Status pesanan</div>
+          <h1 class="st-status st-rise" style="--d: 90ms">
+            {{ currentMilestone?.title || "Diproses" }}
+          </h1>
+          <div class="st-meta st-rise" style="--d: 180ms">
+            <span
+              >Atas nama <b>{{ penerima }}</b></span
             >
-            <v-btn
-              color="#D32F2F"
-              variant="flat"
-              class="text-caption px-6 text-white font-weight-bold"
-              @click="fetchTrackingData"
-              >Muat Ulang</v-btn
+            <span v-if="lastUpdate" class="st-meta-sep">Diperbarui {{ lastUpdate }}</span>
+          </div>
+          <button class="st-resi st-rise" style="--d: 270ms" @click="copyResi">
+            <small>NO. RESI</small>
+            <b>{{ resiAwb }}</b>
+            <span class="st-resi-act">
+              <v-icon size="14">{{ copied ? "mdi-check" : "mdi-content-copy" }}</v-icon>
+              {{ copied ? "Tersalin" : "Salin" }}
+            </span>
+          </button>
+        </div>
+        <i class="st-stripe"></i>
+      </section>
+
+      <div class="st-wrap">
+        <!-- LANGKAH -->
+        <section class="st-steps-card">
+          <div class="st-steps" :style="{ '--n': milestones.length, '--p': progressPct }">
+            <div class="st-track"><i class="st-track-fill"></i></div>
+            <div
+              v-for="(step, index) in milestones"
+              :key="step.id"
+              class="st-step"
+              :class="{ active: step.isActive, current: step.isCurrent }"
+              :style="{ '--i': index }"
             >
-          </v-card-actions>
-        </v-card>
-
-        <div class="mail-border mb-4"></div>
-
-        <v-row align="start">
-          <v-col cols="12" md="5" class="order-last order-md-first mt-4 mt-md-0">
-            <v-card elevation="0" class="rounded-lg border fill-height d-flex flex-column">
-              <v-card-title
-                class="pa-4 border-b bg-white d-flex justify-space-between align-center flex-wrap gap-2"
+              <span class="st-node"
+                ><v-icon size="22">{{ step.icon }}</v-icon></span
               >
-                <span class="text-subtitle-1 font-weight-bold">Rincian Pesanan</span>
+              <span class="st-step-title">{{ step.title }}</span>
+              <span v-if="step.waktu" class="st-step-time">{{ step.waktu }}</span>
+              <span v-if="step.jenisProduksi" class="st-step-kind">{{ step.jenisProduksi }}</span>
+            </div>
+          </div>
+        </section>
 
-                <div v-if="orderSummary.sisaTagihan > 0" class="d-flex flex-column align-end">
-                  <span
-                    class="text-caption text-grey-darken-1 font-weight-medium"
-                    style="line-height: 1"
-                    >Belum Lunas</span
-                  >
-                  <span class="text-subtitle-2 font-weight-bold text-error"
-                    >Sisa: {{ formatRupiah(orderSummary.sisaTagihan) }}</span
+        <div class="st-grid">
+          <!-- RIWAYAT -->
+          <section class="st-card">
+            <div class="st-card-h"><h2>Riwayat Pesanan</h2></div>
+            <ol class="tl">
+              <li
+                v-for="(log, i) in logs"
+                :key="log.id"
+                class="tl-item"
+                :class="{ 'is-now': isOngoing(log, i, true) }"
+                :style="{ '--d': `${i * 80}ms` }"
+              >
+                <div class="tl-time">
+                  <b>{{ whenParts(log.waktu).d }}</b>
+                  <span>{{ whenParts(log.waktu).t }}</span>
+                </div>
+                <div class="tl-rail">
+                  <i class="tl-dot"
+                    ><v-icon size="14">{{
+                      isOngoing(log, i, true) ? "mdi-timer-sand" : "mdi-check"
+                    }}</v-icon></i
                   >
                 </div>
-                <v-chip
-                  v-else
-                  color="green"
-                  size="small"
-                  variant="flat"
-                  class="font-weight-bold px-4"
-                >
-                  <v-icon start size="small">mdi-check-decagram</v-icon>
-                  LUNAS
-                </v-chip>
-              </v-card-title>
+                <div class="tl-body">
+                  <h3>{{ log.status }}</h3>
+                  <p>{{ log.deskripsi }}</p>
 
-              <v-card-text class="pa-0 flex-grow-1">
-                <v-list lines="two" class="py-0">
-                  <template v-for="(item, i) in orderItems" :key="i">
-                    <v-list-item
-                      class="px-5 py-4 transition-swing"
-                      :class="item.isFullyScanned ? 'bg-green-lighten-5' : 'bg-white'"
+                  <div v-if="log.isSpkGroup && log.children && log.children.length > 0">
+                    <button class="tl-toggle" @click="toggleSpk(log.id)">
+                      {{
+                        expandedSpks.includes(log.id)
+                          ? "Tutup detail pabrik"
+                          : "Lihat detail pabrik"
+                      }}
+                      <v-icon size="16">{{
+                        expandedSpks.includes(log.id) ? "mdi-chevron-up" : "mdi-chevron-down"
+                      }}</v-icon>
+                    </button>
+
+                    <v-expand-transition>
+                      <div v-show="expandedSpks.includes(log.id)" class="tl-sub">
+                        <ol class="tl tl--sub">
+                          <li
+                            v-for="(child, ci) in log.children"
+                            :key="child.id"
+                            class="tl-item"
+                            :class="{ 'is-now': isOngoing(child, ci, false) }"
+                            :style="{ '--d': `${ci * 60}ms` }"
+                          >
+                            <div class="tl-time">
+                              <b>{{ whenParts(child.waktu).d }}</b>
+                              <span>{{ whenParts(child.waktu).t }}</span>
+                            </div>
+                            <div class="tl-rail">
+                              <i class="tl-dot"
+                                ><v-icon size="14">{{
+                                  isOngoing(child, ci, false) ? "mdi-timer-sand" : "mdi-check"
+                                }}</v-icon></i
+                              >
+                            </div>
+                            <div class="tl-body">
+                              <h3>{{ child.status }}</h3>
+                              <p>{{ child.deskripsi }}</p>
+                            </div>
+                          </li>
+                        </ol>
+                      </div>
+                    </v-expand-transition>
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <!-- RINCIAN -->
+          <aside class="st-card">
+            <div class="st-card-h">
+              <h2>Rincian Pesanan</h2>
+              <span v-if="orderSummary.sisaTagihan <= 0" class="st-chip-ok">
+                <v-icon size="14">mdi-check-decagram</v-icon> LUNAS
+              </span>
+              <span v-else class="st-chip-due">Belum lunas</span>
+            </div>
+
+            <ul class="it-list">
+              <li
+                v-for="(item, i) in orderItems"
+                :key="i"
+                class="it"
+                :class="{ 'is-ready': item.isFullyScanned }"
+                :style="{ '--d': `${i * 70}ms` }"
+              >
+                <div class="it-img">
+                  <img
+                    v-if="
+                      item.imageUrl &&
+                      !item.isJasaMurni &&
+                      !imgFailed[item.kode + (item.sd_nomor || '')]
+                    "
+                    :src="item.imageUrl"
+                    :alt="item.nama"
+                    loading="lazy"
+                    @error="imgFailed[item.kode + (item.sd_nomor || '')] = true"
+                  />
+                  <v-icon v-else size="26">{{
+                    item.isJasaMurni ? "mdi-cog-outline" : "mdi-tshirt-crew"
+                  }}</v-icon>
+                </div>
+
+                <div class="it-main">
+                  <div class="it-name">
+                    {{ item.nama }}
+                    <span v-if="item.isFullyScanned" class="it-ready"
+                      ><v-icon size="12">mdi-check</v-icon> Siap</span
                     >
-                      <div class="d-flex w-100 align-start">
-                        <v-img
-                          v-if="!item.isJasaMurni"
-                          :src="item.imageUrl"
-                          width="65"
-                          height="65"
-                          class="rounded-lg border flex-shrink-0 position-relative"
-                          :class="item.isFullyScanned ? 'bg-white' : 'bg-grey-lighten-4'"
-                          cover
-                        >
-                          <template #placeholder>
-                            <div class="d-flex align-center justify-center fill-height">
-                              <v-icon color="grey-lighten-1" size="24">mdi-tshirt-crew</v-icon>
-                            </div>
-                          </template>
-                          <template #error>
-                            <div class="d-flex align-center justify-center fill-height">
-                              <v-icon color="grey-lighten-1" size="24">mdi-tshirt-crew</v-icon>
-                            </div>
-                          </template>
-                        </v-img>
-
-                        <div class="ml-3 flex-grow-1">
-                          <div
-                            class="text-subtitle-2 font-weight-bold text-wrap"
-                            :class="
-                              item.isFullyScanned ? 'text-green-darken-3' : 'text-grey-darken-3'
-                            "
-                            style="line-height: 1.2"
-                          >
-                            {{ item.nama }}
-                            <v-icon
-                              v-if="item.isFullyScanned"
-                              color="success"
-                              size="x-small"
-                              class="ml-1 mb-1"
-                              >mdi-check-circle</v-icon
-                            >
-                          </div>
-
-                          <div
-                            v-if="item.nama_spk"
-                            class="text-caption mt-1"
-                            :class="
-                              item.isFullyScanned ? 'text-green-darken-2' : 'text-grey-darken-1'
-                            "
-                            style="line-height: 1.1"
-                          >
-                            SPK: {{ item.nama_spk }}
-                          </div>
-
-                          <div
-                            class="text-caption mt-1"
-                            :class="
-                              item.isFullyScanned ? 'text-green-darken-2' : 'text-grey-darken-1'
-                            "
-                          >
-                            Ukuran: {{ item.ukuran || "-" }}
-                          </div>
-
-                          <div
-                            class="text-caption mt-1"
-                            v-if="item.sd_nomor && isStaff"
-                            :class="
-                              item.isFullyScanned ? 'text-green-darken-2' : 'text-grey-darken-1'
-                            "
-                          >
-                            SO DTF:
-                            <span
-                              class="font-weight-medium"
-                              :class="item.isFullyScanned ? 'text-green-darken-4' : 'text-black'"
-                              >{{ item.sd_nomor }}</span
-                            >
-                          </div>
-                        </div>
-
-                        <div
-                          class="text-right d-flex flex-column justify-start ml-2 position-relative"
-                        >
-                          <v-tooltip location="top" v-if="item.hasHoverDetail && item.breakdown">
-                            <template v-slot:activator="{ props }">
-                              <div
-                                v-bind="props"
-                                class="text-subtitle-2 font-weight-bold text-grey-darken-3 cursor-pointer d-flex flex-column align-end"
-                                style="border-bottom: 1px dashed #bdbdbd"
-                              >
-                                <span style="font-size: 0.75rem">{{ item.qty }} pcs</span>
-                                <span>{{ formatRupiah(item.subtotal) }}</span>
-                              </div>
-                            </template>
-
-                            <div class="text-caption text-left pa-1">
-                              <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
-                              <div
-                                v-for="(b, bIdx) in item.breakdown"
-                                :key="bIdx"
-                                class="mb-1"
-                                style="white-space: nowrap"
-                              >
-                                {{ b.qty }}x Size {{ b.ukuran }}:
-                                {{ formatRupiah(b.harga - b.diskon) }}
-                                <span v-if="b.diskon > 0" class="text-red-lighten-2"
-                                  >(Disc {{ formatRupiah(b.diskon) }})</span
-                                >
-                              </div>
-                            </div>
-                          </v-tooltip>
-                        </div>
-                      </div>
-                    </v-list-item>
-                    <v-divider v-if="i !== orderItems.length - 1"></v-divider>
-                  </template>
-                </v-list>
-              </v-card-text>
-
-              <div class="bg-grey-lighten-5 pa-5 border-t mt-auto">
-                <div class="d-flex justify-space-between mb-1 text-caption">
-                  <span class="text-grey-darken-1">Subtotal Produk</span>
-                  <span class="font-weight-medium text-black">{{
-                    formatRupiah(orderSummary.totalBruto)
-                  }}</span>
-                </div>
-                <div
-                  class="d-flex justify-space-between mb-1 text-caption"
-                  v-if="orderSummary.diskonFaktur > 0"
-                >
-                  <span class="text-grey-darken-1">Diskon Faktur</span>
-                  <span class="text-error font-weight-medium"
-                    >-{{ formatRupiah(orderSummary.diskonFaktur) }}</span
-                  >
-                </div>
-                <div
-                  class="d-flex justify-space-between mb-1 text-caption"
-                  v-if="orderSummary.biayaKirim > 0"
-                >
-                  <span class="text-grey-darken-1">Biaya Pengiriman</span>
-                  <span class="font-weight-medium text-black">{{
-                    formatRupiah(orderSummary.biayaKirim)
-                  }}</span>
-                </div>
-                <div
-                  class="d-flex justify-space-between mb-1 text-caption"
-                  v-if="orderSummary.ppn > 0"
-                >
-                  <span class="text-grey-darken-1">Pajak (PPN)</span>
-                  <span class="font-weight-medium text-black">{{
-                    formatRupiah(orderSummary.ppn)
-                  }}</span>
+                  </div>
+                  <div v-if="item.nama_spk" class="it-sub">SPK: {{ item.nama_spk }}</div>
+                  <div class="it-sub">Ukuran: {{ item.ukuran || "-" }}</div>
+                  <div v-if="item.sd_nomor && isStaff" class="it-sub">
+                    SO DTF: <b>{{ item.sd_nomor }}</b>
+                  </div>
                 </div>
 
-                <div
-                  class="d-flex justify-space-between mb-1 text-caption mt-2"
-                  v-if="orderSummary.totalDibayar > 0"
-                >
-                  <span class="text-grey-darken-1 font-weight-bold">Telah Dibayar</span>
-                  <span class="text-green-darken-2 font-weight-bold"
-                    >-{{ formatRupiah(orderSummary.totalDibayar) }}</span
-                  >
-                </div>
-
-                <v-divider class="my-2 border-opacity-50"></v-divider>
-
-                <div class="d-flex justify-space-between mt-2 align-center mb-1">
-                  <span class="text-subtitle-1 font-weight-bold text-grey-darken-3"
-                    >Total Pesanan</span
-                  >
-                  <span class="text-subtitle-1 font-weight-bold text-black">{{
-                    formatRupiah(orderSummary.grandTotal)
-                  }}</span>
-                </div>
-
-                <div
-                  class="d-flex justify-space-between align-center mt-2"
-                  v-if="orderSummary.sisaTagihan > 0"
-                >
-                  <span class="text-subtitle-1 font-weight-bold text-error">Sisa Tagihan</span>
-                  <span class="text-h5 font-weight-black text-brand">{{
-                    formatRupiah(orderSummary.sisaTagihan)
-                  }}</span>
-                </div>
-                <div class="d-flex justify-space-between align-center mt-2" v-else>
-                  <span class="text-subtitle-1 font-weight-bold text-green-darken-2"
-                    >Status Pembayaran</span
-                  >
-                  <v-chip color="green" size="small" variant="flat" class="font-weight-bold px-4">
-                    LUNAS
-                  </v-chip>
-                </div>
-              </div>
-            </v-card>
-          </v-col>
-
-          <v-col cols="12" md="7" class="order-first order-md-last">
-            <v-card elevation="0" class="rounded-lg border fill-height">
-              <v-card-title
-                class="pa-4 border-b bg-white d-flex align-center justify-space-between flex-wrap gap-2"
-              >
-                <span class="text-subtitle-1 font-weight-bold">Rincian Pelacakan per Proses</span>
-                <div class="d-flex align-center">
-                  <span class="text-caption text-grey-darken-1 mr-2 d-none d-sm-inline"
-                    >Pelanggan: {{ penerima }}</span
-                  >
-                  <v-chip
-                    size="small"
-                    variant="outlined"
-                    color="grey-darken-2"
-                    class="font-weight-bold"
-                  >
-                    {{ resiAwb }}
-                  </v-chip>
-                </div>
-              </v-card-title>
-
-              <v-card-text class="pa-6 bg-grey-lighten-5">
-                <v-timeline
-                  align="start"
-                  side="end"
-                  density="comfortable"
-                  line-color="grey-lighten-2"
-                  truncate-line="both"
-                >
-                  <v-timeline-item
-                    v-for="(log, i) in logs"
-                    :key="log.id"
-                    :dot-color="isOngoing(log, i, true) ? 'warning' : 'success'"
-                    :size="i === 0 ? 'small' : 'small'"
-                    fill-dot
-                    :style="{ '--item-delay': `${timelineBaseDelay + i * 90}ms` }"
-                  >
-                    <template #opposite>
-                      <div
-                        class="timeline-content-animated text-caption text-right mt-1 d-none d-sm-block"
-                        style="white-space: nowrap"
-                        :class="
-                          isOngoing(log, i, true)
-                            ? 'text-warning font-weight-bold'
-                            : 'text-grey-darken-1'
-                        "
-                      >
-                        {{ log.waktu.split(" ")[0] || log.waktu }}<br />
-                        {{ log.waktu.split(" ")[1] || "" }}
-                      </div>
-                    </template>
-                    <div class="timeline-content-animated ml-2 mt-n1 pb-4">
-                      <div
-                        class="d-block d-sm-none text-caption font-weight-bold mb-1"
-                        :class="isOngoing(log, i, true) ? 'text-warning' : 'text-grey-darken-1'"
-                      >
-                        {{ log.waktu }}
-                      </div>
-
-                      <div
-                        class="text-subtitle-1 font-weight-bold mb-1"
-                        :class="
-                          isOngoing(log, i, true) ? 'text-warning-darken-2' : 'text-green-darken-3'
-                        "
-                      >
-                        {{ log.status }}
-                      </div>
-                      <div
-                        class="text-caption"
-                        :class="
-                          isOngoing(log, i, true)
-                            ? 'font-weight-medium text-black'
-                            : 'text-grey-darken-2'
-                        "
-                        style="white-space: pre-line; line-height: 1.4"
-                      >
-                        {{ log.deskripsi }}
-                      </div>
-                      <div
-                        v-if="log.isSpkGroup && log.children && log.children.length > 0"
-                        class="mt-3"
-                      >
-                        <v-btn
-                          size="small"
-                          variant="tonal"
-                          color="brown-darken-2"
-                          @click="toggleSpk(log.id)"
-                          class="text-caption font-weight-bold"
-                        >
-                          {{
-                            expandedSpks.includes(log.id)
-                              ? "Tutup Detail SPK"
-                              : "Lihat Detail Pabrik"
-                          }}
-                          <v-icon right class="ml-1">{{
-                            expandedSpks.includes(log.id) ? "mdi-chevron-up" : "mdi-chevron-down"
-                          }}</v-icon>
-                        </v-btn>
-
-                        <v-expand-transition>
-                          <div
-                            v-show="expandedSpks.includes(log.id)"
-                            class="mt-4 pa-4 bg-white border rounded-lg shadow-sm"
-                          >
-                            <v-timeline
-                              align="start"
-                              side="end"
-                              density="comfortable"
-                              line-color="grey-lighten-3"
-                              truncate-line="both"
-                            >
-                              <v-timeline-item
-                                v-for="(child, childIdx) in log.children"
-                                :key="child.id"
-                                :dot-color="
-                                  isOngoing(child, childIdx, false) ? 'warning' : 'success'
-                                "
-                                size="x-small"
-                                fill-dot
-                                :style="{ '--item-delay': `${childIdx * 60}ms` }"
-                              >
-                                <template #opposite>
-                                  <div
-                                    class="timeline-content-animated text-caption text-right mt-1 d-none d-sm-block"
-                                    style="line-height: 1.2; white-space: nowrap"
-                                    :class="
-                                      isOngoing(child, childIdx, false)
-                                        ? 'text-warning font-weight-bold'
-                                        : 'text-grey-darken-1'
-                                    "
-                                  >
-                                    {{ child.waktu.split(" ")[0] || child.waktu }}<br />
-                                    {{ child.waktu.split(" ")[1] || "" }}
-                                  </div>
-                                </template>
-                                <div class="timeline-content-animated ml-2 mt-n1 pb-2">
-                                  <div
-                                    class="d-block d-sm-none text-caption font-weight-bold mb-1"
-                                    :class="
-                                      isOngoing(child, childIdx, false)
-                                        ? 'text-warning'
-                                        : 'text-grey-darken-1'
-                                    "
-                                  >
-                                    {{ child.waktu }}
-                                  </div>
-
-                                  <div
-                                    class="text-body-2 font-weight-bold mb-1"
-                                    :class="
-                                      isOngoing(child, childIdx, false)
-                                        ? 'text-warning-darken-2'
-                                        : 'text-green-darken-3'
-                                    "
-                                  >
-                                    {{ child.status }}
-                                  </div>
-                                  <div
-                                    class="text-caption"
-                                    :class="
-                                      isOngoing(child, childIdx, false)
-                                        ? 'text-black'
-                                        : 'text-grey-darken-1'
-                                    "
-                                    style="white-space: pre-line; line-height: 1.4"
-                                  >
-                                    {{ child.deskripsi }}
-                                  </div>
-                                </div>
-                              </v-timeline-item>
-                            </v-timeline>
-                          </div>
-                        </v-expand-transition>
-                      </div>
+                <v-tooltip v-if="item.hasHoverDetail && item.breakdown" location="top">
+                  <template #activator="{ props }">
+                    <div v-bind="props" class="it-price">
+                      <small>{{ item.qty }} pcs</small>
+                      <b>{{ formatRupiah(item.subtotal) }}</b>
                     </div>
-                  </v-timeline-item>
-                </v-timeline>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
+                  </template>
+                  <div class="text-caption text-left pa-1">
+                    <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
+                    <div
+                      v-for="(b, bIdx) in item.breakdown"
+                      :key="bIdx"
+                      class="mb-1"
+                      style="white-space: nowrap"
+                    >
+                      {{ b.qty }}x Size {{ b.ukuran }}: {{ formatRupiah(b.harga - b.diskon) }}
+                      <span v-if="b.diskon > 0" class="text-red-lighten-2"
+                        >(Disc {{ formatRupiah(b.diskon) }})</span
+                      >
+                    </div>
+                  </div>
+                </v-tooltip>
+              </li>
+            </ul>
+
+            <div class="sum">
+              <div class="sum-row">
+                <span>Subtotal produk</span><b>{{ formatRupiah(orderSummary.totalBruto) }}</b>
+              </div>
+              <div v-if="orderSummary.diskonFaktur > 0" class="sum-row">
+                <span>Diskon faktur</span
+                ><b class="neg">-{{ formatRupiah(orderSummary.diskonFaktur) }}</b>
+              </div>
+              <div v-if="orderSummary.biayaKirim > 0" class="sum-row">
+                <span>Biaya pengiriman</span><b>{{ formatRupiah(orderSummary.biayaKirim) }}</b>
+              </div>
+              <div v-if="orderSummary.ppn > 0" class="sum-row">
+                <span>Pajak (PPN)</span><b>{{ formatRupiah(orderSummary.ppn) }}</b>
+              </div>
+              <div v-if="orderSummary.totalDibayar > 0" class="sum-row">
+                <span>Telah dibayar</span
+                ><b class="pos">-{{ formatRupiah(orderSummary.totalDibayar) }}</b>
+              </div>
+
+              <div class="sum-total">
+                <span>Total pesanan</span><b>{{ formatRupiah(orderSummary.grandTotal) }}</b>
+              </div>
+
+              <div v-if="orderSummary.sisaTagihan > 0" class="sum-due">
+                <span>Sisa tagihan</span>
+                <b><CountUp :to="orderSummary.sisaTagihan" before="Rp " /></b>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <p class="st-foot">Terima kasih telah berbelanja di Kaosan!</p>
       </div>
-    </v-container>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.tracking-page {
+.st {
+  --st-red: #b71c1c;
+  --st-ink: #1f1a19;
+  --st-muted: #6f6663;
+  --st-line: #eadfda;
+  --st-ease: cubic-bezier(0.22, 1, 0.36, 1);
   min-height: 100vh;
+  color: var(--st-ink);
+  background: #faf6f4;
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.text-brand {
-  color: #d32f2f !important;
+.st-wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
-.border {
-  border: 1px solid #e0e0e0;
+
+/* ---------- Header + hero ---------- */
+.st-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  color: #fff;
+  background: var(--st-red);
 }
-.gap-2 {
+.st-bar-in {
+  max-width: 1180px;
+  height: 56px;
+  margin: 0 auto;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.mail-border {
-  height: 3px;
-  width: 100%;
+.st-bar-title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+}
+.st-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.12s ease;
+}
+.st-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.st-icon-btn:active {
+  transform: scale(0.92);
+}
+
+.st-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 0 100px;
+  color: #fff;
+  background: radial-gradient(700px 320px at 90% -20%, rgba(255, 255, 255, 0.16), transparent 70%),
+    var(--st-red);
+}
+.st-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.st-status {
+  margin: 8px 0 10px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: clamp(34px, 6vw, 64px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.st-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 13px;
+  opacity: 0.92;
+}
+.st-meta-sep::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 14px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+.st-resi {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  font-family: inherit;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.12s ease;
+}
+.st-resi:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.st-resi:active {
+  transform: scale(0.97);
+}
+.st-resi small {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  opacity: 0.8;
+}
+.st-resi b {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.st-resi-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--st-red);
+  background: #fff;
+}
+.st-stripe {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
   background-image: repeating-linear-gradient(
     45deg,
     #6fa6d6,
@@ -1019,185 +893,544 @@ onMounted(() => {
   );
 }
 
-/* --- CSS STEPPER HORIZONTAL MENDATAR (BRAND STYLE) --- */
-/* [GABUNG] Sebelumnya ada 2 blok .stepper-item terpisah — digabung jadi 1 */
-.stepper-item {
-  flex: 1;
+/* ---------- Langkah ---------- */
+.st-steps-card {
   position: relative;
-  text-align: center;
+  margin-top: -64px;
+  padding: 28px 8px 22px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(60, 20, 15, 0.12);
+  animation: st-rise 0.8s var(--st-ease) 0.25s both;
+}
+.st-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+}
+.st-track {
+  position: absolute;
+  top: 26px;
+  left: calc(100% / (var(--n) * 2));
+  right: calc(100% / (var(--n) * 2));
+  height: 4px;
+  border-radius: 2px;
+  background: var(--st-line);
+  transform: translateY(-50%);
+}
+.st-track-fill {
+  display: block;
+  width: calc(var(--p) * 1%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b71c1c, #e53935);
+  transform-origin: left center;
+  animation: st-fill 1.3s var(--st-ease) 0.6s both;
+}
+.st-step {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  opacity: 0;
-  animation: stepFadeIn 0.55s cubic-bezier(0.25, 0.8, 0.5, 1) forwards;
-  animation-delay: var(--step-delay, 0ms);
-  will-change: opacity, transform;
+  padding: 0 4px;
+  text-align: center;
+  animation: st-pop 0.6s var(--st-ease) both;
+  animation-delay: calc(var(--i) * 120ms + 0.35s);
 }
-
-.step-line {
-  position: absolute;
-  top: 30px;
-  height: 4px;
-  background-color: #e0e0e0;
-  width: 50%;
-  z-index: 1;
-  transition: background-color 0.3s ease;
-}
-.line-left {
-  left: 0;
-}
-.line-right {
-  right: 0;
-}
-.stepper-item.active .line-left {
-  background-color: #d32f2f;
-}
-.stepper-item.active:not(.current) .line-right {
-  background-color: #d32f2f;
-}
-.step-icon-wrapper {
-  position: relative;
-  z-index: 2;
-  background-color: white;
-  padding: 0 10px;
-}
-
-/* [GABUNG] Sebelumnya ada 2 blok .step-icon terpisah — digabung jadi 1 */
-.step-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 3px solid #e0e0e0;
+.st-node {
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #bdbdbd;
-  background-color: white;
+  border: 3px solid var(--st-line);
+  border-radius: 50%;
+  color: #c9bcb7;
+  background: #fff;
   transition: all 0.3s ease;
 }
+.st-step.active .st-node {
+  border-color: var(--st-red);
+  color: var(--st-red);
+}
+.st-step.current .st-node {
+  color: #fff;
+  background: var(--st-red);
+  animation: st-ring 2s ease-in-out infinite;
+}
+.st-step-title {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--st-muted);
+}
+.st-step.active .st-step-title {
+  color: var(--st-ink);
+}
+.st-step.current .st-step-title {
+  color: var(--st-red);
+}
+.st-step-time {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--st-muted);
+}
+.st-step-kind {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+}
 
-.step-title {
-  font-size: 0.85rem;
+/* ---------- Kartu ---------- */
+.st-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+.st-card {
+  overflow: hidden;
+  border: 1px solid var(--st-line);
+  border-radius: 20px;
+  background: #fff;
+  animation: st-rise 0.8s var(--st-ease) 0.4s both;
+}
+.st-card-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--st-line);
+}
+.st-card-h h2 {
+  margin: 0;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
   font-weight: 600;
-  color: #757575;
-  margin-top: 12px;
 }
-.step-time {
-  font-size: 0.75rem;
-  color: #9e9e9e;
-  margin-top: 4px;
+.st-chip-ok,
+.st-chip-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
 }
-.stepper-item.active .step-icon {
-  border-color: #d32f2f;
-  color: #d32f2f;
-  animation: stepIconPulse 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
-  animation-delay: calc(var(--step-delay, 0ms) + 0.4s);
+.st-chip-ok {
+  color: #fff;
+  background: #2e9e5b;
 }
-.stepper-item.active .step-title {
-  color: #d32f2f;
-}
-.stepper-item.current .step-icon {
-  background-color: #d32f2f;
-  border-color: #d32f2f;
-  color: white;
-  box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
-  animation: currentPulse 1.6s ease-in-out infinite;
-  animation-delay: calc(var(--step-delay, 0ms) + 0.6s);
-}
-.stepper-item.current .step-title {
-  color: #d32f2f;
-  font-weight: bold;
-}
-.stepper-item.current .step-time {
-  color: #d32f2f;
+.st-chip-due {
+  color: #b45309;
+  background: #fff1e0;
 }
 
-@keyframes stepFadeIn {
+/* ---------- Riwayat ---------- */
+.tl {
+  margin: 0;
+  padding: 10px 22px 8px;
+  list-style: none;
+}
+.tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 92px 28px minmax(0, 1fr);
+  grid-template-areas: "time rail body";
+  column-gap: 10px;
+  padding-bottom: 22px;
+  animation: st-slide 0.55s var(--st-ease) both;
+  animation-delay: calc(0.55s + var(--d, 0ms));
+}
+.tl-time {
+  grid-area: time;
+  padding-top: 2px;
+  text-align: right;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--st-muted);
+}
+.tl-time b {
+  display: block;
+  font-weight: 700;
+  color: var(--st-ink);
+}
+.tl-rail {
+  grid-area: rail;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.tl-rail::before {
+  content: "";
+  position: absolute;
+  top: 26px;
+  bottom: -22px;
+  width: 2px;
+  background: var(--st-line);
+  transform-origin: top;
+  animation: st-draw 0.6s ease both;
+  animation-delay: calc(0.7s + var(--d, 0ms));
+}
+.tl-item:last-child .tl-rail::before {
+  display: none;
+}
+.tl-dot {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #2e9e5b;
+}
+.is-now > .tl-rail .tl-dot {
+  background: #f59e0b;
+  animation: st-ping 1.8s ease-out infinite;
+}
+.tl-body h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #1f6f43;
+}
+.is-now > .tl-body h3 {
+  color: #b45309;
+}
+.tl-body {
+  grid-area: body;
+  min-width: 0;
+}
+.tl-body p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-line;
+  color: var(--st-muted);
+}
+.is-now > .tl-body p {
+  color: var(--st-ink);
+}
+.tl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--st-line);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6d4c41;
+  background: #f6efec;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.tl-toggle:hover {
+  background: #efe3de;
+}
+.tl-sub {
+  margin-top: 14px;
+  border: 1px solid var(--st-line);
+  border-radius: 14px;
+  background: #fdf9f7;
+}
+.tl--sub {
+  padding: 14px 14px 0;
+}
+.tl--sub .tl-item {
+  grid-template-columns: 78px 28px minmax(0, 1fr);
+  animation: none;
+}
+.tl--sub .tl-body h3 {
+  font-size: 13px;
+}
+.tl--sub .tl-rail::before {
+  animation: none;
+}
+
+/* ---------- Barang ---------- */
+.it-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.it {
+  display: flex;
+  gap: 14px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--st-line);
+  animation: st-slide 0.55s var(--st-ease) both;
+  animation-delay: calc(0.6s + var(--d, 0ms));
+}
+.it.is-ready {
+  background: #f1faf4;
+}
+.it-img {
+  width: 68px;
+  height: 68px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 14px;
+  color: #c9bcb7;
+  background: #f3ebe7;
+}
+.it-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.it-main {
+  flex: 1;
+  min-width: 0;
+}
+.it-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.it-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: middle;
+  color: #1f6f43;
+  background: #dff3e6;
+}
+.it-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--st-muted);
+}
+.it-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: flex-start;
+  border-bottom: 1px dashed #bdb2ad;
+  cursor: help;
+}
+.it-price small {
+  font-size: 11px;
+  color: var(--st-muted);
+}
+.it-price b {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* ---------- Ringkasan ---------- */
+.sum {
+  padding: 18px 22px 22px;
+  background: #fdf9f7;
+}
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+  color: var(--st-muted);
+}
+.sum-row b {
+  font-weight: 700;
+  color: var(--st-ink);
+}
+.sum-row .neg {
+  color: #c62828;
+}
+.sum-row .pos {
+  color: #1f6f43;
+}
+.sum-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed #d9ccc6;
+  font-weight: 700;
+}
+.sum-total b {
+  font-size: 18px;
+}
+.sum-due {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 8px;
+  color: var(--st-red);
+  font-weight: 800;
+}
+.sum-due b {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 30px;
+  font-weight: 600;
+}
+.st-foot {
+  margin: 26px 0 40px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--st-muted);
+}
+
+/* ---------- Skeleton ---------- */
+.st-skel {
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.14) 25%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.14) 75%
+  );
+  background-size: 200% 100%;
+  animation: st-shimmer 1.3s linear infinite;
+}
+.st-skel--light {
+  background: linear-gradient(90deg, #ececec 25%, #f6f6f6 50%, #ececec 75%);
+  background-size: 200% 100%;
+}
+
+/* ---------- Animasi ---------- */
+.st-rise {
+  animation: st-rise 0.9s var(--st-ease) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes st-rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+    transform: translateY(18px);
   }
 }
-
-@keyframes stepIconPulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.15);
-  }
-  100% {
-    transform: scale(1);
+@keyframes st-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
   }
 }
-
-/* Garis penghubung "tumbuh" mengikuti delay step */
-.stepper-item.active .line-left,
-.stepper-item.active:not(.current) .line-right {
-  animation: lineGrow 0.7s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-  animation-delay: calc(var(--step-delay, 0ms) + 0.2s);
-  transform-origin: left;
-  will-change: transform;
+@keyframes st-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
 }
-
-@keyframes lineGrow {
+@keyframes st-draw {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes st-fill {
   from {
     transform: scaleX(0);
   }
-  to {
-    transform: scaleX(1);
-  }
 }
-
-@keyframes currentPulse {
+@keyframes st-ring {
   0%,
   100% {
-    box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
+    box-shadow: 0 0 0 0 rgba(183, 28, 28, 0.35);
   }
   50% {
-    box-shadow: 0 4px 20px rgba(211, 47, 47, 0.55);
+    box-shadow: 0 0 0 10px rgba(183, 28, 28, 0);
   }
 }
-
-/* --- ANIMASI TIMELINE SAAT PERTAMA DIBUKA --- */
-.timeline-content-animated {
-  opacity: 0;
-  animation: timelineSlideIn 0.5s cubic-bezier(0.25, 0.8, 0.5, 1) forwards;
-  animation-delay: var(--item-delay, 0ms);
-  will-change: opacity, transform;
-}
-
-@keyframes timelineSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
+@keyframes st-ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55);
   }
+  80%,
+  100% {
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+}
+@keyframes st-shimmer {
   to {
-    opacity: 1;
-    transform: translateY(0);
+    background-position: -200% 0;
   }
 }
 
-@media (max-width: 600px) {
-  .step-icon {
+/* ---------- Responsif ---------- */
+@media (max-width: 899px) {
+  .st-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 599px) {
+  .st-hero {
+    padding-bottom: 88px;
+  }
+  .st-node {
     width: 40px;
     height: 40px;
   }
-  .step-line {
+  .st-track {
     top: 20px;
   }
-  .step-title {
-    font-size: 0.7rem;
+  .st-step-title {
+    font-size: 11px;
   }
-  .step-time {
-    font-size: 0.65rem;
-  }
-  .v-timeline-item__opposite {
+  .st-step-time,
+  .st-step-kind {
     display: none;
+  }
+  .tl,
+  .tl--sub {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .tl-item,
+  .tl--sub .tl-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-areas:
+      "rail time"
+      "rail body";
+  }
+  .tl-time {
+    display: flex;
+    gap: 6px;
+    text-align: left;
+  }
+  .it {
+    padding: 14px 16px;
+  }
+  .st-card-h,
+  .sum {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-rise,
+  .st-steps-card,
+  .st-card,
+  .st-step,
+  .st-track-fill,
+  .tl-item,
+  .tl-rail::before,
+  .it,
+  .st-step.current .st-node,
+  .is-now > .tl-rail .tl-dot,
+  .st-skel {
+    animation: none;
   }
 }
 </style>

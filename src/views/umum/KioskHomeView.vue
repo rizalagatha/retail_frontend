@@ -182,7 +182,7 @@ const calcScale = () => {
   const portrait = window.innerHeight > window.innerWidth;
   const w = portrait ? window.innerHeight : window.innerWidth; // iframe diputar 90deg di portrait
   const h = portrait ? window.innerWidth : window.innerHeight;
-  attractScale.value = Math.max(w / VIDEO_W, h / VIDEO_H);
+  attractScale.value = Math.min(w / VIDEO_W, h / VIDEO_H);
 };
 
 // Di luar layar tunggu: sentuhan hanya mengatur ulang timer. Di layar tunggu, penutupan ditangani lapisan .kh-attract-wake
@@ -935,14 +935,15 @@ onUnmounted(() => {
   background: radial-gradient(120% 90% at 50% 50%, #3a0d0d 0%, #1a0707 60%, #0d0303 100%);
 }
 .kh-attract iframe {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1280px;
+  height: 720px;
   border: none;
-  pointer-events: none; /* sentuhan ditangkap beranda untuk menutup layar tunggu */
   background: transparent;
-  color-scheme: normal;
-  transform: scale(var(--kh-scale, 1));
-  transform-origin: right bottom;
+  transform: translate(-50%, -50%) scale(var(--kh-scale, 1));
+  transform-origin: center center;
 }
 /* Lapisan penutup layar tunggu: semua area kecuali sudut kanan-bawah 120px (tombol unmute) */
 .kh-attract-wake {
@@ -1075,8 +1076,8 @@ onUnmounted(() => {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 100vh;
-    height: 100vw;
+    width: 1280px;
+    height: 720px;
     transform: translate(-50%, -50%) rotate(var(--kh-rot)) scale(var(--kh-scale, 1));
     transform-origin: center center;
   }

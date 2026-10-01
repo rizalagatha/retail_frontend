@@ -4,7 +4,10 @@ import ShopeeLogo from "@/assets/shopee.png";
 import TokpedLogo from "@/assets/tokped.png";
 import TiktokLogo from "@/assets/tiktok.png";
 
-withDefaults(defineProps<{ maxWidth?: string }>(), { maxWidth: "1040px" });
+withDefaults(defineProps<{ maxWidth?: string; dark?: boolean }>(), {
+  maxWidth: "1040px",
+  dark: false,
+});
 
 const year = new Date().getFullYear();
 
@@ -25,7 +28,7 @@ const socials = [
 </script>
 
 <template>
-  <footer class="sf">
+  <footer class="sf" :class="{ 'sf--dark': dark }">
     <div class="sf-inner" :style="{ '--sf-max': maxWidth }">
       <!-- Konten tambahan dari halaman (mis. kontak pengaduan konsumen) -->
       <slot />
@@ -150,6 +153,27 @@ const socials = [
 .sf-social-btn:hover .sf-social-img {
   filter: none;
   transform: scale(1.1);
+}
+
+.sf--dark {
+  --sf-line: rgba(216, 189, 132, 0.22);
+  --sf-muted: rgba(243, 232, 210, 0.6);
+  --sf-red: #e6cf98;
+  background: #0a0403;
+}
+.sf--dark .sf-links a {
+  color: rgba(243, 232, 210, 0.8);
+}
+.sf--dark .sf-social-icon {
+  color: rgba(243, 232, 210, 0.7);
+}
+.sf--dark .sf-social-img {
+  filter: grayscale(100%) brightness(1.7) opacity(0.8);
+}
+.sf--dark .sf-brand img {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #fff;
 }
 
 @media (max-width: 599px) {

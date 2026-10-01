@@ -107,8 +107,8 @@ watch(idx, async () => {
 
 const openCollection = () => {
   router.push({
-    path: "/katalog/semua",
-    query: { q: current.value.kata[0], from: "premium", kain: current.value.id },
+    path: `/katalog/${encodeURIComponent(current.value.nama)}`,
+    query: { from: "premium", kain: current.value.id },
   });
 };
 

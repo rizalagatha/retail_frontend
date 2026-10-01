@@ -7,6 +7,8 @@ import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { isKiosk } from "@/composables/useKiosk";
+import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
+
 import "@fontsource-variable/cormorant";
 import "@fontsource-variable/cormorant/wght-italic.css";
 import "@fontsource-variable/jost";
@@ -44,10 +46,29 @@ interface Product {
 
 const route = useRoute();
 const router = useRouter();
-const { xs, mdAndUp } = useDisplay();
+const { mdAndUp } = useDisplay();
 
 const ROUTE_NAME = "Katalog";
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
+const fromPremium = computed(() => route.query.from === "premium");
+
+// Cocokkan nama produk ke kain premium (kata kunci terpanjang menang)
+const premiumFabricOf = (namaUp: string): string | null => {
+  let best: string | null = null;
+  let bestLen = 0;
+  for (const f of PREMIUM_FABRICS) {
+    for (const k of f.kata) {
+      const key = k.toUpperCase();
+      if (namaUp.includes(key) && key.length > bestLen) {
+        best = f.nama;
+        bestLen = key.length;
+      }
+    }
+  }
+  return best;
+};
+const premiumOrder = (nama: string) => PREMIUM_FABRICS.findIndex((f) => f.nama === nama);
+
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
 const formatHarga = (min: number, max: number) => {
@@ -107,7 +128,7 @@ const sizeRank = (size: string) => {
   return isNaN(n) ? 999 : 20 + n;
 };
 
-const products = computed<Product[]>(() =>
+const allProducts = computed<Product[]>(() =>
   rows.value.map((r) => {
     let galeri: { url: string; index: number }[] = [];
     try {
@@ -124,6 +145,8 @@ const products = computed<Product[]>(() =>
     else if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
       kategori = "KAOS ANAK";
     else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) kategori = "TUNIK";
+
+    if (fromPremium.value) kategori = premiumFabricOf(namaUp) ?? "";
 
     const min = Number(r.harga_min) || 0;
     const max = Number(r.harga_max) || 0;
@@ -157,6 +180,11 @@ const products = computed<Product[]>(() =>
       galeri,
     };
   })
+);
+
+// Mode Premium: hanya produk yang cocok dengan salah satu kain premium
+const products = computed(() =>
+  fromPremium.value ? allProducts.value.filter((p) => p.kategori) : allProducts.value
 );
 
 // Cover acak per kategori. Dipilih sekali saat data dimuat (bukan tiap render),
@@ -218,6 +246,7 @@ const kategoriList = computed(() => {
 
   return Object.keys(count)
     .sort((a, b) => {
+      if (fromPremium.value) return premiumOrder(a) - premiumOrder(b);
       if (a === "LAIN-LAIN") return 1;
       if (b === "LAIN-LAIN") return -1;
       return count[b] - count[a];
@@ -344,8 +373,6 @@ const pilihKategori = (nama: string) =>
     params: { kategori: nama === "ALL" ? "semua" : nama },
     query: { ...route.query, q: searchTerm.value || undefined },
   });
-// Datang dari halaman Premium: tema ikut premium dan tombol kembali menuju ke sana
-const fromPremium = computed(() => route.query.from === "premium");
 
 const goBack = () => {
   if (fromPremium.value) {
@@ -442,15 +469,26 @@ watch(detailVisible, (v) => {
   if (!v) lightboxOpen.value = false;
 });
 
+// Kunci gulir halaman saat panel terbuka, Esc menutup panel (lightbox punya Esc sendiri)
+watch(detailVisible, (v) => {
+  document.documentElement.style.overflow = v ? "hidden" : "";
+});
+const onDrawerKey = (e: KeyboardEvent) => {
+  if (e.key === "Escape" && detailVisible.value && !lightboxOpen.value) detailVisible.value = false;
+};
+
 onMounted(() => {
   document.title = "Katalog Produk - Kaosan";
   loadCatalog();
+  window.addEventListener("keydown", onDrawerKey);
   window.addEventListener("keydown", onLbKey, true);
   window.addEventListener("keydown", onSlashKey);
 });
 onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
+  window.removeEventListener("keydown", onDrawerKey);
+  document.documentElement.style.overflow = "";
   window.removeEventListener("keydown", onLbKey, true);
   window.removeEventListener("keydown", onSlashKey);
 });
@@ -463,13 +501,15 @@ onUnmounted(() => {
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
       <div class="k-header-title">
-        <div class="k-title">Katalog Produk</div>
+        <div class="k-title">{{ fromPremium ? "Premium Collection" : "Katalog Produk" }}</div>
         <div class="k-sub">
           {{
             phase === "category"
               ? "Pilih jenis kain"
               : selectedKategori === "ALL"
-              ? "Semua kategori"
+              ? fromPremium
+                ? "Semua kain premium"
+                : "Semua kategori"
               : selectedKategori
           }}
         </div>
@@ -580,7 +620,7 @@ onUnmounted(() => {
         <div v-if="!mdAndUp" class="k-toolbar">
           <div class="k-toolbar-inner">
             <div class="k-chips">
-              <router-link :to="{ name: ROUTE_NAME }" class="k-chip">
+              <router-link :to="{ name: ROUTE_NAME, query: route.query }" class="k-chip">
                 <v-icon size="14">mdi-layers-outline</v-icon>
                 {{ selectedKategori === "ALL" ? "Semua Kategori" : selectedKategori }}
                 <v-icon size="14">mdi-pencil-outline</v-icon>
@@ -742,105 +782,112 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <SiteFooter max-width="1360px" />
+    <SiteFooter max-width="1360px" :dark="fromPremium" />
 
     <!-- ============ DETAIL PRODUK ============ -->
-    <v-dialog
-      v-model="detailVisible"
-      max-width="920"
-      scrollable
-      :fullscreen="xs"
-      :transition="xs ? 'k-sheet' : 'k-dialog'"
-    >
-      <v-card v-if="selected" class="k-detail">
+    <Teleport to="body">
+      <Transition name="k-drawer">
         <div
-          class="k-detail-bar"
-          style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
+          v-if="detailVisible && selected"
+          class="k-drawer-wrap"
+          @click.self="detailVisible = false"
         >
-          <span class="k-detail-bar-title">Detail Produk</span>
-          <v-spacer />
-          <v-btn
-            icon="mdi-close"
-            color="white"
-            variant="text"
-            size="small"
-            aria-label="Tutup"
-            @click="detailVisible = false"
-          />
-        </div>
-
-        <v-card-text class="pa-4 pa-sm-6">
-          <div class="k-detail-layout">
-            <div class="k-detail-media">
-              <v-carousel
-                v-if="detailImages.length"
-                v-model="detailIndex"
-                height="100%"
-                hide-delimiter-background
-                :hide-delimiters="detailImages.length < 2"
-                :show-arrows="detailImages.length > 1 ? 'hover' : false"
-                class="k-carousel"
-              >
-                <v-carousel-item v-for="(src, i) in detailImages" :key="i">
-                  <v-img
-                    :src="src"
-                    cover
-                    height="100%"
-                    class="k-zoomable"
-                    @click="openLightbox(i, $event)"
-                  >
-                    <template #error>
-                      <div class="k-img-broken">
-                        <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
-                      </div>
-                    </template>
-                  </v-img>
-                </v-carousel-item>
-              </v-carousel>
-              <div v-else class="k-carousel">
-                <ProductPlaceholder />
-              </div>
-
-              <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
-                <v-icon size="16">mdi-magnify-plus-outline</v-icon>
-                <span class="k-zoom-hint-text">Perbesar</span>
-              </div>
+          <aside
+            class="k-detail k-drawer"
+            :class="{ 'k-detail--premium': fromPremium }"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              class="k-detail-bar"
+              style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
+            >
+              <span class="k-detail-bar-title">Detail Produk</span>
+              <v-spacer />
+              <v-btn
+                icon="mdi-close"
+                color="white"
+                variant="text"
+                size="small"
+                aria-label="Tutup"
+                @click="detailVisible = false"
+              />
             </div>
 
-            <div class="k-detail-info">
-              <h2 class="k-detail-name">{{ selected.nama }}</h2>
-              <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
-              <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
-
-              <template v-if="priceColumns.length">
-                <div class="k-detail-label">Harga per ukuran</div>
-                <div
-                  class="k-price-cols"
-                  :style="{ gridTemplateColumns: `repeat(${priceColumns.length}, minmax(0, 1fr))` }"
+            <div class="k-drawer-body">
+              <div class="k-detail-media">
+                <v-carousel
+                  v-if="detailImages.length"
+                  v-model="detailIndex"
+                  height="100%"
+                  hide-delimiter-background
+                  :hide-delimiters="detailImages.length < 2"
+                  :show-arrows="detailImages.length > 1 ? 'hover' : false"
+                  class="k-carousel"
                 >
-                  <div v-for="(col, ci) in priceColumns" :key="ci" class="k-price-list">
-                    <div v-for="u in col" :key="u.ukuran" class="k-price-row">
-                      <span class="k-size">{{ u.ukuran }}</span>
-                      <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
-                        {{ u.harga ? rp(u.harga) : "Hubungi store" }}
-                      </span>
+                  <v-carousel-item v-for="(src, i) in detailImages" :key="i">
+                    <v-img
+                      :src="src"
+                      cover
+                      height="100%"
+                      class="k-zoomable"
+                      @click="openLightbox(i, $event)"
+                    >
+                      <template #error>
+                        <div class="k-img-broken">
+                          <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
+                        </div>
+                      </template>
+                    </v-img>
+                  </v-carousel-item>
+                </v-carousel>
+                <div v-else class="k-carousel">
+                  <ProductPlaceholder />
+                </div>
+
+                <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
+                  <v-icon size="16">mdi-magnify-plus-outline</v-icon>
+                  <span class="k-zoom-hint-text">Perbesar</span>
+                </div>
+              </div>
+
+              <div class="k-detail-info">
+                <h2 class="k-detail-name">{{ selected.nama }}</h2>
+                <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+                <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
+
+                <template v-if="priceColumns.length">
+                  <div class="k-detail-label">Harga per ukuran</div>
+                  <div
+                    class="k-price-cols"
+                    :style="{
+                      gridTemplateColumns: `repeat(${priceColumns.length}, minmax(0, 1fr))`,
+                    }"
+                  >
+                    <div v-for="(col, ci) in priceColumns" :key="ci" class="k-price-list">
+                      <div v-for="u in col" :key="u.ukuran" class="k-price-row">
+                        <span class="k-size">{{ u.ukuran }}</span>
+                        <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
+                          {{ u.harga ? rp(u.harga) : "Hubungi store" }}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </template>
+                </template>
 
-              <div class="k-note">
-                <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
-                <span>
-                  Ketersediaan stok berbeda di tiap store. Cek di menu
-                  <router-link to="/cek-stok">Cek Stok Store</router-link>.
-                </span>
+                <div class="k-note">
+                  <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
+                  <span>
+                    Ketersediaan stok berbeda di tiap store. Cek di menu
+                    <router-link to="/cek-stok">Cek Stok Store</router-link>.
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+          </aside>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- ============ LIGHTBOX ============ -->
     <Teleport to="body">
@@ -1033,5 +1080,74 @@ onUnmounted(() => {
 .k-page--premium .k-skel {
   background: linear-gradient(90deg, #1d1411 25%, #2a1c17 50%, #1d1411 75%);
   background-size: 200% 100%;
+}
+
+/* ===== Dialog detail ===== */
+.k-detail--premium {
+  color: #f3e8d2 !important;
+  background: #120a08 !important;
+  border: 1px solid rgba(216, 189, 132, 0.35);
+  font-family: "Jost Variable", system-ui, sans-serif;
+}
+.k-detail--premium .k-detail-bar {
+  background: linear-gradient(135deg, #1d0f0c, #0e0605) !important;
+  border-bottom: 1px solid rgba(216, 189, 132, 0.35);
+}
+.k-detail--premium .k-detail-bar-title {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #e6cf98;
+}
+.k-detail--premium .k-detail-bar :deep(.v-btn) {
+  color: #e6cf98 !important;
+}
+.k-detail--premium .k-detail-name {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: #f3e8d2;
+}
+.k-detail--premium .k-detail-price,
+.k-detail--premium .k-price-val {
+  font-weight: 500;
+  color: #e6cf98;
+}
+.k-detail--premium .k-price-val--na {
+  color: rgba(243, 232, 210, 0.45);
+}
+.k-detail--premium .k-detail-label {
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #d8bd84;
+  border-top-color: rgba(216, 189, 132, 0.25);
+}
+.k-detail--premium .k-price-list {
+  border-color: rgba(216, 189, 132, 0.22);
+}
+.k-detail--premium .k-price-row {
+  background: transparent;
+  border-bottom-color: rgba(216, 189, 132, 0.12);
+}
+.k-detail--premium .k-price-row:nth-child(even) {
+  background: rgba(216, 189, 132, 0.05);
+}
+.k-detail--premium .k-size {
+  color: #e6cf98;
+  background: rgba(216, 189, 132, 0.12);
+  border-color: rgba(216, 189, 132, 0.35);
+}
+.k-detail--premium .k-carousel {
+  background: #241714;
+  border-color: rgba(216, 189, 132, 0.25);
+}
+.k-detail--premium .k-note {
+  color: rgba(243, 232, 210, 0.75);
+  background: rgba(216, 189, 132, 0.08);
+}
+.k-detail--premium .k-note a {
+  color: #e6cf98;
 }
 </style>

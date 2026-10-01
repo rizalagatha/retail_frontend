@@ -50,7 +50,7 @@ type StokState = "ok" | "low" | "out";
 
 const route = useRoute();
 const router = useRouter();
-const { xs, mdAndUp } = useDisplay();
+const { mdAndUp } = useDisplay();
 
 const ROUTE_NAME = "Katalog Stok";
 const POLL_MS = 20_000;
@@ -423,7 +423,7 @@ const detailImages = computed<string[]>(() => {
 });
 
 // Ukuran dipecah per kolom (maksimal 7); di HP satu kolom saja
-const perColumn = computed(() => (xs.value ? 20 : 7));
+const perColumn = computed(() => 20); // panel sempit: satu kolom
 const sizeColumns = computed(() => {
   const list = selected.value?.sizes ?? [];
   const cols: SizeStock[][] = [];
@@ -488,6 +488,13 @@ const onLbKey = (e: KeyboardEvent) => {
 watch(detailVisible, (v) => {
   if (!v) lightboxOpen.value = false;
 });
+// Kunci gulir halaman saat panel terbuka; Esc menutup panel (lightbox punya Esc sendiri)
+watch(detailVisible, (v) => {
+  document.documentElement.style.overflow = v ? "hidden" : "";
+});
+const onDrawerKey = (e: KeyboardEvent) => {
+  if (e.key === "Escape" && detailVisible.value && !lightboxOpen.value) detailVisible.value = false;
+};
 
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -497,6 +504,7 @@ onMounted(() => {
   pollTimer = setInterval(() => {
     if (!document.hidden) loadStok(true);
   }, POLL_MS);
+  window.addEventListener("keydown", onDrawerKey);
   window.addEventListener("keydown", onLbKey, true);
   window.addEventListener("keydown", onSlashKey);
 });
@@ -504,6 +512,8 @@ onUnmounted(() => {
   observer?.disconnect();
   clearTimeout(searchTimer);
   clearInterval(pollTimer);
+  window.removeEventListener("keydown", onDrawerKey);
+  document.documentElement.style.overflow = "";
   window.removeEventListener("keydown", onLbKey, true);
   window.removeEventListener("keydown", onSlashKey);
 });
@@ -823,116 +833,120 @@ onUnmounted(() => {
     <SiteFooter max-width="1360px" />
 
     <!-- ============ DETAIL ============ -->
-    <v-dialog
-      v-model="detailVisible"
-      max-width="920"
-      scrollable
-      :fullscreen="xs"
-      :transition="xs ? 'k-sheet' : 'k-dialog'"
-    >
-      <v-card v-if="selected" class="k-detail">
+    <Teleport to="body">
+      <Transition name="k-drawer">
         <div
-          class="k-detail-bar"
-          style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
+          v-if="detailVisible && selected"
+          class="k-drawer-wrap"
+          @click.self="detailVisible = false"
         >
-          <span class="k-detail-bar-title">Stok Pameran</span>
-          <v-spacer />
-          <v-btn
-            icon="mdi-close"
-            color="white"
-            variant="text"
-            size="small"
-            aria-label="Tutup"
-            @click="detailVisible = false"
-          />
-        </div>
-
-        <v-card-text class="pa-4 pa-sm-6">
-          <div class="k-detail-layout">
-            <div class="k-detail-media">
-              <v-carousel
-                v-if="detailImages.length"
-                v-model="detailIndex"
-                height="100%"
-                hide-delimiter-background
-                :hide-delimiters="detailImages.length < 2"
-                :show-arrows="detailImages.length > 1 ? 'hover' : false"
-                class="k-carousel"
-              >
-                <v-carousel-item v-for="(src, i) in detailImages" :key="i">
-                  <v-img
-                    :src="src"
-                    cover
-                    height="100%"
-                    class="k-zoomable"
-                    @click="openLightbox(i, $event)"
-                  >
-                    <template #error>
-                      <div class="k-img-broken">
-                        <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
-                      </div>
-                    </template>
-                  </v-img>
-                </v-carousel-item>
-              </v-carousel>
-              <div v-else class="k-carousel">
-                <ProductPlaceholder />
-              </div>
-
-              <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
-                <v-icon size="16">mdi-magnify-plus-outline</v-icon>
-                <span class="k-zoom-hint-text">Perbesar</span>
-              </div>
+          <aside class="k-detail k-drawer" role="dialog" aria-modal="true">
+            <div
+              class="k-detail-bar"
+              style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
+            >
+              <span class="k-detail-bar-title">Stok Pameran</span>
+              <v-spacer />
+              <v-btn
+                icon="mdi-close"
+                color="white"
+                variant="text"
+                size="small"
+                aria-label="Tutup"
+                @click="detailVisible = false"
+              />
             </div>
 
-            <div class="k-detail-info">
-              <h2 class="k-detail-name">{{ selected.nama }}</h2>
-              <div class="k-detail-code">Kode: {{ selected.kode }}</div>
-              <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
-              <div v-else class="k-detail-price k-card-price--na">Tanya petugas untuk harga</div>
+            <div class="k-drawer-body">
+              <div class="k-detail-media">
+                <v-carousel
+                  v-if="detailImages.length"
+                  v-model="detailIndex"
+                  height="100%"
+                  hide-delimiter-background
+                  :hide-delimiters="detailImages.length < 2"
+                  :show-arrows="detailImages.length > 1 ? 'hover' : false"
+                  class="k-carousel"
+                >
+                  <v-carousel-item v-for="(src, i) in detailImages" :key="i">
+                    <v-img
+                      :src="src"
+                      cover
+                      height="100%"
+                      class="k-zoomable"
+                      @click="openLightbox(i, $event)"
+                    >
+                      <template #error>
+                        <div class="k-img-broken">
+                          <v-icon size="40" color="grey">mdi-image-broken-variant</v-icon>
+                        </div>
+                      </template>
+                    </v-img>
+                  </v-carousel-item>
+                </v-carousel>
+                <div v-else class="k-carousel">
+                  <ProductPlaceholder />
+                </div>
 
-              <div class="k-total" :class="`k-total--${totalState(selected.totalStok)}`">
-                <i></i>
-                {{ selected.totalStok > 0 ? `Total ${selected.totalStok} pcs siap` : "Stok habis" }}
+                <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
+                  <v-icon size="16">mdi-magnify-plus-outline</v-icon>
+                  <span class="k-zoom-hint-text">Perbesar</span>
+                </div>
               </div>
 
-              <template v-if="sizeColumns.length">
-                <div class="k-detail-label">Stok dan harga per ukuran</div>
-                <div
-                  class="k-price-cols"
-                  :style="{ gridTemplateColumns: `repeat(${sizeColumns.length}, minmax(0, 1fr))` }"
-                >
-                  <div v-for="(col, ci) in sizeColumns" :key="ci" class="k-price-list">
-                    <div
-                      v-for="s in col"
-                      :key="s.ukuran"
-                      class="k-price-row k-srow"
-                      :class="{ 'k-srow--out': s.stok <= 0 }"
-                    >
-                      <span class="k-size">{{ s.ukuran }}</span>
-                      <span class="k-price-val" :class="{ 'k-price-val--na': !s.harga }">
-                        {{ s.harga ? rp(s.harga) : "-" }}
-                      </span>
-                      <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
-                        {{ sizeLabel(s.stok) }}
-                      </span>
+              <div class="k-detail-info">
+                <h2 class="k-detail-name">{{ selected.nama }}</h2>
+                <div class="k-detail-code">Kode: {{ selected.kode }}</div>
+                <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+                <div v-else class="k-detail-price k-card-price--na">Tanya petugas untuk harga</div>
+
+                <div class="k-total" :class="`k-total--${totalState(selected.totalStok)}`">
+                  <i></i>
+                  {{
+                    selected.totalStok > 0 ? `Total ${selected.totalStok} pcs siap` : "Stok habis"
+                  }}
+                </div>
+
+                <template v-if="sizeColumns.length">
+                  <div class="k-detail-label">Stok dan harga per ukuran</div>
+                  <div
+                    class="k-price-cols"
+                    :style="{
+                      gridTemplateColumns: `repeat(${sizeColumns.length}, minmax(0, 1fr))`,
+                    }"
+                  >
+                    <div v-for="(col, ci) in sizeColumns" :key="ci" class="k-price-list">
+                      <div
+                        v-for="s in col"
+                        :key="s.ukuran"
+                        class="k-price-row k-srow"
+                        :class="{ 'k-srow--out': s.stok <= 0 }"
+                      >
+                        <span class="k-size">{{ s.ukuran }}</span>
+                        <span class="k-price-val" :class="{ 'k-price-val--na': !s.harga }">
+                          {{ s.harga ? rp(s.harga) : "-" }}
+                        </span>
+                        <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
+                          {{ sizeLabel(s.stok) }}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </template>
+                </template>
 
-              <div class="k-note">
-                <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
-                <span>
-                  Stok diperbarui otomatis dan bisa berubah saat ada penjualan.
-                  <router-link to="/katalog">Lihat katalog lengkap</router-link>.
-                </span>
+                <div class="k-note">
+                  <v-icon size="16" color="#D32F2F">mdi-information-outline</v-icon>
+                  <span>
+                    Stok diperbarui otomatis dan bisa berubah saat ada penjualan.
+                    <router-link to="/katalog">Lihat katalog lengkap</router-link>.
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+          </aside>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- ============ LIGHTBOX ============ -->
     <Teleport to="body">

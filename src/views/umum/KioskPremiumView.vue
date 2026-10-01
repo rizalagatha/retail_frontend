@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import api from "@/services/api";
 import LogoKaosan from "@/assets/logo.png";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
@@ -17,6 +17,7 @@ interface CatalogRow {
 }
 
 const router = useRouter();
+const route = useRoute();
 
 // ====== SESUAIKAN ======
 const AUTO_MS = 14_000; // ganti kain otomatis
@@ -37,7 +38,12 @@ const dust = Array.from({ length: 16 }, (_, i) => ({
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const pad = (n: number) => String(n).padStart(2, "0");
 
-const idx = ref(0);
+// Kembali dari katalog: buka kain yang tadi dilihat
+const startIdx = Math.max(
+  0,
+  fabrics.findIndex((f) => f.id === route.query.kain)
+);
+const idx = ref(startIdx);
 const current = computed(() => fabrics[idx.value]);
 
 // ---------- Foto dari katalog ----------
@@ -100,7 +106,10 @@ watch(idx, async () => {
 });
 
 const openCollection = () => {
-  router.push({ path: "/katalog/semua", query: { q: current.value.kata[0] } });
+  router.push({
+    path: "/katalog/semua",
+    query: { q: current.value.kata[0], from: "premium", kain: current.value.id },
+  });
 };
 
 onMounted(() => {

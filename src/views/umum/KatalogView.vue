@@ -7,6 +7,9 @@ import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { isKiosk } from "@/composables/useKiosk";
+import "@fontsource-variable/cormorant";
+import "@fontsource-variable/cormorant/wght-italic.css";
+import "@fontsource-variable/jost";
 
 interface CatalogRow {
   kode: string;
@@ -341,8 +344,17 @@ const pilihKategori = (nama: string) =>
     params: { kategori: nama === "ALL" ? "semua" : nama },
     query: { ...route.query, q: searchTerm.value || undefined },
   });
-const goBack = () =>
-  phase.value === "products" ? router.push({ name: ROUTE_NAME }) : router.push(homePath.value);
+// Datang dari halaman Premium: tema ikut premium dan tombol kembali menuju ke sana
+const fromPremium = computed(() => route.query.from === "premium");
+
+const goBack = () => {
+  if (fromPremium.value) {
+    router.push({ path: "/kiosk/premium", query: { kain: route.query.kain } });
+    return;
+  }
+  if (phase.value === "products") router.push({ name: ROUTE_NAME });
+  else router.push(homePath.value);
+};
 // --- Detail ---
 const detailVisible = ref(false);
 const selected = ref<Product | null>(null);
@@ -445,7 +457,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="k-page">
+  <div class="k-page" :class="{ 'k-page--premium': fromPremium }">
     <header class="k-header">
       <v-btn icon variant="text" size="small" aria-label="Kembali" @click="goBack">
         <v-icon>mdi-arrow-left</v-icon>
@@ -874,3 +886,152 @@ onUnmounted(() => {
 
 <style scoped src="../../styles/katalog.css"></style>
 <style src="../../styles/katalog-global.css"></style>
+
+<style scoped>
+/* ===== Tema Premium (aktif bila datang dari halaman Premium) ===== */
+.k-page--premium {
+  --k-red: #d8bd84;
+  --k-red-dark: #e6cf98;
+  color: #f3e8d2;
+  font-family: "Jost Variable", system-ui, sans-serif;
+  background: radial-gradient(900px 600px at 78% 10%, rgba(160, 110, 40, 0.16), transparent 70%),
+    radial-gradient(700px 500px at 0% 100%, rgba(120, 18, 18, 0.28), transparent 70%), #0e0605;
+}
+.k-page--premium .k-header {
+  background: #0e0605;
+  border-bottom: 1px solid rgba(216, 189, 132, 0.28);
+  box-shadow: none;
+}
+.k-page--premium .k-title {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #e6cf98;
+}
+.k-page--premium .k-sub {
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(243, 232, 210, 0.6);
+}
+.k-page--premium .k-hint,
+.k-page--premium .k-count {
+  color: rgba(243, 232, 210, 0.6);
+}
+
+/* Kartu produk */
+.k-page--premium .k-card {
+  background: #170e0b;
+  border-color: rgba(216, 189, 132, 0.18);
+  box-shadow: none;
+}
+.k-page--premium .k-card:hover,
+.k-page--premium .k-card:focus-visible {
+  border-color: #d8bd84;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(216, 189, 132, 0.35);
+}
+.k-page--premium .k-card-name {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f3e8d2;
+}
+.k-page--premium .k-card:hover .k-card-name {
+  color: #e6cf98;
+}
+.k-page--premium .k-card-price {
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #d8bd84;
+}
+.k-page--premium .k-card-price--na {
+  color: rgba(243, 232, 210, 0.45);
+}
+.k-page--premium .k-card-img {
+  background: #241714;
+}
+
+/* Sidebar */
+.k-page--premium .k-side-title {
+  font-weight: 500;
+  letter-spacing: 0.26em;
+  color: #d8bd84;
+  border-bottom-color: rgba(216, 189, 132, 0.25);
+}
+.k-page--premium .k-side-item {
+  color: rgba(243, 232, 210, 0.75);
+}
+.k-page--premium .k-side-item small {
+  color: rgba(243, 232, 210, 0.4);
+}
+.k-page--premium .k-side-item:hover,
+.k-page--premium .k-side-item--active {
+  color: #e6cf98;
+  background: rgba(216, 189, 132, 0.1);
+  border-left-color: #d8bd84;
+}
+.k-page--premium .k-side-help {
+  color: rgba(243, 232, 210, 0.6);
+}
+.k-page--premium .k-side-help:hover {
+  color: #e6cf98;
+}
+
+/* Pencarian dan filter */
+.k-page--premium .k-searchbox {
+  background: #170e0b;
+  box-shadow: 0 0 0 1px rgba(216, 189, 132, 0.3);
+}
+.k-page--premium .k-searchbox:focus-within {
+  box-shadow: 0 0 0 1px #d8bd84, 0 6px 18px rgba(216, 189, 132, 0.14);
+}
+.k-page--premium .k-searchbox-input {
+  color: #f3e8d2;
+}
+.k-page--premium .k-searchbox-input::placeholder,
+.k-page--premium .k-searchbox-icon {
+  color: rgba(243, 232, 210, 0.45);
+}
+.k-page--premium .k-searchbox-key,
+.k-page--premium .k-searchbox-clear {
+  color: #d8bd84;
+  background: rgba(216, 189, 132, 0.12);
+  box-shadow: none;
+}
+.k-page--premium .k-lengan-btn {
+  color: rgba(243, 232, 210, 0.7);
+  background: transparent;
+  border-color: rgba(216, 189, 132, 0.3);
+}
+.k-page--premium .k-lengan-btn:hover {
+  color: #e6cf98;
+  background: rgba(216, 189, 132, 0.08);
+}
+.k-page--premium .k-lengan-btn--active {
+  color: #1a0d0b !important;
+  background: #d8bd84 !important;
+  border-color: #d8bd84 !important;
+}
+
+/* Toolbar HP, status kosong, skeleton */
+.k-page--premium .k-toolbar {
+  background: rgba(14, 6, 5, 0.94);
+  border-bottom-color: rgba(216, 189, 132, 0.2);
+}
+.k-page--premium .k-chip {
+  color: #e6cf98;
+  background: rgba(216, 189, 132, 0.1);
+  border-color: rgba(216, 189, 132, 0.3);
+}
+.k-page--premium .k-state {
+  color: #f3e8d2;
+  background: #170e0b;
+  border-color: rgba(216, 189, 132, 0.2);
+}
+.k-page--premium .k-state-title {
+  color: #f3e8d2;
+}
+.k-page--premium .k-skel {
+  background: linear-gradient(90deg, #1d1411 25%, #2a1c17 50%, #1d1411 75%);
+  background-size: 200% 100%;
+}
+</style>

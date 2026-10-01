@@ -117,7 +117,9 @@ const products = computed<Product[]>(() =>
     let kategori = (r.jenis_kain || "").trim() || "LAIN-LAIN";
     const namaUp = (r.nama || "").toUpperCase();
     const kaosUp = (r.jenis_kaos || "").toUpperCase();
-    if ((r.ktg || "").toUpperCase() === "KIDDIFY") kategori = "KIDDIFY";
+    const ktgUp = (r.ktg || "").trim().toUpperCase();
+    if (ktgUp === "KIDDIFY") kategori = "KIDDIFY";
+    else if (ktgUp) kategori = "REZSO";
     else if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
       kategori = "KAOS ANAK";
     else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) kategori = "TUNIK";

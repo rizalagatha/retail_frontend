@@ -8,6 +8,7 @@ import { getFabricTexture } from "@/utils/fabricTextures";
 import { vReveal } from "@/directives/reveal";
 import CountUp from "@/components/CountUp.vue";
 import SiteFooter from "@/components/SiteFooter.vue";
+import TrackItemPicker from "@/components/TrackItemPicker.vue";
 
 // Import logo secara aman untuk Vite/Webpack
 import LogoKaosan from "@/assets/logo.png";
@@ -31,6 +32,9 @@ const selectedPromo = ref<PromoItem | null>(null);
 interface SearchItem {
   title: string;
   value: string;
+  namaBarang?: string;
+  spk?: string | null;
+  dtf?: string | null;
 }
 
 interface SoData {
@@ -811,19 +815,12 @@ onMounted(() => {
               </span>
             </div>
 
-            <div class="t-found-label mb-2">Pilih barang yang ingin dilacak</div>
-            <v-select
+            <TrackItemPicker
               v-model="selectedItem"
               :items="soData.items"
-              item-title="title"
-              item-value="value"
-              placeholder="Pilih barang"
-              variant="outlined"
-              density="comfortable"
-              color="#B71C1C"
-              hide-details="auto"
-              class="mb-4 search-field-red"
-            ></v-select>
+              all-value="UMUM"
+              class="mb-4"
+            />
 
             <v-btn
               block

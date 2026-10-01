@@ -1222,6 +1222,9 @@ onUnmounted(() => {
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 14px;
 }
+.k-card-price + .k-card-stock {
+  margin-top: 0;
+}
 @keyframes sp-pulse {
   0%,
   100% {

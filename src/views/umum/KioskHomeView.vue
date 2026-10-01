@@ -422,8 +422,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(260px, 0.7fr) 1.5fr;
   align-items: center;
-  gap: 4vw;
-  padding: 5vh 5vw;
+  gap: 2.5vw;
+  padding: 5vh 3.5vw 5vh 3vw;
 }
 .kh-brand > * {
   opacity: 0;
@@ -458,10 +458,12 @@ onUnmounted(() => {
 .kh-title {
   margin: 1.5vh 0 2vh;
   font-family: var(--kh-display);
-  font-size: clamp(72px, 10vw, 176px);
+  font-size: clamp(64px, min(8.2vw, 17vh), 150px);
   font-weight: 800;
   line-height: 0.88;
   letter-spacing: -0.045em;
+  max-width: 100%;
+  overflow-wrap: normal;
 }
 .kh-sub {
   max-width: 26ch;
@@ -1012,7 +1014,7 @@ onUnmounted(() => {
     grid-template-columns: repeat(3, 1fr);
   }
   .kh-content {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(300px, 0.8fr) 1.5fr;
     grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
     gap: 5vh;

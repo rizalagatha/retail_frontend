@@ -474,7 +474,8 @@ onUnmounted(() => {
   line-height: 1.08;
   letter-spacing: -0.01em;
   animation: none;
-  padding-bottom: 0.08em;
+  padding-bottom: 0.22em;
+  margin-bottom: -0.14em;
 }
 .pm-name span {
   display: block;
@@ -492,6 +493,7 @@ onUnmounted(() => {
   -webkit-background-clip: text;
   background-clip: text;
   animation: pm-reveal 1s var(--pm-ease) 0.12s both, pm-glint 8s ease-in-out 1.6s infinite;
+  padding-bottom: 0.12em;
 }
 .pm-tag {
   margin: 14px 0 0;
@@ -700,7 +702,7 @@ onUnmounted(() => {
 }
 @keyframes pm-reveal {
   from {
-    transform: translateY(105%);
+    transform: translateY(120%);
   }
   to {
     transform: none;

@@ -758,6 +758,7 @@ onUnmounted(() => {
   background: linear-gradient(100deg, #f6ead0 0%, #e6cf98 45%, #c9a95e 100%);
   -webkit-background-clip: text;
   background-clip: text;
+  padding-bottom: 0.14em;
 }
 .kh-prem-desc {
   font-family: "Jost Variable", system-ui, sans-serif;

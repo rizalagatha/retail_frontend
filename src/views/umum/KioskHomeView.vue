@@ -281,13 +281,36 @@ onUnmounted(() => {
           @click="router.push('/kiosk/studio')"
         >
           <span class="kh-studio-badge">Baru</span>
-          <svg class="kh-studio-shirt" viewBox="0 0 64 64" aria-hidden="true">
-            <path
-              class="kh-studio-body"
-              d="M22 8 L8 16 L14 28 L20 25 L20 56 L44 56 L44 25 L50 28 L56 16 L42 8 C40 12 36 14 32 14 C28 14 24 12 22 8 Z"
-            />
-            <rect class="kh-studio-print" x="26" y="22" width="12" height="12" rx="1.5" />
-          </svg>
+          <span class="kh-studio-art" aria-hidden="true">
+            <svg class="kh-studio-shirt" viewBox="0 0 120 120">
+              <defs>
+                <linearGradient id="kh-shade" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#fff" stop-opacity="0.3" />
+                  <stop offset="0.55" stop-color="#fff" stop-opacity="0" />
+                  <stop offset="1" stop-color="#000" stop-opacity="0.3" />
+                </linearGradient>
+              </defs>
+              <ellipse class="kh-studio-ground" cx="60" cy="112" rx="30" ry="4" />
+              <path
+                class="kh-studio-body"
+                d="M40 14 L16 28 L24 50 L36 44 L36 104 Q36 106 38 106 L82 106 Q84 106 84 104 L84 44 L96 50 L104 28 L80 14 Q74 24 60 24 Q46 24 40 14 Z"
+              />
+              <path
+                fill="url(#kh-shade)"
+                d="M40 14 L16 28 L24 50 L36 44 L36 104 Q36 106 38 106 L82 106 Q84 106 84 104 L84 44 L96 50 L104 28 L80 14 Q74 24 60 24 Q46 24 40 14 Z"
+              />
+              <path class="kh-studio-neck" d="M42 14 Q60 10 78 14 Q74 24 60 24 Q46 24 42 14 Z" />
+              <path class="kh-studio-seam" d="M40 14 Q46 24 60 24 Q74 24 80 14" />
+              <path class="kh-studio-seam" d="M38 19 Q34 32 36 44 M82 19 Q86 32 84 44" />
+              <path class="kh-studio-fold" d="M44 96 Q52 84 50 70 M76 98 Q70 86 72 72" />
+              <rect class="kh-studio-guide" x="46" y="44" width="28" height="28" rx="3" />
+              <g class="kh-studio-motif">
+                <circle pathLength="100" cx="60" cy="52" r="4.5" />
+                <path pathLength="100" d="M47 70 L56 58 L61 65 L66 59 L73 70 Z" />
+              </g>
+            </svg>
+            <span class="kh-studio-sw"><i></i><i></i><i></i><i></i></span>
+          </span>
           <span class="kh-tile-text">
             <span class="kh-tile-title">KaoStudio</span>
             <span class="kh-tile-desc">Rancang desain kaosmu, harga langsung terhitung</span>
@@ -625,28 +648,133 @@ onUnmounted(() => {
   color: #fff;
   background: #b71c1c;
 }
-.kh-studio-shirt {
+.kh-studio-art {
   position: absolute;
-  top: 10%;
+  top: 8%;
   right: 5%;
-  width: clamp(110px, 12vw, 210px);
-  filter: drop-shadow(0 10px 14px rgba(60, 20, 15, 0.2));
-  animation: kh-shirt-bob 5s ease-in-out infinite;
-  pointer-events: auto;
+  width: clamp(120px, 13vw, 220px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  animation: kh-art-bob 6s ease-in-out infinite;
+}
+.kh-studio-shirt {
+  width: 100%;
+  overflow: visible;
+}
+.kh-studio-ground {
+  fill: rgba(60, 20, 15, 0.14);
 }
 .kh-studio-body {
   fill: #b71c1c;
-  stroke: rgba(31, 26, 25, 0.25);
-  stroke-width: 1;
-  stroke-linejoin: round;
   animation: kh-shirt-color 12s ease-in-out infinite;
 }
-.kh-studio-print {
+.kh-studio-neck {
+  fill: rgba(0, 0, 0, 0.32);
+}
+.kh-studio-seam {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+.kh-studio-fold {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.14);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.kh-studio-guide {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1.1;
+  stroke-dasharray: 2.5 2.5;
+  animation: kh-guide 3s ease-in-out infinite;
+}
+.kh-studio-motif {
   fill: none;
   stroke: #fff;
-  stroke-width: 1.2;
-  stroke-dasharray: 2 2;
-  animation: kh-march 1.4s linear infinite;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.kh-studio-motif > * {
+  stroke-dasharray: 100;
+  animation: kh-motif 3s ease-in-out infinite;
+}
+.kh-studio-sw {
+  display: flex;
+  gap: 7px;
+}
+.kh-studio-sw i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  opacity: 0.35;
+  animation: kh-sw 12s ease-in-out infinite;
+}
+.kh-studio-sw i:nth-child(1) {
+  background: #b71c1c;
+}
+.kh-studio-sw i:nth-child(2) {
+  background: #1f3a5f;
+  animation-delay: 3s;
+}
+.kh-studio-sw i:nth-child(3) {
+  background: #2f6b4f;
+  animation-delay: 6s;
+}
+.kh-studio-sw i:nth-child(4) {
+  background: #1f1a19;
+  animation-delay: 9s;
+}
+@keyframes kh-art-bob {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes kh-guide {
+  0%,
+  12% {
+    opacity: 1;
+  }
+  28%,
+  92% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes kh-motif {
+  0%,
+  14% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+  55%,
+  86% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@keyframes kh-sw {
+  0%,
+  22% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+  28%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
 }
 @keyframes kh-shirt-color {
   0%,
@@ -667,16 +795,6 @@ onUnmounted(() => {
   }
   100% {
     fill: #b71c1c;
-  }
-}
-@keyframes kh-shirt-bob {
-  50% {
-    transform: translateY(-6px) rotate(-1.5deg);
-  }
-}
-@keyframes kh-march {
-  to {
-    stroke-dashoffset: -8;
   }
 }
 
@@ -1244,10 +1362,15 @@ onUnmounted(() => {
     border-color: #fff;
     background: #fff;
   }
-  .kh-studio-shirt,
+  .kh-studio-art,
   .kh-studio-body,
-  .kh-studio-print {
+  .kh-studio-guide,
+  .kh-studio-motif > *,
+  .kh-studio-sw i {
     animation: none;
+  }
+  .kh-studio-guide {
+    opacity: 0;
   }
   kh-prem-sheen {
     animation: none;

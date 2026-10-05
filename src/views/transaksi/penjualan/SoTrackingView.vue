@@ -139,6 +139,15 @@ const copyResi = async () => {
 
 const currentMilestone = computed(() => milestones.value.find((m) => m.isCurrent));
 
+// Koreografi animasi: indeks langkah aktif dan durasi per segmen garis
+const currentIdx = computed(() =>
+  Math.max(
+    0,
+    milestones.value.findIndex((m) => m.isCurrent)
+  )
+);
+const segMs = computed(() => Math.round(Math.min(950, 4000 / Math.max(currentIdx.value, 1))));
+
 // Persen isi garis progres: dari pusat langkah pertama ke pusat langkah aktif
 const progressPct = computed(() => {
   const n = milestones.value.length;
@@ -693,7 +702,15 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
       >
         <!-- LANGKAH -->
         <section class="st-steps-card">
-          <div class="st-steps" :style="{ '--n': milestones.length, '--p': progressPct }">
+          <div
+            class="st-steps"
+            :style="{
+              '--n': milestones.length,
+              '--p': progressPct,
+              '--c': currentIdx,
+              '--seg': segMs + 'ms',
+            }"
+          >
             <div class="st-track"><i class="st-track-fill"></i></div>
             <div
               v-for="(step, index) in milestones"
@@ -704,6 +721,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
             >
               <span class="st-node">
                 <span class="st-dot">
+                  <span class="st-num">{{ index + 1 }}</span>
                   <svg v-if="step.isCurrent" class="st-ico" viewBox="0 0 24 24" aria-hidden="true">
                     <path v-for="(d, n) in stepIcon(step.kode)" :key="n" :d="d" pathLength="100" />
                   </svg>
@@ -715,7 +733,6 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
                   >
                     <path d="M5 12l5 5l10 -10" pathLength="100" />
                   </svg>
-                  <span v-else class="st-num">{{ index + 1 }}</span>
                 </span>
               </span>
               <span class="st-step-title">{{ step.title }}</span>
@@ -1138,13 +1155,18 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   animation: st-rise 0.8s var(--st-ease) 0.25s both;
 }
 .st-steps {
+  --node: 52px;
+  --dot: 26px;
+  --dot-on: 28px;
+  --dot-cur: 52px;
+  --t0: 1s; /* garis mulai bergerak setelah kartu selesai muncul */
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
 }
 .st-track {
   position: absolute;
-  top: 26px;
+  top: calc(var(--node) / 2);
   left: calc(100% / (var(--n) * 2));
   right: calc(100% / (var(--n) * 2));
   height: 4px;
@@ -1153,36 +1175,51 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   transform: translateY(-50%);
 }
 .st-track-fill {
+  position: relative;
   display: block;
   width: calc(var(--p) * 1%);
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #b71c1c, #e53935);
-  transform-origin: left center;
-  animation: st-fill 1.3s var(--st-ease) 0.6s both;
+  animation: st-fill calc(var(--c) * var(--seg)) linear var(--t0) both;
 }
+.st-track-fill::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: radial-gradient(closest-side, rgba(229, 57, 53, 0.6), transparent);
+  animation: st-head calc(var(--c) * var(--seg)) linear var(--t0) both;
+}
+
 .st-step {
+  --on: calc(var(--t0) + var(--i) * var(--seg)); /* saat garis tiba di langkah ini */
   position: relative;
   z-index: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 0 4px;
   text-align: center;
-  animation: st-pop 0.6s var(--st-ease) both;
-  animation-delay: calc(var(--i) * 120ms + 0.35s);
-  min-width: 0;
+  animation: st-appear 0.9s var(--st-ease) both;
+  animation-delay: calc(0.3s + var(--i) * 90ms);
 }
 .st-node {
-  width: 52px;
-  height: 52px;
+  width: var(--node);
+  height: var(--node);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .st-dot {
-  width: 26px;
-  height: 26px;
+  position: relative;
+  width: var(--dot);
+  height: var(--dot);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1190,8 +1227,6 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   border-radius: 50%;
   color: #b9aca7;
   background: #fff;
-  transition: width 0.45s var(--st-ease), height 0.45s var(--st-ease), background 0.3s ease,
-    border-color 0.3s ease;
 }
 .st-num {
   font-family: "Playfair Display", Georgia, serif;
@@ -1200,6 +1235,9 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   line-height: 1;
 }
 .st-ico {
+  position: absolute;
+  inset: 0;
+  margin: auto;
   width: 15px;
   height: 15px;
   fill: none;
@@ -1211,20 +1249,31 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
 .st-ico path {
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
-  animation: st-draw-line 0.7s var(--st-ease) forwards;
-  animation-delay: calc(var(--i) * 120ms + 0.8s);
 }
+
+/* Langkah tercapai: menyala saat garis tiba */
 .st-step.active .st-dot {
-  width: 28px;
-  height: 28px;
+  width: var(--dot-on);
+  height: var(--dot-on);
   border-color: var(--st-red);
   color: #fff;
   background: var(--st-red);
+  animation: st-dot-on 0.7s var(--st-ease) var(--on) both;
 }
+.st-step.active .st-num,
+.st-step.current .st-num {
+  animation: st-num-out 0.35s ease calc(var(--on) + 0.1s) both;
+}
+.st-step.active .st-ico path {
+  animation: st-draw-line 0.6s var(--st-ease) calc(var(--on) + 0.3s) forwards;
+}
+
+/* Langkah sedang berjalan: membesar, ikon tergambar, lalu berdenyut */
 .st-step.current .st-dot {
-  width: 52px;
-  height: 52px;
-  animation: st-ring 2s ease-in-out infinite;
+  width: var(--dot-cur);
+  height: var(--dot-cur);
+  animation: st-dot-on 0.8s var(--st-ease) var(--on) both,
+    st-ring 2.4s ease-in-out calc(var(--on) + 1.2s) infinite;
 }
 .st-step.current .st-ico {
   width: 26px;
@@ -1232,18 +1281,21 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   stroke-width: 1.6;
 }
 .st-step.current .st-ico path {
-  animation-duration: 1.2s;
+  animation-duration: 1.3s;
+  animation-delay: calc(var(--on) + 0.4s);
 }
+
 .st-step-title {
   margin-top: 10px;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.3;
-  color: var(--st-muted);
   overflow-wrap: anywhere;
+  color: var(--st-muted);
 }
 .st-step.active .st-step-title {
   color: var(--st-ink);
+  animation: st-title-on 0.7s ease var(--on) both;
 }
 .st-step.current .st-step-title {
   color: var(--st-red);
@@ -1851,12 +1903,6 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     transform: translateY(18px);
   }
 }
-@keyframes st-pop {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.9);
-  }
-}
 @keyframes st-slide {
   from {
     opacity: 0;
@@ -1868,9 +1914,51 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     transform: scaleY(0);
   }
 }
+@keyframes st-appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
 @keyframes st-fill {
   from {
-    transform: scaleX(0);
+    width: 0;
+  }
+}
+@keyframes st-dot-on {
+  from {
+    width: var(--dot);
+    height: var(--dot);
+    border-color: var(--st-line);
+    color: #b9aca7;
+    background: #fff;
+  }
+}
+@keyframes st-num-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@keyframes st-title-on {
+  from {
+    color: var(--st-muted);
+  }
+}
+@keyframes st-head {
+  0% {
+    opacity: 0;
+  }
+  10%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 @keyframes st-draw-line {
@@ -1919,21 +2007,11 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   .st-step {
     padding: 0 2px;
   }
-  .st-node {
-    width: 36px;
-    height: 36px;
-  }
-  .st-dot {
-    width: 22px;
-    height: 22px;
-  }
-  .st-step.active .st-dot {
-    width: 22px;
-    height: 22px;
-  }
-  .st-step.current .st-dot {
-    width: 36px;
-    height: 36px;
+  .st-steps {
+    --node: 36px;
+    --dot: 22px;
+    --dot-on: 22px;
+    --dot-cur: 36px;
   }
   .st-ico {
     width: 12px;
@@ -2014,13 +2092,22 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .st-step.current .st-dot,
+  .st-step,
+  .st-step .st-dot,
+  .st-step .st-num,
+  .st-step-title,
+  .st-ico path,
+  .st-track-fill,
+  .st-track-fill::after {
+    animation: none !important;
+  }
   .st-ico path {
-    animation: none;
     stroke-dashoffset: 0;
   }
-  .st-dot {
-    transition: none;
+  .st-step.active .st-num,
+  .st-step.current .st-num,
+  .st-track-fill::after {
+    opacity: 0;
   }
 }
 </style>

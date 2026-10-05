@@ -204,6 +204,14 @@ const itemGroups = computed<ItemGroup[]>(() => {
   return groups;
 });
 
+// Rincian harga per ukuran: buka/tutup per baris barang
+const openRows = ref<number[]>([]);
+const toggleRow = (idx: number) => {
+  openRows.value = openRows.value.includes(idx)
+    ? openRows.value.filter((x) => x !== idx)
+    : [...openRows.value, idx];
+};
+
 // --- Ikon jasa ---
 const PREFIX_ICON: Record<string, { src: string; label: string }> = {
   SD: { src: icDtf, label: "DTF" },
@@ -814,28 +822,45 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
                       </div>
                     </div>
 
-                    <v-tooltip v-if="row.item.hasHoverDetail && row.item.breakdown" location="top">
-                      <template #activator="{ props }">
-                        <div v-bind="props" class="it-price">
-                          <small>{{ row.item.qty }} pcs</small>
-                          <b>{{ formatRupiah(row.item.subtotal) }}</b>
+                    <button
+                      v-if="row.item.breakdown?.length"
+                      type="button"
+                      class="it-price"
+                      :aria-expanded="openRows.includes(row.idx)"
+                      @click="toggleRow(row.idx)"
+                    >
+                      <small>{{ row.item.qty }} pcs</small>
+                      <b>{{ formatRupiah(row.item.subtotal) }}</b>
+                      <span class="it-price-more">
+                        Rincian
+                        <v-icon size="14" :class="{ 'is-open': openRows.includes(row.idx) }"
+                          >mdi-chevron-down</v-icon
+                        >
+                      </span>
+                    </button>
+
+                    <v-expand-transition v-if="row.item.breakdown?.length">
+                      <div v-show="openRows.includes(row.idx)" class="it-break">
+                        <div class="it-break-head">
+                          <span>Ukuran</span><span>Qty</span><span>Harga</span><span>Subtotal</span>
                         </div>
-                      </template>
-                      <div class="text-caption text-left pa-1">
-                        <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
                         <div
                           v-for="(b, bIdx) in row.item.breakdown"
                           :key="bIdx"
-                          class="mb-1"
-                          style="white-space: nowrap"
+                          class="it-break-row"
                         >
-                          {{ b.qty }}x Size {{ b.ukuran }}: {{ formatRupiah(b.harga - b.diskon) }}
-                          <span v-if="b.diskon > 0" class="text-red-lighten-2"
-                            >(Disc {{ formatRupiah(b.diskon) }})</span
-                          >
+                          <span class="it-break-size">{{ b.ukuran }}</span>
+                          <span>{{ b.qty }}x</span>
+                          <span>
+                            <s v-if="b.diskon > 0" class="it-break-old">{{
+                              formatRupiah(b.harga)
+                            }}</s>
+                            {{ formatRupiah(b.harga - b.diskon) }}
+                          </span>
+                          <b>{{ formatRupiah(b.subtotal) }}</b>
                         </div>
                       </div>
-                    </v-tooltip>
+                    </v-expand-transition>
                   </li>
                 </template>
               </ul>
@@ -1379,6 +1404,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   border-bottom: 1px solid var(--st-line);
   animation: st-slide 0.55s var(--st-ease) both;
   animation-delay: calc(0.6s + var(--d, 0ms));
+  flex-wrap: wrap;
 }
 .it.is-ready {
   background: #f1faf4;
@@ -1449,16 +1475,84 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   flex-direction: column;
   align-items: flex-end;
   align-self: flex-start;
-  border-bottom: 1px dashed #bdb2ad;
-  cursor: help;
+  padding: 2px 0 2px 8px;
+  border: none;
+  font: inherit;
+  text-align: right;
+  color: var(--st-ink);
+  background: none;
+  cursor: pointer;
 }
 .it-price small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--st-muted);
 }
 .it-price b {
   font-size: 14px;
   font-weight: 800;
+}
+.it-price-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--st-red);
+}
+.it-price-more .v-icon {
+  transition: transform 0.3s var(--st-ease);
+}
+.it-price-more .v-icon.is-open {
+  transform: rotate(180deg);
+}
+.it-price:hover .it-price-more {
+  text-decoration: underline;
+}
+
+.it-break {
+  flex: 0 0 100%;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--st-line);
+  border-radius: 12px;
+  background: #fdf9f7;
+}
+.it-break-head,
+.it-break-row {
+  display: grid;
+  grid-template-columns: minmax(48px, 0.8fr) 0.6fr 1.4fr 1.2fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.it-break-head {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--st-muted);
+  border-bottom: 1px solid var(--st-line);
+}
+.it-break-row + .it-break-row {
+  border-top: 1px solid #f3ebe7;
+}
+.it-break-head span:nth-child(n + 3),
+.it-break-row span:nth-child(n + 3),
+.it-break-row b {
+  text-align: right;
+}
+.it-break-size {
+  font-weight: 800;
+}
+.it-break-row b {
+  font-weight: 800;
+}
+.it-break-old {
+  margin-right: 4px;
+  font-size: 11px;
+  color: #a1928d;
 }
 
 /* ---------- Ringkasan ---------- */
@@ -1809,6 +1903,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   .tl-item,
   .tl-rail::before,
   .it,
+  .it-price-more .v-icon,
   .st-step.current .st-node,
   .is-now > .tl-rail .tl-dot,
   .st-skel {

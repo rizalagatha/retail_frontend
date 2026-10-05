@@ -456,11 +456,16 @@ const goBackToHome = () => {
   router.push("/tracking"); // Sesuaikan dengan route path TrackingHomeView Mas Rizal
 };
 
-// Tinggi hero diukur agar kartu rincian bisa disejajarkan dengan teks status (desktop)
+// Hero mengikuti tinggi kartu rincian (desktop). Urutan ukur: rincian dulu, lalu hero.
 const heroEl = ref<HTMLElement | null>(null);
+const asideEl = ref<HTMLElement | null>(null);
 const heroH = ref(0);
+const asideH = ref(0);
 const measureHero = () => {
-  heroH.value = heroEl.value?.offsetHeight ?? 0;
+  asideH.value = asideEl.value?.offsetHeight ?? 0;
+  nextTick(() => {
+    heroH.value = heroEl.value?.offsetHeight ?? 0;
+  });
 };
 watch(isLoading, async (v) => {
   if (v) return;
@@ -477,7 +482,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
 </script>
 
 <template>
-  <div class="st">
+  <div class="st" :style="{ '--aside-h': asideH + 'px' }">
     <header class="st-bar">
       <div class="st-bar-in">
         <button class="st-icon-btn" aria-label="Kembali" @click="goBackToHome">
@@ -638,7 +643,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
           </section>
 
           <!-- RINCIAN -->
-          <aside class="st-card">
+          <aside ref="asideEl" class="st-card">
             <div class="st-card-h">
               <h2>Rincian Pesanan</h2>
               <span v-if="orderSummary.sisaTagihan <= 0" class="st-chip-ok">
@@ -1315,21 +1320,26 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   color: var(--st-muted);
 }
 
-/* ---------- Tampilan umum (desktop): rincian di kanan hero ---------- */
+/* ---------- Tampilan umum (desktop): rincian di kanan hero, langkah selebar penuh ---------- */
 @media (min-width: 900px) {
-  /* Teks hero tidak boleh masuk ke area kartu rincian */
+  .st-hero--public {
+    box-sizing: border-box;
+    /* 18 (atas) + tinggi rincian + 88 (jarak ke garis amplop & tumpang tindih kartu langkah) */
+    min-height: calc(var(--aside-h, 0px) + 106px);
+  }
   .st-hero--public .st-hero-in {
-    padding-right: calc(460px + 36px);
+    padding-right: calc(460px + 36px); /* teks tidak masuk ke area kartu rincian */
   }
   .st-body--public {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+    grid-template-rows: 0 auto; /* baris 1 hanya jangkar rincian, tingginya 0 */
     column-gap: 20px;
     align-items: start;
   }
   .st-body--public .st-steps-card {
-    grid-column: 1;
-    grid-row: 1;
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
   .st-body--public .st-grid {
     display: contents;
@@ -1339,8 +1349,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     z-index: 2;
     grid-column: 2;
     grid-row: 1;
-    /* naik ke puncak hero: sejajar dengan "Status pesanan" */
-    margin-top: calc(18px - var(--hero-h, 0px));
+    margin-top: calc(18px - var(--hero-h, 0px)); /* sejajar "Status pesanan" */
     box-shadow: 0 18px 40px rgba(60, 20, 15, 0.18);
   }
 }

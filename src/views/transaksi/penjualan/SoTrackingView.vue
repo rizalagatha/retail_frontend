@@ -269,6 +269,33 @@ const waLink = computed(() => {
   return `${c.wa_link}?text=${encodeURIComponent(text)}`;
 });
 
+// --- Ikon langkah (Tabler Icons, outline, MIT) ---
+const STEP_ICON: Record<string, string[]> = {
+  PENAWARAN: [
+    "M6.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+    "M3 6v5.172a2 2 0 0 0 .586 1.414l7.71 7.71a2.41 2.41 0 0 0 3.408 0l5.592 -5.592a2.41 2.41 0 0 0 0 -3.408l-7.71 -7.71a2 2 0 0 0 -1.414 -.586h-5.172a3 3 0 0 0 -3 3",
+  ],
+  SO: [
+    "M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2m4 -14h6m-6 4h6m-2 4h2",
+  ],
+  PRODUKSI: [
+    "M3 21c-.667 -.667 3.262 -6.236 11.785 -16.709a3.5 3.5 0 1 1 5.078 4.791c-10.575 8.612 -16.196 12.585 -16.863 11.918",
+    "M17.5 6.5l-1 1",
+    "M17 7c-2.333 -2.667 -3.5 -4 -5 -4s-2 1 -2 2c0 4 8.161 8.406 6 11c-1.056 1.268 -3.363 1.285 -5.75 .808",
+    "M5.739 15.425c-1.393 -.565 -3.739 -1.925 -3.739 -3.425",
+    "M19.5 9.5l1.5 1.5",
+  ],
+  QC: ["M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "M21 21l-6 -6", "M7 10l2 2l4 -4"],
+  READY: ["M15 4l6 2v5h-3v8a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1v-8h-3v-5l6 -2a3 3 0 0 0 6 0"],
+  SELESAI: [
+    "M8 3h8a2 2 0 0 1 2 2v1.82a5 5 0 0 0 .528 2.236l.944 1.888a5 5 0 0 1 .528 2.236v5.82a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-5.82a5 5 0 0 1 .528 -2.236l1.472 -2.944v-3a2 2 0 0 1 2 -2",
+    "M12 15a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+    "M6 21a2 2 0 0 0 2 -2v-5.82a5 5 0 0 0 -.528 -2.236l-1.472 -2.944",
+    "M11 7h2",
+  ],
+};
+const stepIcon = (kode: string) => STEP_ICON[kode] ?? STEP_ICON.READY;
+
 // Fungsi pintar penentu warna Oranye / Hijau
 const isOngoing = (item: TrackingLog, i: number, isParent: boolean = false): boolean => {
   // 1. Indikator paling kuat: kalau belum ada jamnya alias "Berjalan"
@@ -675,9 +702,22 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
               :class="{ active: step.isActive, current: step.isCurrent }"
               :style="{ '--i': index }"
             >
-              <span class="st-node"
-                ><v-icon size="22">{{ step.icon }}</v-icon></span
-              >
+              <span class="st-node">
+                <span class="st-dot">
+                  <svg v-if="step.isCurrent" class="st-ico" viewBox="0 0 24 24" aria-hidden="true">
+                    <path v-for="(d, n) in stepIcon(step.kode)" :key="n" :d="d" pathLength="100" />
+                  </svg>
+                  <svg
+                    v-else-if="step.isActive"
+                    class="st-ico st-ico--check"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l5 5l10 -10" pathLength="100" />
+                  </svg>
+                  <span v-else class="st-num">{{ index + 1 }}</span>
+                </span>
+              </span>
               <span class="st-step-title">{{ step.title }}</span>
               <span v-if="step.waktu" class="st-step-time">{{ step.waktu }}</span>
               <span v-if="step.jenisProduksi" class="st-step-kind">{{ step.jenisProduksi }}</span>
@@ -1139,20 +1179,60 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 3px solid var(--st-line);
+}
+.st-dot {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--st-line);
   border-radius: 50%;
-  color: #c9bcb7;
+  color: #b9aca7;
   background: #fff;
-  transition: all 0.3s ease;
+  transition: width 0.45s var(--st-ease), height 0.45s var(--st-ease), background 0.3s ease,
+    border-color 0.3s ease;
 }
-.st-step.active .st-node {
+.st-num {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+.st-ico {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.st-ico path {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: st-draw-line 0.7s var(--st-ease) forwards;
+  animation-delay: calc(var(--i) * 120ms + 0.8s);
+}
+.st-step.active .st-dot {
+  width: 28px;
+  height: 28px;
   border-color: var(--st-red);
-  color: var(--st-red);
-}
-.st-step.current .st-node {
   color: #fff;
   background: var(--st-red);
+}
+.st-step.current .st-dot {
+  width: 52px;
+  height: 52px;
   animation: st-ring 2s ease-in-out infinite;
+}
+.st-step.current .st-ico {
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.6;
+}
+.st-step.current .st-ico path {
+  animation-duration: 1.2s;
 }
 .st-step-title {
   margin-top: 10px;
@@ -1793,6 +1873,11 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     transform: scaleX(0);
   }
 }
+@keyframes st-draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 @keyframes st-ring {
   0%,
   100% {
@@ -1837,12 +1922,29 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   .st-node {
     width: 36px;
     height: 36px;
-    border-width: 2px;
   }
-  .st-node .v-icon {
-    width: 18px !important;
-    height: 18px !important;
-    font-size: 18px !important;
+  .st-dot {
+    width: 22px;
+    height: 22px;
+  }
+  .st-step.active .st-dot {
+    width: 22px;
+    height: 22px;
+  }
+  .st-step.current .st-dot {
+    width: 36px;
+    height: 36px;
+  }
+  .st-ico {
+    width: 12px;
+    height: 12px;
+  }
+  .st-step.current .st-ico {
+    width: 19px;
+    height: 19px;
+  }
+  .st-num {
+    font-size: 11px;
   }
   .st-track {
     top: 18px;
@@ -1908,6 +2010,17 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   .is-now > .tl-rail .tl-dot,
   .st-skel {
     animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-step.current .st-dot,
+  .st-ico path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .st-dot {
+    transition: none;
   }
 }
 </style>

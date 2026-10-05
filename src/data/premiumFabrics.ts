@@ -6,6 +6,8 @@ export interface PremiumFabric {
   cocok: string;
   perawatan?: string;
   kata: string[]; // kata kunci pada nama produk di katalog (salah satu cocok sudah cukup)
+  produk?: string[]; // kurasi manual: kode barang (maks 3), urutan kiri-tengah-kanan
+  abaikan?: string[]; // kode barang yang fotonya dilewati pada pencocokan otomatis
 }
 
 export const PREMIUM_FABRICS: PremiumFabric[] = [

@@ -537,6 +537,7 @@ const fetchTrackingData = async () => {
     const filteredMilestones = data.milestones.filter((m: Milestone) => {
       if (m.kode === "PENAWARAN" && !m.isActive) return false;
       if (m.kode === "PRODUKSI" && isMurniReadyStock) return false;
+      if (m.kode === "QC" && isMurniReadyStock) return false;
       return true;
     });
 
@@ -910,7 +911,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .st-wrap {
-  max-width: 1180px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -924,7 +925,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   background: var(--st-red);
 }
 .st-bar-in {
-  max-width: 1180px;
+  max-width: 1320px;
   height: 56px;
   margin: 0 auto;
   padding: 0 8px;
@@ -1105,6 +1106,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   text-align: center;
   animation: st-pop 0.6s var(--st-ease) both;
   animation-delay: calc(var(--i) * 120ms + 0.35s);
+  min-width: 0;
 }
 .st-node {
   width: 52px;
@@ -1133,6 +1135,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   font-weight: 700;
   line-height: 1.3;
   color: var(--st-muted);
+  overflow-wrap: anywhere;
 }
 .st-step.active .st-step-title {
   color: var(--st-ink);
@@ -1513,8 +1516,13 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   color: var(--st-muted);
 }
 
+/* Tampilan umum di bawah 1200px: satu kolom (hanya ada kartu rincian di grid) */
+.st-grid--public {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* ---------- Tampilan umum (desktop): rincian di kanan hero ---------- */
-@media (min-width: 900px) {
+@media (min-width: 1200px) {
   /* Teks hero tidak boleh masuk ke area kartu rincian */
   .st-hero--public .st-hero-in {
     padding-right: calc(460px + 36px);
@@ -1725,15 +1733,31 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   .st-hero {
     padding-bottom: 88px;
   }
+  .st-steps-card {
+    padding: 22px 2px 14px;
+    border-radius: 18px;
+  }
+  .st-step {
+    padding: 0 2px;
+  }
   .st-node {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
+    border-width: 2px;
+  }
+  .st-node .v-icon {
+    width: 18px !important;
+    height: 18px !important;
+    font-size: 18px !important;
   }
   .st-track {
-    top: 20px;
+    top: 18px;
+    height: 3px;
   }
   .st-step-title {
-    font-size: 11px;
+    margin-top: 8px;
+    font-size: 10px;
+    line-height: 1.25;
   }
   .st-step-time,
   .st-step-kind {
@@ -1768,6 +1792,11 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   .it-img--svc {
     width: 80px;
     height: 60px;
+  }
+}
+@media (max-width: 389px) {
+  .st-step-title {
+    font-size: 9.5px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

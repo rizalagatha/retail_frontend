@@ -260,6 +260,7 @@ const isKpr = computed(() => authStore.user?.cabang === "KPR");
 const isKon = computed(() => authStore.user?.cabang === "KON");
 const isKdb = computed(() => authStore.user?.cabang === "KDB");
 const isKF1 = computed(() => authStore.user?.cabang === "KF1");
+const isB02 = computed(() => authStore.user?.cabang === "B02");
 const isAdmin = computed(() => authStore.user?.kode?.toLowerCase() === "admin");
 const isKbl = computed(() => authStore.user?.cabang === "KBL");
 
@@ -285,9 +286,10 @@ const terimaDisabledReason = computed(() => {
     !isKon.value &&
     !isKdb.value &&
     !isKbl.value &&
-    !isKF1.value
+    !isKF1.value &&
+    !isB02.value
   ) {
-    return "Penerimaan SJ cabang selain K01, KPR, KON, KBL, KDB & KF1 wajib melalui Aplikasi Kaosan Mobile.";
+    return "Penerimaan SJ cabang selain K01, KPR, KON, KBL, Bazar & KF1 wajib melalui Aplikasi Kaosan Mobile.";
   }
 
   return "";

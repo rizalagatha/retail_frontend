@@ -6,6 +6,15 @@ import { formatRupiah } from "@/utils/formatRupiah";
 import { useAuthStore } from "@/stores/authStore";
 import CountUp from "@/components/CountUp.vue";
 
+import icDtf from "@/assets/ikon-jasa/dtf.png";
+import icDtfPremium from "@/assets/ikon-jasa/dtf-premium.png";
+import icBordir from "@/assets/ikon-jasa/bordir.png";
+import icPlatisol from "@/assets/ikon-jasa/platisol.png";
+import icDtg from "@/assets/ikon-jasa/dtg.png";
+import icSablon from "@/assets/ikon-jasa/sablon.png";
+import icGambar from "@/assets/ikon-jasa/jasa-gambar.png";
+import icTulisan from "@/assets/ikon-jasa/jasa-tulisan.png";
+
 const authStore = useAuthStore();
 const isStaff = computed(() => authStore.isAuthenticated);
 const route = useRoute();
@@ -193,6 +202,56 @@ const itemGroups = computed<ItemGroup[]>(() => {
     });
   });
   return groups;
+});
+
+// --- Ikon jasa ---
+const PREFIX_ICON: Record<string, { src: string; label: string }> = {
+  SD: { src: icDtf, label: "DTF" },
+  DP: { src: icDtfPremium, label: "DTF Premium" },
+  BR: { src: icBordir, label: "Bordir" },
+  SB: { src: icPlatisol, label: "Platisol" },
+  TG: { src: icDtg, label: "DTG" },
+  PL: { src: icSablon, label: "Polyflex" },
+};
+
+const serviceIcon = (it: OrderItem): { src: string; label: string } | null => {
+  const nama = (it.nama || "").toUpperCase();
+  if (/JASA\s+DESIGN\s+GAMBAR/.test(nama)) return { src: icGambar, label: "Jasa Gambar" };
+  if (/JASA\s+DESIGN\s+TULISAN/.test(nama)) return { src: icTulisan, label: "Jasa Tulisan" };
+  const prefix = (it.sd_nomor || "").split(".")[1]?.toUpperCase();
+  return prefix ? PREFIX_ICON[prefix] ?? null : null;
+};
+
+// --- Kartu bantuan: kontak store sesuai cabang surat pesanan ---
+interface ContactItem {
+  kode: string;
+  nama: string;
+  telepon: string;
+  alamat: string;
+  wa_link: string | null;
+}
+const contact = ref<ContactItem | null>(null);
+const contactLoaded = ref(false);
+const branchKode = computed(() => decodeResi(nomorSo.value).split(".")[0].toUpperCase());
+
+const fetchContact = async () => {
+  try {
+    const { data } = await api.get<ContactItem[]>("/so/public/contacts");
+    contact.value = data.find((c) => c.kode === branchKode.value) ?? null;
+  } catch {
+    contact.value = null;
+  } finally {
+    contactLoaded.value = true;
+  }
+};
+
+const waLink = computed(() => {
+  const c = contact.value;
+  if (!c?.wa_link) return null;
+  const text = `Halo Kaosan ${c.nama}, saya ingin menanyakan pesanan dengan nomor resi ${
+    resiAwb.value || nomorSo.value
+  }.`;
+  return `${c.wa_link}?text=${encodeURIComponent(text)}`;
 });
 
 // Fungsi pintar penentu warna Oranye / Hijau
@@ -517,6 +576,7 @@ watch(isLoading, async (v) => {
 
 onMounted(() => {
   fetchTrackingData();
+  fetchContact();
   window.addEventListener("resize", measureHero);
 });
 onUnmounted(() => window.removeEventListener("resize", measureHero));
@@ -708,9 +768,14 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
                     :class="{ 'is-ready': row.item.isFullyScanned, 'it--sub': !!g.title }"
                     :style="{ '--d': `${row.idx * 70}ms` }"
                   >
-                    <div class="it-img">
+                    <div class="it-img" :class="{ 'it-img--svc': !!serviceIcon(row.item) }">
                       <img
-                        v-if="
+                        v-if="serviceIcon(row.item)"
+                        :src="serviceIcon(row.item)!.src"
+                        :alt="serviceIcon(row.item)!.label"
+                      />
+                      <img
+                        v-else-if="
                           row.item.imageUrl &&
                           !row.item.isJasaMurni &&
                           !imgFailed[row.item.kode + (row.item.sd_nomor || '')]
@@ -797,6 +862,26 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
               </div>
             </div>
           </aside>
+          <section v-if="!isStaff && contactLoaded" class="st-help">
+            <div class="st-help-eyebrow">Butuh bantuan?</div>
+            <h2>{{ contact ? `Hubungi ${contact.nama}` : "Hubungi store Kaosan" }}</h2>
+            <p v-if="contact">
+              <span v-if="contact.alamat">{{ contact.alamat }}</span>
+              <span v-if="contact.telepon" class="st-help-tel">{{ contact.telepon }}</span>
+            </p>
+            <p v-else>Pesanan ini ditangani oleh store Kaosan. Cari kontaknya di Pusat Bantuan.</p>
+            <div class="st-help-actions">
+              <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="st-help-btn">
+                <v-icon size="18">mdi-whatsapp</v-icon> Chat WhatsApp
+              </a>
+              <router-link
+                :to="{ path: '/tracking', query: { bantuan: '1' } }"
+                class="st-help-link"
+              >
+                {{ contact ? "Lihat store lain" : "Buka Pusat Bantuan" }}
+              </router-link>
+            </div>
+          </section>
         </div>
 
         <p class="st-foot">Terima kasih telah berbelanja di Kaosan!</p>
@@ -1306,6 +1391,22 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   object-fit: cover;
   object-position: center 20%;
 }
+.it-img--svc {
+  width: 96px;
+  height: 68px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--st-line);
+}
+.it-img--svc img {
+  object-fit: contain;
+  object-position: center;
+}
+.it--sub .it-img--svc {
+  width: 78px;
+  height: 52px;
+  padding: 4px;
+}
 .it-main {
   flex: 1;
   min-width: 0;
@@ -1416,6 +1517,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
     column-gap: 20px;
     align-items: start;
+    grid-template-rows: auto 1fr;
   }
   .st-body--public .st-steps-card {
     grid-column: 1;
@@ -1428,7 +1530,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     position: relative;
     z-index: 2;
     grid-column: 2;
-    grid-row: 1;
+    grid-row: 1 / 3;
     /* naik ke puncak hero: sejajar dengan "Status pesanan" */
     margin-top: calc(18px - var(--hero-h, 0px));
     box-shadow: 0 18px 40px rgba(60, 20, 15, 0.18);
@@ -1455,6 +1557,81 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     flex-shrink: 0;
     border-top: 1px solid var(--st-line);
   }
+  .st-body--public > .st-help {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+  }
+}
+
+/* ---------- Kartu bantuan ---------- */
+.st-help {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid var(--st-line);
+  border-radius: 20px;
+  background: #fff;
+  animation: st-rise 0.8s var(--st-ease) 0.5s both;
+}
+.st-help-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--st-muted);
+}
+.st-help h2 {
+  margin: 6px 0 8px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+}
+.st-help p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--st-muted);
+}
+.st-help-tel {
+  display: block;
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--st-ink);
+}
+.st-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin-top: 16px;
+}
+.st-help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  color: #fff;
+  background: #1f9d55;
+  transition: background 0.2s ease, transform 0.12s ease;
+}
+.st-help-btn:hover {
+  background: #17803f;
+}
+.st-help-btn:active {
+  transform: scale(0.97);
+}
+.st-help-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--st-red);
+  text-decoration: none;
+}
+.st-help-link:hover {
+  text-decoration: underline;
 }
 
 /* ---------- Skeleton ---------- */
@@ -1581,12 +1758,17 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     padding-left: 16px;
     padding-right: 16px;
   }
+  .it-img--svc {
+    width: 80px;
+    height: 60px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .st-rise,
   .st-steps-card,
   .st-card,
   .st-step,
+  .st-help,
   .st-track-fill,
   .tl-item,
   .tl-rail::before,

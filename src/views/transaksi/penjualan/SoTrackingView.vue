@@ -245,10 +245,17 @@ const fetchContact = async () => {
   }
 };
 
+// Nama tampilan store: "KAOSAN <nama cabang>", kecuali K05 selalu "KAOSAN SURABAYA"
+const storeName = (c: ContactItem): string => {
+  if (c.kode === "K05") return "KAOSAN SURABAYA";
+  const nama = (c.nama || "").trim();
+  return /^kaosan\b/i.test(nama) ? nama : `KAOSAN ${nama}`;
+};
+
 const waLink = computed(() => {
   const c = contact.value;
   if (!c?.wa_link) return null;
-  const text = `Halo Kaosan ${c.nama}, saya ingin menanyakan pesanan dengan nomor resi ${
+  const text = `Halo ${storeName(c)}, saya ingin menanyakan pesanan dengan nomor resi ${
     resiAwb.value || nomorSo.value
   }.`;
   return `${c.wa_link}?text=${encodeURIComponent(text)}`;
@@ -864,7 +871,7 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
           </aside>
           <section v-if="!isStaff && contactLoaded" class="st-help">
             <div class="st-help-eyebrow">Butuh bantuan?</div>
-            <h2>{{ contact ? `Hubungi ${contact.nama}` : "Hubungi store Kaosan" }}</h2>
+            <h2>{{ contact ? `Hubungi ${storeName(contact)}` : "Hubungi store Kaosan" }}</h2>
             <p v-if="contact">
               <span v-if="contact.alamat">{{ contact.alamat }}</span>
               <span v-if="contact.telepon" class="st-help-tel">{{ contact.telepon }}</span>

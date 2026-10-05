@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from "vue";
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/services/api";
 import { formatRupiah } from "@/utils/formatRupiah";
@@ -456,9 +456,24 @@ const goBackToHome = () => {
   router.push("/tracking"); // Sesuaikan dengan route path TrackingHomeView Mas Rizal
 };
 
+// Tinggi hero diukur agar kartu rincian bisa disejajarkan dengan teks status (desktop)
+const heroEl = ref<HTMLElement | null>(null);
+const heroH = ref(0);
+const measureHero = () => {
+  heroH.value = heroEl.value?.offsetHeight ?? 0;
+};
+watch(isLoading, async (v) => {
+  if (v) return;
+  await nextTick();
+  measureHero();
+  document.fonts?.ready.then(measureHero);
+});
+
 onMounted(() => {
   fetchTrackingData();
+  window.addEventListener("resize", measureHero);
 });
+onUnmounted(() => window.removeEventListener("resize", measureHero));
 </script>
 
 <template>
@@ -498,8 +513,8 @@ onMounted(() => {
 
     <template v-else>
       <!-- HERO STATUS -->
-      <section class="st-hero">
-        <div class="st-wrap st-body" :class="{ 'st-body--public': !isStaff }">
+      <section ref="heroEl" class="st-hero" :class="{ 'st-hero--public': !isStaff }">
+        <div class="st-wrap st-hero-in">
           <div class="st-eyebrow st-rise" style="--d: 0ms">Status pesanan</div>
           <h1 class="st-status st-rise" style="--d: 90ms">
             {{ currentMilestone?.title || "Diproses" }}
@@ -522,7 +537,11 @@ onMounted(() => {
         <i class="st-stripe"></i>
       </section>
 
-      <div class="st-wrap">
+      <div
+        class="st-wrap st-body"
+        :class="{ 'st-body--public': !isStaff }"
+        :style="{ '--hero-h': heroH + 'px' }"
+      >
         <!-- LANGKAH -->
         <section class="st-steps-card">
           <div class="st-steps" :style="{ '--n': milestones.length, '--p': progressPct }">
@@ -619,7 +638,7 @@ onMounted(() => {
           </section>
 
           <!-- RINCIAN -->
-          <aside v-if="isStaff" class="st-card">
+          <aside class="st-card">
             <div class="st-card-h">
               <h2>Rincian Pesanan</h2>
               <span v-if="orderSummary.sisaTagihan <= 0" class="st-chip-ok">
@@ -1298,31 +1317,31 @@ onMounted(() => {
 
 /* ---------- Tampilan umum (desktop): rincian di kanan hero ---------- */
 @media (min-width: 900px) {
+  /* Teks hero tidak boleh masuk ke area kartu rincian */
+  .st-hero--public .st-hero-in {
+    padding-right: calc(460px + 36px);
+  }
   .st-body--public {
-    position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
-    grid-template-areas:
-      "steps  detail"
-      "steps  detail";
     column-gap: 20px;
-    margin-top: -290px; /* naik ke area hero, sejajar status pesanan */
+    align-items: start;
   }
   .st-body--public .st-steps-card {
-    grid-area: steps;
-    align-self: end;
-    margin-top: 0;
+    grid-column: 1;
+    grid-row: 1;
   }
   .st-body--public .st-grid {
     display: contents;
   }
   .st-body--public .st-grid > .st-card {
-    grid-area: detail;
-    align-self: start;
-    box-shadow: 0 18px 40px rgba(60, 20, 15, 0.16);
-  }
-  .st-hero {
-    padding-bottom: 300px; /* ruang agar langkah dan rincian tidak menimpa teks status */
+    position: relative;
+    z-index: 2;
+    grid-column: 2;
+    grid-row: 1;
+    /* naik ke puncak hero: sejajar dengan "Status pesanan" */
+    margin-top: calc(18px - var(--hero-h, 0px));
+    box-shadow: 0 18px 40px rgba(60, 20, 15, 0.18);
   }
 }
 

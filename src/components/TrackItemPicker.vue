@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 
 interface PickItem {
   title: string;
@@ -19,6 +19,15 @@ const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 const ALL = props.allValue ?? "UMUM";
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
+const isMobile = ref(false);
+const mq = window.matchMedia("(max-width: 699px)");
+const syncMq = () => (isMobile.value = mq.matches);
+syncMq();
+
+// Kunci gulir halaman saat lembar terbuka di HP
+watch(open, (v) => {
+  document.documentElement.style.overflow = v && isMobile.value ? "hidden" : "";
+});
 
 const nameOf = (it: PickItem) =>
   (it.namaBarang || it.title.split(" - Total")[0]).replace(/\s*\(DTF\)\s*$/i, "");
@@ -41,7 +50,10 @@ const pick = (v: string) => {
 };
 
 const onDoc = (e: MouseEvent) => {
-  if (open.value && root.value && !root.value.contains(e.target as Node)) open.value = false;
+  const t = e.target as HTMLElement;
+  if (!open.value) return;
+  if (root.value?.contains(t) || t.closest(".tp-panel")) return;
+  open.value = false;
 };
 const onKey = (e: KeyboardEvent) => {
   if (e.key === "Escape") open.value = false;
@@ -49,10 +61,13 @@ const onKey = (e: KeyboardEvent) => {
 onMounted(() => {
   document.addEventListener("pointerdown", onDoc);
   window.addEventListener("keydown", onKey);
+  mq.addEventListener("change", syncMq);
 });
 onUnmounted(() => {
   document.removeEventListener("pointerdown", onDoc);
   window.removeEventListener("keydown", onKey);
+  mq.removeEventListener("change", syncMq);
+  document.documentElement.style.overflow = "";
 });
 </script>
 
@@ -76,49 +91,51 @@ onUnmounted(() => {
       <v-icon class="tp-chev" size="20">mdi-chevron-down</v-icon>
     </button>
 
-    <Transition name="tp-pop">
-      <div v-if="open" class="tp-layer">
-        <div class="tp-backdrop" @click="open = false"></div>
-        <div class="tp-panel" role="listbox">
-          <div class="tp-grab" aria-hidden="true"></div>
+    <Teleport to="body" :disabled="!isMobile">
+      <Transition name="tp-pop">
+        <div v-if="open" class="tp-layer">
+          <div class="tp-backdrop" @click="open = false"></div>
+          <div class="tp-panel" role="listbox">
+            <div class="tp-grab" aria-hidden="true"></div>
 
-          <button
-            type="button"
-            class="tp-row tp-row--all"
-            :class="{ 'is-on': isAll }"
-            role="option"
-            :aria-selected="isAll"
-            @click="pick(ALL)"
-          >
-            <span class="tp-no">&mdash;</span>
-            <span class="tp-name">
-              Semua barang
-              <small>Seluruh proses pesanan sekaligus</small>
-            </span>
-            <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
-          </button>
+            <button
+              type="button"
+              class="tp-row tp-row--all"
+              :class="{ 'is-on': isAll }"
+              role="option"
+              :aria-selected="isAll"
+              @click="pick(ALL)"
+            >
+              <span class="tp-no">&mdash;</span>
+              <span class="tp-name">
+                Semua barang
+                <small>Seluruh proses pesanan sekaligus</small>
+              </span>
+              <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
+            </button>
 
-          <button
-            v-for="(r, n) in rows"
-            :key="r.value"
-            type="button"
-            class="tp-row"
-            :class="{ 'is-on': r.value === modelValue }"
-            role="option"
-            :aria-selected="r.value === modelValue"
-            @click="pick(r.value)"
-          >
-            <span class="tp-no">{{ pad(n + 1) }}</span>
-            <span class="tp-name">
-              {{ r.nama }}
-              <small v-if="r.dtf">Cetak / custom</small>
-            </span>
-            <span class="tp-qty-col">{{ r.qty }}<i> pcs</i></span>
-            <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
-          </button>
+            <button
+              v-for="(r, n) in rows"
+              :key="r.value"
+              type="button"
+              class="tp-row"
+              :class="{ 'is-on': r.value === modelValue }"
+              role="option"
+              :aria-selected="r.value === modelValue"
+              @click="pick(r.value)"
+            >
+              <span class="tp-no">{{ pad(n + 1) }}</span>
+              <span class="tp-name">
+                {{ r.nama }}
+                <small v-if="r.dtf">Cetak / custom</small>
+              </span>
+              <span class="tp-qty-col">{{ r.qty }}<i> pcs</i></span>
+              <span class="tp-check"><v-icon size="16">mdi-check</v-icon></span>
+            </button>
+          </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -332,6 +349,12 @@ onUnmounted(() => {
     z-index: 3000;
     overflow: visible;
     max-height: none;
+    --tp-red: #b71c1c;
+    --tp-line: #e9dfdb;
+    --tp-ink: #1f1a19;
+    --tp-muted: #8a7f7b;
+    --tp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   .tp-backdrop {
     display: block;
@@ -344,11 +367,15 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     bottom: 0;
-    max-height: 78vh;
+    max-height: min(78vh, 78dvh);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     border: none;
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.25);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   .tp-grab {
     display: block;

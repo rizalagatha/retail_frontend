@@ -121,28 +121,4 @@ export const PREMIUM_FABRICS: PremiumFabric[] = [
     cocok: "Pakaian casual yang membutuhkan bahan lebih berisi.",
     kata: ["KATUN AIR"],
   },
-  {
-    id: "spandex-motif",
-    nama: "Spandex Motif",
-    judul: "Elastis dengan tampilan motif yang menarik.",
-    isi: "Memiliki karakter lentur dan fleksibel sehingga nyaman mengikuti gerakan tubuh. Motif memberikan tampilan yang lebih unik dan stylish.",
-    cocok: "Pakaian fashion dengan tampilan lebih ekspresif.",
-    kata: ["HYPERMOVE", "MAXENO", "ELASTIC", "ZIQQI", "FRACTION", "ZENIT"],
-  },
-  {
-    id: "emboss-topo",
-    nama: "Jersey Embozz",
-    judul: "Bertekstur, unik, dan tampil lebih premium.",
-    isi: "Memiliki detail tekstur embozz yang memberikan karakter visual berbeda pada permukaan kain.",
-    cocok: "Pakaian casual dengan tampilan eksklusif.",
-    kata: ["JERSEY EMBOZZ"],
-  },
-  {
-    id: "monochrome-abu-tua",
-    nama: "Monochrome",
-    judul: "Minimalis, modern, dan mudah dipadukan.",
-    isi: "Warna abu tua memberikan kesan clean dan modern sehingga mudah dikombinasikan dengan berbagai gaya dan warna lainnya.",
-    cocok: "Outfit casual hingga smart casual.",
-    kata: ["MONOCROM"],
-  },
 ];

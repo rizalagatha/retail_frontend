@@ -478,7 +478,7 @@ onMounted(() => {
     <!-- LOADING -->
     <template v-if="isLoading">
       <section class="st-hero">
-        <div class="st-wrap">
+        <div class="st-wrap st-hero-in">
           <div class="st-skel" style="width: 120px; height: 14px"></div>
           <div class="st-skel" style="width: 62%; height: 52px; margin-top: 14px"></div>
           <div class="st-skel" style="width: 38%; height: 16px; margin-top: 16px"></div>
@@ -499,7 +499,7 @@ onMounted(() => {
     <template v-else>
       <!-- HERO STATUS -->
       <section class="st-hero">
-        <div class="st-wrap">
+        <div class="st-wrap st-body" :class="{ 'st-body--public': !isStaff }">
           <div class="st-eyebrow st-rise" style="--d: 0ms">Status pesanan</div>
           <h1 class="st-status st-rise" style="--d: 90ms">
             {{ currentMilestone?.title || "Diproses" }}
@@ -544,9 +544,9 @@ onMounted(() => {
           </div>
         </section>
 
-        <div class="st-grid">
-          <!-- RIWAYAT -->
-          <section class="st-card">
+        <div class="st-grid" :class="{ 'st-grid--public': !isStaff }">
+          <!-- RIWAYAT (hanya staff) -->
+          <section v-if="isStaff" class="st-card">
             <div class="st-card-h"><h2>Riwayat Pesanan</h2></div>
             <ol class="tl">
               <li
@@ -619,7 +619,7 @@ onMounted(() => {
           </section>
 
           <!-- RINCIAN -->
-          <aside class="st-card">
+          <aside v-if="isStaff" class="st-card">
             <div class="st-card-h">
               <h2>Rincian Pesanan</h2>
               <span v-if="orderSummary.sisaTagihan <= 0" class="st-chip-ok">
@@ -628,96 +628,98 @@ onMounted(() => {
               <span v-else class="st-chip-due">Belum lunas</span>
             </div>
 
-            <ul class="it-list">
-              <li
-                v-for="(item, i) in orderItems"
-                :key="i"
-                class="it"
-                :class="{ 'is-ready': item.isFullyScanned }"
-                :style="{ '--d': `${i * 70}ms` }"
-              >
-                <div class="it-img">
-                  <img
-                    v-if="
-                      item.imageUrl &&
-                      !item.isJasaMurni &&
-                      !imgFailed[item.kode + (item.sd_nomor || '')]
-                    "
-                    :src="item.imageUrl"
-                    :alt="item.nama"
-                    loading="lazy"
-                    @error="imgFailed[item.kode + (item.sd_nomor || '')] = true"
-                  />
-                  <v-icon v-else size="26">{{
-                    item.isJasaMurni ? "mdi-cog-outline" : "mdi-tshirt-crew"
-                  }}</v-icon>
-                </div>
-
-                <div class="it-main">
-                  <div class="it-name">
-                    {{ item.nama }}
-                    <span v-if="item.isFullyScanned" class="it-ready"
-                      ><v-icon size="12">mdi-check</v-icon> Siap</span
-                    >
+            <div class="st-detail">
+              <ul class="it-list">
+                <li
+                  v-for="(item, i) in orderItems"
+                  :key="i"
+                  class="it"
+                  :class="{ 'is-ready': item.isFullyScanned }"
+                  :style="{ '--d': `${i * 70}ms` }"
+                >
+                  <div class="it-img">
+                    <img
+                      v-if="
+                        item.imageUrl &&
+                        !item.isJasaMurni &&
+                        !imgFailed[item.kode + (item.sd_nomor || '')]
+                      "
+                      :src="item.imageUrl"
+                      :alt="item.nama"
+                      loading="lazy"
+                      @error="imgFailed[item.kode + (item.sd_nomor || '')] = true"
+                    />
+                    <v-icon v-else size="26">{{
+                      item.isJasaMurni ? "mdi-cog-outline" : "mdi-tshirt-crew"
+                    }}</v-icon>
                   </div>
-                  <div v-if="item.nama_spk" class="it-sub">SPK: {{ item.nama_spk }}</div>
-                  <div class="it-sub">Ukuran: {{ item.ukuran || "-" }}</div>
-                  <div v-if="item.sd_nomor && isStaff" class="it-sub">
-                    SO DTF: <b>{{ item.sd_nomor }}</b>
-                  </div>
-                </div>
 
-                <v-tooltip v-if="item.hasHoverDetail && item.breakdown" location="top">
-                  <template #activator="{ props }">
-                    <div v-bind="props" class="it-price">
-                      <small>{{ item.qty }} pcs</small>
-                      <b>{{ formatRupiah(item.subtotal) }}</b>
-                    </div>
-                  </template>
-                  <div class="text-caption text-left pa-1">
-                    <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
-                    <div
-                      v-for="(b, bIdx) in item.breakdown"
-                      :key="bIdx"
-                      class="mb-1"
-                      style="white-space: nowrap"
-                    >
-                      {{ b.qty }}x Size {{ b.ukuran }}: {{ formatRupiah(b.harga - b.diskon) }}
-                      <span v-if="b.diskon > 0" class="text-red-lighten-2"
-                        >(Disc {{ formatRupiah(b.diskon) }})</span
+                  <div class="it-main">
+                    <div class="it-name">
+                      {{ item.nama }}
+                      <span v-if="item.isFullyScanned" class="it-ready"
+                        ><v-icon size="12">mdi-check</v-icon> Siap</span
                       >
                     </div>
+                    <div v-if="item.nama_spk" class="it-sub">SPK: {{ item.nama_spk }}</div>
+                    <div class="it-sub">Ukuran: {{ item.ukuran || "-" }}</div>
+                    <div v-if="item.sd_nomor && isStaff" class="it-sub">
+                      SO DTF: <b>{{ item.sd_nomor }}</b>
+                    </div>
                   </div>
-                </v-tooltip>
-              </li>
-            </ul>
 
-            <div class="sum">
-              <div class="sum-row">
-                <span>Subtotal produk</span><b>{{ formatRupiah(orderSummary.totalBruto) }}</b>
-              </div>
-              <div v-if="orderSummary.diskonFaktur > 0" class="sum-row">
-                <span>Diskon faktur</span
-                ><b class="neg">-{{ formatRupiah(orderSummary.diskonFaktur) }}</b>
-              </div>
-              <div v-if="orderSummary.biayaKirim > 0" class="sum-row">
-                <span>Biaya pengiriman</span><b>{{ formatRupiah(orderSummary.biayaKirim) }}</b>
-              </div>
-              <div v-if="orderSummary.ppn > 0" class="sum-row">
-                <span>Pajak (PPN)</span><b>{{ formatRupiah(orderSummary.ppn) }}</b>
-              </div>
-              <div v-if="orderSummary.totalDibayar > 0" class="sum-row">
-                <span>Telah dibayar</span
-                ><b class="pos">-{{ formatRupiah(orderSummary.totalDibayar) }}</b>
-              </div>
+                  <v-tooltip v-if="item.hasHoverDetail && item.breakdown" location="top">
+                    <template #activator="{ props }">
+                      <div v-bind="props" class="it-price">
+                        <small>{{ item.qty }} pcs</small>
+                        <b>{{ formatRupiah(item.subtotal) }}</b>
+                      </div>
+                    </template>
+                    <div class="text-caption text-left pa-1">
+                      <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
+                      <div
+                        v-for="(b, bIdx) in item.breakdown"
+                        :key="bIdx"
+                        class="mb-1"
+                        style="white-space: nowrap"
+                      >
+                        {{ b.qty }}x Size {{ b.ukuran }}: {{ formatRupiah(b.harga - b.diskon) }}
+                        <span v-if="b.diskon > 0" class="text-red-lighten-2"
+                          >(Disc {{ formatRupiah(b.diskon) }})</span
+                        >
+                      </div>
+                    </div>
+                  </v-tooltip>
+                </li>
+              </ul>
 
-              <div class="sum-total">
-                <span>Total pesanan</span><b>{{ formatRupiah(orderSummary.grandTotal) }}</b>
-              </div>
+              <div class="sum">
+                <div class="sum-row">
+                  <span>Subtotal produk</span><b>{{ formatRupiah(orderSummary.totalBruto) }}</b>
+                </div>
+                <div v-if="orderSummary.diskonFaktur > 0" class="sum-row">
+                  <span>Diskon faktur</span
+                  ><b class="neg">-{{ formatRupiah(orderSummary.diskonFaktur) }}</b>
+                </div>
+                <div v-if="orderSummary.biayaKirim > 0" class="sum-row">
+                  <span>Biaya pengiriman</span><b>{{ formatRupiah(orderSummary.biayaKirim) }}</b>
+                </div>
+                <div v-if="orderSummary.ppn > 0" class="sum-row">
+                  <span>Pajak (PPN)</span><b>{{ formatRupiah(orderSummary.ppn) }}</b>
+                </div>
+                <div v-if="orderSummary.totalDibayar > 0" class="sum-row">
+                  <span>Telah dibayar</span
+                  ><b class="pos">-{{ formatRupiah(orderSummary.totalDibayar) }}</b>
+                </div>
 
-              <div v-if="orderSummary.sisaTagihan > 0" class="sum-due">
-                <span>Sisa tagihan</span>
-                <b><CountUp :to="orderSummary.sisaTagihan" before="Rp " /></b>
+                <div class="sum-total">
+                  <span>Total pesanan</span><b>{{ formatRupiah(orderSummary.grandTotal) }}</b>
+                </div>
+
+                <div v-if="orderSummary.sisaTagihan > 0" class="sum-due">
+                  <span>Sisa tagihan</span>
+                  <b><CountUp :to="orderSummary.sisaTagihan" before="Rp " /></b>
+                </div>
               </div>
             </div>
           </aside>
@@ -1292,6 +1294,36 @@ onMounted(() => {
   text-align: center;
   font-size: 12px;
   color: var(--st-muted);
+}
+
+/* ---------- Tampilan umum (desktop): rincian di kanan hero ---------- */
+@media (min-width: 900px) {
+  .st-body--public {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+    grid-template-areas:
+      "steps  detail"
+      "steps  detail";
+    column-gap: 20px;
+    margin-top: -290px; /* naik ke area hero, sejajar status pesanan */
+  }
+  .st-body--public .st-steps-card {
+    grid-area: steps;
+    align-self: end;
+    margin-top: 0;
+  }
+  .st-body--public .st-grid {
+    display: contents;
+  }
+  .st-body--public .st-grid > .st-card {
+    grid-area: detail;
+    align-self: start;
+    box-shadow: 0 18px 40px rgba(60, 20, 15, 0.16);
+  }
+  .st-hero {
+    padding-bottom: 300px; /* ruang agar langkah dan rincian tidak menimpa teks status */
+  }
 }
 
 /* ---------- Skeleton ---------- */

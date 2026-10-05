@@ -149,6 +149,52 @@ const whenParts = (w: string) => {
   return { d, t: t || "" };
 };
 
+// Kelompokkan barang beraawalan nama sama: judul = awalan bersama, baris = varian
+interface ItemRow {
+  item: OrderItem;
+  label: string;
+  idx: number;
+}
+interface ItemGroup {
+  key: string;
+  title: string | null;
+  qty: number;
+  items: ItemRow[];
+}
+
+const itemGroups = computed<ItemGroup[]>(() => {
+  const buckets = new Map<string, OrderItem[]>();
+  orderItems.value.forEach((it) => {
+    const key = (it.nama || "").trim().toUpperCase().split(/\s+/).slice(0, 3).join(" ");
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(it);
+  });
+
+  let idx = 0;
+  const groups: ItemGroup[] = [];
+  buckets.forEach((list, key) => {
+    const qty = list.reduce((s, i) => s + (Number(i.qty) || 0), 0);
+    const words = list.map((i) => (i.nama || "").trim().split(/\s+/));
+    let p = 0;
+    if (list.length > 1) {
+      const maxP = Math.min(...words.map((w) => w.length)) - 1; // sisakan minimal 1 kata varian
+      while (p < maxP && words.every((w) => w[p].toUpperCase() === words[0][p].toUpperCase())) p++;
+    }
+    const grouped = list.length > 1 && p >= 2;
+    groups.push({
+      key,
+      title: grouped ? words[0].slice(0, p).join(" ") : null,
+      qty,
+      items: list.map((item, n) => ({
+        item,
+        label: grouped ? words[n].slice(p).join(" ") : item.nama,
+        idx: idx++,
+      })),
+    });
+  });
+  return groups;
+});
+
 // Fungsi pintar penentu warna Oranye / Hijau
 const isOngoing = (item: TrackingLog, i: number, isParent: boolean = false): boolean => {
   // 1. Indikator paling kuat: kalau belum ada jamnya alias "Berjalan"
@@ -649,67 +695,76 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
 
             <div class="st-detail">
               <ul class="it-list">
-                <li
-                  v-for="(item, i) in orderItems"
-                  :key="i"
-                  class="it"
-                  :class="{ 'is-ready': item.isFullyScanned }"
-                  :style="{ '--d': `${i * 70}ms` }"
-                >
-                  <div class="it-img">
-                    <img
-                      v-if="
-                        item.imageUrl &&
-                        !item.isJasaMurni &&
-                        !imgFailed[item.kode + (item.sd_nomor || '')]
-                      "
-                      :src="item.imageUrl"
-                      :alt="item.nama"
-                      loading="lazy"
-                      @error="imgFailed[item.kode + (item.sd_nomor || '')] = true"
-                    />
-                    <v-icon v-else size="26">{{
-                      item.isJasaMurni ? "mdi-cog-outline" : "mdi-tshirt-crew"
-                    }}</v-icon>
-                  </div>
+                <template v-for="g in itemGroups" :key="g.key">
+                  <li v-if="g.title" class="it-group">
+                    <b>{{ g.title }}</b>
+                    <span>{{ g.items.length }} varian · {{ g.qty }} pcs</span>
+                  </li>
 
-                  <div class="it-main">
-                    <div class="it-name">
-                      {{ item.nama }}
-                      <span v-if="item.isFullyScanned" class="it-ready"
-                        ><v-icon size="12">mdi-check</v-icon> Siap</span
-                      >
+                  <li
+                    v-for="row in g.items"
+                    :key="row.idx"
+                    class="it"
+                    :class="{ 'is-ready': row.item.isFullyScanned, 'it--sub': !!g.title }"
+                    :style="{ '--d': `${row.idx * 70}ms` }"
+                  >
+                    <div class="it-img">
+                      <img
+                        v-if="
+                          row.item.imageUrl &&
+                          !row.item.isJasaMurni &&
+                          !imgFailed[row.item.kode + (row.item.sd_nomor || '')]
+                        "
+                        :src="row.item.imageUrl"
+                        :alt="row.item.nama"
+                        loading="lazy"
+                        @error="imgFailed[row.item.kode + (row.item.sd_nomor || '')] = true"
+                      />
+                      <v-icon v-else size="26">{{
+                        row.item.isJasaMurni ? "mdi-cog-outline" : "mdi-tshirt-crew"
+                      }}</v-icon>
                     </div>
-                    <div v-if="item.nama_spk" class="it-sub">SPK: {{ item.nama_spk }}</div>
-                    <div class="it-sub">Ukuran: {{ item.ukuran || "-" }}</div>
-                    <div v-if="item.sd_nomor && isStaff" class="it-sub">
-                      SO DTF: <b>{{ item.sd_nomor }}</b>
-                    </div>
-                  </div>
 
-                  <v-tooltip v-if="item.hasHoverDetail && item.breakdown" location="top">
-                    <template #activator="{ props }">
-                      <div v-bind="props" class="it-price">
-                        <small>{{ item.qty }} pcs</small>
-                        <b>{{ formatRupiah(item.subtotal) }}</b>
-                      </div>
-                    </template>
-                    <div class="text-caption text-left pa-1">
-                      <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
-                      <div
-                        v-for="(b, bIdx) in item.breakdown"
-                        :key="bIdx"
-                        class="mb-1"
-                        style="white-space: nowrap"
-                      >
-                        {{ b.qty }}x Size {{ b.ukuran }}: {{ formatRupiah(b.harga - b.diskon) }}
-                        <span v-if="b.diskon > 0" class="text-red-lighten-2"
-                          >(Disc {{ formatRupiah(b.diskon) }})</span
+                    <div class="it-main">
+                      <div class="it-name">
+                        {{ row.label }}
+                        <span v-if="row.item.isFullyScanned" class="it-ready"
+                          ><v-icon size="12">mdi-check</v-icon> Siap</span
                         >
                       </div>
+                      <div v-if="row.item.nama_spk" class="it-sub">
+                        SPK: {{ row.item.nama_spk }}
+                      </div>
+                      <div class="it-sub">Ukuran: {{ row.item.ukuran || "-" }}</div>
+                      <div v-if="row.item.sd_nomor && isStaff" class="it-sub">
+                        SO DTF: <b>{{ row.item.sd_nomor }}</b>
+                      </div>
                     </div>
-                  </v-tooltip>
-                </li>
+
+                    <v-tooltip v-if="row.item.hasHoverDetail && row.item.breakdown" location="top">
+                      <template #activator="{ props }">
+                        <div v-bind="props" class="it-price">
+                          <small>{{ row.item.qty }} pcs</small>
+                          <b>{{ formatRupiah(row.item.subtotal) }}</b>
+                        </div>
+                      </template>
+                      <div class="text-caption text-left pa-1">
+                        <div class="font-weight-bold mb-1 border-b pb-1">Rincian Harga:</div>
+                        <div
+                          v-for="(b, bIdx) in row.item.breakdown"
+                          :key="bIdx"
+                          class="mb-1"
+                          style="white-space: nowrap"
+                        >
+                          {{ b.qty }}x Size {{ b.ukuran }}: {{ formatRupiah(b.harga - b.diskon) }}
+                          <span v-if="b.diskon > 0" class="text-red-lighten-2"
+                            >(Disc {{ formatRupiah(b.diskon) }})</span
+                          >
+                        </div>
+                      </div>
+                    </v-tooltip>
+                  </li>
+                </template>
               </ul>
 
               <div class="sum">
@@ -1187,6 +1242,41 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
   padding: 0;
   list-style: none;
 }
+.it-group {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px 8px;
+  border-top: 1px solid var(--st-line);
+  background: #fdf9f7;
+}
+.it-list > .it-group:first-child {
+  border-top: none;
+}
+.it-group b {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.it-group span {
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--st-muted);
+}
+.it--sub {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.it--sub .it-img {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+}
+.it--sub .it-name {
+  font-size: 15px;
+}
 .it {
   display: flex;
   gap: 14px;
@@ -1343,6 +1433,28 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     margin-top: calc(18px - var(--hero-h, 0px));
     box-shadow: 0 18px 40px rgba(60, 20, 15, 0.18);
   }
+  .st-body--public .st-grid > .st-card {
+    display: flex;
+    flex-direction: column;
+    max-height: min(calc(100vh - 110px), 780px);
+  }
+  .st-body--public .st-card .st-detail {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .st-body--public .st-card .it-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .st-body--public .st-card .sum {
+    flex-shrink: 0;
+    border-top: 1px solid var(--st-line);
+  }
 }
 
 /* ---------- Skeleton ---------- */
@@ -1464,7 +1576,8 @@ onUnmounted(() => window.removeEventListener("resize", measureHero));
     padding: 14px 16px;
   }
   .st-card-h,
-  .sum {
+  .sum,
+  .it-group {
     padding-left: 16px;
     padding-right: 16px;
   }

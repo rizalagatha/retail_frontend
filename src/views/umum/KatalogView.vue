@@ -432,16 +432,9 @@ const detailImages = computed<string[]>(() => {
   return s.gambar ? [s.gambar] : [];
 });
 
-// Harga per ukuran dipecah per kolom, maksimal 7 ukuran per kolom
-const PRICE_PER_COLUMN = 7;
-const priceColumns = computed(() => {
-  const list = selected.value?.ukuranHarga ?? [];
-  const cols: { ukuran: string; harga: number; hargaPromo: number | null }[][] = [];
-  for (let i = 0; i < list.length; i += PRICE_PER_COLUMN) {
-    cols.push(list.slice(i, i + PRICE_PER_COLUMN));
-  }
-  return cols;
-});
+// Ukuran berharga tampil sebagai kartu; ukuran tanpa harga diringkas jadi satu baris
+const pricedSizes = computed(() => (selected.value?.ukuranHarga ?? []).filter((u) => u.harga > 0));
+const unpricedSizes = computed(() => (selected.value?.ukuranHarga ?? []).filter((u) => !u.harga));
 
 // --- Lightbox (gambar fullscreen) ---
 const lightboxOpen = ref(false);
@@ -917,26 +910,22 @@ onUnmounted(() => {
                 <div v-else-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
                 <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
 
-                <template v-if="priceColumns.length">
+                <template v-if="pricedSizes.length || unpricedSizes.length">
                   <div class="k-detail-label">Harga per ukuran</div>
-                  <div
-                    class="k-price-cols"
-                    :style="{
-                      gridTemplateColumns: `repeat(${priceColumns.length}, minmax(0, 1fr))`,
-                    }"
-                  >
-                    <div v-for="(col, ci) in priceColumns" :key="ci" class="k-price-list">
-                      <div v-for="u in col" :key="u.ukuran" class="k-price-row">
-                        <span class="k-size">{{ u.ukuran }}</span>
-                        <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
-                          <template v-if="u.hargaPromo">
-                            <s class="k-price-old">{{ rp(u.harga) }}</s>
-                            {{ rp(u.hargaPromo) }}
-                          </template>
-                          <template v-else>{{ u.harga ? rp(u.harga) : "Hubungi store" }}</template>
-                        </span>
-                      </div>
+
+                  <div v-if="pricedSizes.length" class="k-size-grid">
+                    <div v-for="u in pricedSizes" :key="u.ukuran" class="k-size-row">
+                      <span class="k-size">{{ u.ukuran }}</span>
+                      <span class="k-size-price">
+                        <b>{{ rp(u.hargaPromo ?? u.harga) }}</b>
+                        <s v-if="u.hargaPromo" class="k-price-old">{{ rp(u.harga) }}</s>
+                      </span>
                     </div>
+                  </div>
+
+                  <div v-if="unpricedSizes.length" class="k-size-na">
+                    <span>Ukuran lain, hubungi store:</span>
+                    <i v-for="u in unpricedSizes" :key="u.ukuran">{{ u.ukuran }}</i>
                   </div>
                 </template>
 
@@ -1224,5 +1213,23 @@ onUnmounted(() => {
 .k-detail--premium .k-promo-chip {
   color: #1a0d0b;
   background: #d8bd84;
+}
+.k-detail--premium .k-price-old {
+  color: rgba(243, 232, 210, 0.45);
+}
+.k-detail--premium .k-size-row {
+  background: transparent;
+  border-color: rgba(216, 189, 132, 0.22);
+}
+.k-detail--premium .k-size-price b {
+  font-weight: 500;
+  color: #e6cf98;
+}
+.k-detail--premium .k-size-na {
+  color: rgba(243, 232, 210, 0.55);
+}
+.k-detail--premium .k-size-na i {
+  color: rgba(243, 232, 210, 0.7);
+  background: rgba(216, 189, 132, 0.1);
 }
 </style>

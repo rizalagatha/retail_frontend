@@ -6,6 +6,7 @@ import api from "@/services/api";
 import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
+import EmptyShelf from "@/components/EmptyShelf.vue";
 import { isKiosk } from "@/composables/useKiosk";
 import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
 
@@ -314,6 +315,13 @@ const filtered = computed(() => {
   );
 });
 
+const emptyText = computed(() => {
+  if (searchTerm.value)
+    return `Tidak ada produk untuk “${searchTerm.value}”. Coba kata kunci lain atau ganti jenis kain.`;
+  if (fromPremium.value) return "Koleksi untuk kain ini belum tersedia di katalog.";
+  return "Belum ada produk untuk jenis kain atau lengan yang dipilih.";
+});
+
 // --- Load more ---
 const displayCount = ref(20);
 const visible = computed(() => filtered.value.slice(0, displayCount.value));
@@ -557,7 +565,9 @@ onUnmounted(() => {
         </section>
 
         <main class="k-container">
-          <p class="k-hint">Pilih jenis kain untuk melihat koleksi kami.</p>
+          <p v-if="isLoading || products.length" class="k-hint">
+            Pilih jenis kain untuk melihat koleksi kami.
+          </p>
           <Transition name="k-fade" mode="out-in">
             <div v-if="isLoading" key="loading" class="k-cat-grid">
               <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
@@ -570,6 +580,15 @@ onUnmounted(() => {
                 >Coba Lagi</v-btn
               >
             </div>
+
+            <EmptyShelf
+              v-else-if="!products.length"
+              key="empty"
+              :dark="fromPremium"
+              eyebrow="Belum ada koleksi"
+              title="Koleksi belum tersedia"
+              text="Produk akan tampil di sini begitu tersedia di katalog."
+            />
 
             <div v-else key="ready" class="k-cat-grid">
               <button class="k-cat-card k-enter" style="--i: 0" @click="pilihKategori('ALL')">
@@ -729,14 +748,18 @@ onUnmounted(() => {
                 <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
               </div>
 
-              <div v-else-if="filtered.length === 0" key="empty" class="k-state">
-                <v-icon size="48" color="grey">mdi-magnify-close</v-icon>
-                <div class="k-state-title">
-                  {{
-                    searchTerm ? `Tidak ada hasil untuk "${searchTerm}"` : "Produk tidak ditemukan"
-                  }}
-                </div>
-              </div>
+              <EmptyShelf
+                v-else-if="filtered.length === 0"
+                key="empty"
+                :dark="fromPremium"
+                :eyebrow="searchTerm ? 'Tidak ada hasil' : 'Belum ada produk'"
+                :title="searchTerm ? 'Produk tidak ketemu' : 'Rak ini masih kosong'"
+                :text="emptyText"
+              >
+                <button v-if="searchTerm" class="es-btn" @click="searchInput = ''">
+                  Hapus pencarian
+                </button>
+              </EmptyShelf>
 
               <div v-else :key="`grid-${selectedKategori}-${lengan}`">
                 <div class="k-count">{{ filtered.length }} produk</div>

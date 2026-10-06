@@ -6,6 +6,7 @@ const props = defineProps<{
   text?: string;
   eyebrow?: string;
   live?: string;
+  dark?: boolean;
 }>();
 
 // Kata terakhir judul dimiringkan, titik di ujung
@@ -16,7 +17,7 @@ const hangers = [{ x: 92 }, { x: 176, swing: true }, { x: 270 }];
 </script>
 
 <template>
-  <div class="es" role="status">
+  <div class="es" :class="{ 'es--dark': dark }" role="status">
     <svg class="es-art" viewBox="0 0 360 64" aria-hidden="true">
       <line class="es-draw es-rail" x1="16" y1="14" x2="344" y2="14" pathLength="100" />
       <circle class="es-cap" cx="16" cy="14" r="4" />
@@ -53,6 +54,7 @@ const hangers = [{ x: 92 }, { x: 176, swing: true }, { x: 270 }];
   --es-ink: #1f1a19;
   --es-muted: #6f6663;
   --es-line: #cdbab4;
+  --es-stroke: #b9aca7;
   --es-ease: cubic-bezier(0.22, 1, 0.36, 1);
   display: flex;
   flex-direction: column;
@@ -71,7 +73,7 @@ const hangers = [{ x: 92 }, { x: 176, swing: true }, { x: 270 }];
 .es-art path,
 .es-art circle {
   fill: none;
-  stroke: #b9aca7;
+  stroke: var(--es-stroke);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -177,6 +179,23 @@ const hangers = [{ x: 92 }, { x: 176, swing: true }, { x: 270 }];
   border-radius: 50%;
   background: #2e9e5b;
   animation: es-ping 2s ease-out infinite;
+}
+
+/* Varian gelap-emas (tema Premium) */
+.es--dark {
+  --es-red: #d8bd84;
+  --es-ink: #f3e8d2;
+  --es-muted: rgba(243, 232, 210, 0.6);
+  --es-line: rgba(216, 189, 132, 0.35);
+  --es-stroke: rgba(216, 189, 132, 0.55);
+  font-family: "Jost Variable", system-ui, sans-serif;
+}
+.es--dark .es-title {
+  font-family: "Cormorant Variable", Georgia, serif;
+}
+.es--dark .es-actions :slotted(.es-btn:hover),
+.es--dark .es-actions :slotted(.es-btn:active) {
+  color: #1a0d0b;
 }
 
 @keyframes es-draw {

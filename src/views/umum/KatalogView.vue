@@ -25,6 +25,9 @@ interface CatalogRow {
   harga_max: number | null;
   ukuran: string | null;
   ukuran_harga: string | null;
+  promo_min?: number | null;
+  promo_max?: number | null;
+  promo_persen?: number | null;
   gambar_url: string | null;
   urutan: number;
   galeri: string | { url: string; index: number }[] | null;
@@ -38,7 +41,10 @@ interface Product {
   hargaMin: number;
   hargaMax: number;
   ukuran: string[];
-  ukuranHarga: { ukuran: string; harga: number }[];
+  ukuranHarga: { ukuran: string; harga: number; hargaPromo: number | null }[];
+  promoMin: number;
+  promoMax: number;
+  promoPersen: number;
   gambar: string | null;
   urutan: number;
   galeri: { url: string; index: number }[];
@@ -84,6 +90,12 @@ const formatHarga = (min: number, max: number) => {
 
 const selectedHarga = computed(() =>
   selected.value ? formatHarga(selected.value.hargaMin, selected.value.hargaMax) : null
+);
+
+const selectedPromoHarga = computed(() =>
+  selected.value && selected.value.promoPersen > 0
+    ? formatHarga(selected.value.promoMin, selected.value.promoMax)
+    : null
 );
 
 // --- Fase dari URL ---
@@ -156,15 +168,20 @@ const allProducts = computed<Product[]>(() =>
     const min = Number(r.harga_min) || 0;
     const max = Number(r.harga_max) || 0;
 
-    let ukuranHarga: { ukuran: string; harga: number }[] = [];
+    let ukuranHarga: { ukuran: string; harga: number; hargaPromo: number | null }[] = [];
     try {
-      ukuranHarga = r.ukuran_harga ? JSON.parse(r.ukuran_harga) : [];
+      const raw = r.ukuran_harga ? JSON.parse(r.ukuran_harga) : [];
+      ukuranHarga = raw.map(
+        (u: { ukuran: string; harga: number; harga_promo?: number | null }) => ({
+          ukuran: u.ukuran,
+          harga: Number(u.harga) || 0,
+          hargaPromo: u.harga_promo ? Number(u.harga_promo) : null,
+        })
+      );
     } catch {
       ukuranHarga = [];
     }
-    ukuranHarga = ukuranHarga
-      .map((u) => ({ ukuran: u.ukuran, harga: Number(u.harga) || 0 }))
-      .sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
+    ukuranHarga.sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
 
     // Foto kartu = foto utama (galeri pertama), fallback ke gambar_url
     const coverIndex = 0;
@@ -179,6 +196,9 @@ const allProducts = computed<Product[]>(() =>
       hargaMax: max || min,
       ukuran: r.ukuran ? r.ukuran.split(",") : [],
       ukuranHarga,
+      promoMin: Number(r.promo_min) || 0,
+      promoMax: Number(r.promo_max) || 0,
+      promoPersen: Number(r.promo_persen) || 0,
       gambar,
       coverIndex,
       urutan: r.urutan || 9999,
@@ -416,7 +436,7 @@ const detailImages = computed<string[]>(() => {
 const PRICE_PER_COLUMN = 7;
 const priceColumns = computed(() => {
   const list = selected.value?.ukuranHarga ?? [];
-  const cols: { ukuran: string; harga: number }[][] = [];
+  const cols: { ukuran: string; harga: number; hargaPromo: number | null }[][] = [];
   for (let i = 0; i < list.length; i += PRICE_PER_COLUMN) {
     cols.push(list.slice(i, i + PRICE_PER_COLUMN));
   }
@@ -786,10 +806,18 @@ onUnmounted(() => {
                         @error="imgFailed[p.kode] = true"
                       />
                       <ProductPlaceholder v-else class="k-ph" />
+
+                      <span v-if="p.promoPersen > 0" class="k-promo-badge">
+                        -{{ p.promoPersen }}%
+                      </span>
                     </div>
                     <div class="k-card-body">
                       <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
-                      <div v-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
+                      <div v-if="p.promoPersen > 0" class="k-card-price k-card-price--promo">
+                        <span>{{ formatHarga(p.promoMin, p.promoMax) }}</span>
+                        <s class="k-price-old">{{ formatHarga(p.hargaMin, p.hargaMax) }}</s>
+                      </div>
+                      <div v-else-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
                         {{ formatHarga(p.hargaMin, p.hargaMax) }}
                       </div>
                       <div v-else class="k-card-price k-card-price--na">
@@ -881,7 +909,12 @@ onUnmounted(() => {
 
               <div class="k-detail-info">
                 <h2 class="k-detail-name">{{ selected.nama }}</h2>
-                <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+                <div v-if="selectedPromoHarga" class="k-detail-price k-detail-price--promo">
+                  {{ selectedPromoHarga }}
+                  <s class="k-price-old">{{ selectedHarga }}</s>
+                  <span class="k-promo-chip">Promo -{{ selected.promoPersen }}%</span>
+                </div>
+                <div v-else-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
                 <div v-else class="k-detail-price k-card-price--na">Hubungi store untuk harga</div>
 
                 <template v-if="priceColumns.length">
@@ -896,7 +929,11 @@ onUnmounted(() => {
                       <div v-for="u in col" :key="u.ukuran" class="k-price-row">
                         <span class="k-size">{{ u.ukuran }}</span>
                         <span class="k-price-val" :class="{ 'k-price-val--na': !u.harga }">
-                          {{ u.harga ? rp(u.harga) : "Hubungi store" }}
+                          <template v-if="u.hargaPromo">
+                            <s class="k-price-old">{{ rp(u.harga) }}</s>
+                            {{ rp(u.hargaPromo) }}
+                          </template>
+                          <template v-else>{{ u.harga ? rp(u.harga) : "Hubungi store" }}</template>
                         </span>
                       </div>
                     </div>
@@ -1177,5 +1214,15 @@ onUnmounted(() => {
 }
 .k-detail--premium .k-note a {
   color: #e6cf98;
+}
+.k-page--premium .k-promo-badge {
+  color: #1a0d0b;
+}
+.k-page--premium .k-price-old {
+  color: rgba(243, 232, 210, 0.45);
+}
+.k-detail--premium .k-promo-chip {
+  color: #1a0d0b;
+  background: #d8bd84;
 }
 </style>

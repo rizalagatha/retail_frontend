@@ -1244,3 +1244,50 @@
     transition: none;
   }
 }
+
+/* ===== Harga promo ===== */
+.k-card-price--promo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.k-price-old {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9a8f8b;
+  text-decoration: line-through;
+}
+.k-promo-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: 3px 9px;
+  border-radius: 0 0 0 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--k-red);
+}
+.k-detail-price--promo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.k-detail-price--promo .k-price-old {
+  font-size: 13px;
+}
+.k-promo-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--k-red-dark);
+  background: #ffebee;
+}
+.k-price-val .k-price-old {
+  margin-right: 4px;
+  font-size: 10.5px;
+}

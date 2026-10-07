@@ -487,6 +487,13 @@ const sizeColumns = computed<SizeStock[][]>(() => {
   return cols;
 });
 
+// true bila ukuran-ukuran produk ini tersebar di box yang berbeda
+const boxPerUkuran = computed(() => {
+  const s = selected.value;
+  if (!s) return false;
+  return new Set(s.sizes.map((z) => z.box.join("|"))).size > 1;
+});
+
 // --- Lightbox ---
 const lightboxOpen = ref(false);
 const lbDx = ref(0);
@@ -889,16 +896,6 @@ onUnmounted(() => {
                       <div class="k-card-stock" :class="`k-card-stock--${totalState(p.totalStok)}`">
                         <i></i>{{ p.totalStok > 0 ? `${p.totalStok} pcs siap` : "Habis" }}
                       </div>
-                      <div v-if="p.terjual > 0" class="k-card-sold">Terjual {{ p.terjual }}</div>
-                      <div v-if="p.boxes.length" class="k-box-wrap">
-                        <v-icon size="12">mdi-package-variant</v-icon>
-                        <span v-for="b in p.boxes.slice(0, 2)" :key="b" class="k-box-chip">{{
-                          b
-                        }}</span>
-                        <span v-if="p.boxes.length > 2" class="k-box-more"
-                          >+{{ p.boxes.length - 2 }}</span
-                        >
-                      </div>
                     </div>
                   </article>
                 </div>
@@ -996,19 +993,16 @@ onUnmounted(() => {
                   }}
                 </div>
 
-                <div class="k-detail-meta">
-                  <span class="k-sold-pill">
-                    <v-icon size="14">mdi-cart-check</v-icon>
-                    Terjual {{ selected.terjual }} pcs
-                  </span>
-                </div>
-                <div v-if="selected.boxes.length" class="k-detail-boxes">
-                  <div class="k-detail-label">Lokasi barang (dari keterangan SJ)</div>
-                  <div class="k-box-wrap k-box-wrap--lg">
-                    <v-icon size="14">mdi-package-variant</v-icon>
-                    <span v-for="b in selected.boxes" :key="b" class="k-box-chip">{{ b }}</span>
+                <dl class="k-facts">
+                  <div class="k-fact">
+                    <dt>Terjual</dt>
+                    <dd>{{ selected.terjual }} pcs</dd>
                   </div>
-                </div>
+                  <div v-if="selected.boxes.length" class="k-fact">
+                    <dt>Lokasi</dt>
+                    <dd>{{ selected.boxes.join(" · ") }}</dd>
+                  </div>
+                </dl>
 
                 <template v-if="sizeColumns.length">
                   <div class="k-detail-label">Stok dan harga per ukuran</div>
@@ -1036,9 +1030,16 @@ onUnmounted(() => {
                         <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
                           {{ sizeLabel(s.stok) }}
                         </span>
-                        <span v-if="s.terjual > 0 || s.box.length" class="k-srow-sub">
-                          <template v-if="s.box.length">{{ s.box.join(", ") }}</template>
-                          <template v-if="s.box.length && s.terjual > 0"> · </template>
+                        <span
+                          v-if="s.terjual > 0 || (boxPerUkuran && s.box.length)"
+                          class="k-srow-sub"
+                        >
+                          <template v-if="boxPerUkuran && s.box.length">{{
+                            s.box.join(" · ")
+                          }}</template>
+                          <template v-if="boxPerUkuran && s.box.length && s.terjual > 0">
+                            ·
+                          </template>
                           <template v-if="s.terjual > 0">terjual {{ s.terjual }}</template>
                         </span>
                       </div>
@@ -1210,59 +1211,32 @@ onUnmounted(() => {
   background: #f0f0f0;
 }
 
-.k-card-sold {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #8a7f7b;
+.k-facts {
+  margin: 0 0 16px;
+  padding: 0;
+  border-top: 1px solid #eee6e3;
 }
-.k-box-wrap {
+.k-fact {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-  color: #7a5b00;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee6e3;
+  font-size: 13px;
 }
-.k-box-wrap--lg {
-  gap: 6px;
-  margin: 6px 0 14px;
-}
-.k-box-chip {
-  padding: 1px 7px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1.5;
-  background: #fff3cd;
-  color: #7a5b00;
-}
-.k-box-wrap--lg .k-box-chip {
-  font-size: 12px;
-  padding: 2px 9px;
-}
-.k-box-more {
-  font-size: 10.5px;
-  font-weight: 700;
+.k-fact dt {
+  flex-shrink: 0;
   color: #8a7f7b;
 }
-.k-detail-meta {
-  margin-bottom: 14px;
-}
-.k-sold-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #1d4ed8;
-  background: #e8f0fe;
+.k-fact dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  color: #2b2220;
 }
 .k-srow-sub {
   grid-column: 1 / -1;
-  margin-top: -2px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: #8a7f7b;
 }
 

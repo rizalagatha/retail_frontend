@@ -896,6 +896,7 @@ onUnmounted(() => {
                       <div class="k-card-stock" :class="`k-card-stock--${totalState(p.totalStok)}`">
                         <i></i>{{ p.totalStok > 0 ? `${p.totalStok} pcs siap` : "Habis" }}
                       </div>
+                      <div v-if="p.terjual > 0" class="k-card-sold">Terjual {{ p.terjual }}</div>
                     </div>
                   </article>
                 </div>
@@ -1215,6 +1216,11 @@ onUnmounted(() => {
   margin: 0 0 16px;
   padding: 0;
   border-top: 1px solid #eee6e3;
+}
+.k-card-sold {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #8a7f7b;
 }
 .k-fact {
   display: flex;

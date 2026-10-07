@@ -71,6 +71,15 @@ export interface PromoHeader {
   diskonPersen2: number;
 }
 
+// Item dari endpoint /invoice-form/lookup/promo-items/:nomor
+export interface PromoListedItem {
+  kode: string;
+  ukuran?: string;
+  nama?: string;
+  discPersen?: number;
+  discRp?: number;
+}
+
 // ─── Composable ───────────────────────────────────────────
 export function useAutoPromo(
   header: PromoHeader,
@@ -107,7 +116,7 @@ export function useAutoPromo(
     const key = `${cabang}|${tanggal}`;
     if (key === lastFetchKey.value) return;
     try {
-      const res = await api.get("/invoice-form/lookup/active-promos", {
+      const res = await api.get<ActivePromo[]>("/invoice-form/lookup/active-promos", {
         params: { tanggal, cabang },
       });
       activePromos.value = res.data ?? [];
@@ -158,7 +167,7 @@ export function useAutoPromo(
 
     // [FIX] Item CUSTOM (jenis order) selalu eligible — tidak perlu cek basis/kategori/kata kunci
     // Pengecualiannya sudah ditangani oleh options.isItemEligible (noPengajuanHarga, bordir)
-    if (kodeUp === "CUSTOM") return true;
+    if (kodeUp === "CUSTOM") return promo.pro_basis !== "KATEGORI";
 
     // Exclude kode barang tertentu
     if (promo.pro_exclude_kode) {
@@ -184,16 +193,7 @@ export function useAutoPromo(
         }
         return true;
       case "KATEGORI":
-        if (item.noSoDtf) {
-          if (promo.pro_include_kata) {
-            const includeKatas = promo.pro_include_kata
-              .split(",")
-              .map((s) => s.trim().toUpperCase())
-              .filter(Boolean);
-            return includeKatas.some((k) => namaUp.includes(k));
-          }
-          return true;
-        }
+        if (item.noSoDtf) return false;
         if ((item.kategori || "").toUpperCase() !== "REGULER") return false;
         if (promo.pro_include_kata) {
           const includeKatas = promo.pro_include_kata
@@ -302,8 +302,10 @@ export function useAutoPromo(
       const eligibleQty = calcEligibleQty(promo);
       if (promo.pro_totalqty > 0 && eligibleQty < promo.pro_totalqty) continue;
       try {
-        const { data } = await api.get(`/invoice-form/lookup/promo-items/${promo.pro_nomor}`);
-        const listed = data || [];
+        const { data } = await api.get<PromoListedItem[]>(
+          `/invoice-form/lookup/promo-items/${promo.pro_nomor}`
+        );
+        const listed: PromoListedItem[] = data ?? [];
 
         // Tidak ada daftar barang: berlaku untuk semua barang di keranjang yang lolos aturan lanjutan
         if (listed.length === 0) {
@@ -333,14 +335,36 @@ export function useAutoPromo(
           continue;
         }
 
+        // Daftar barang tetap wajib lolos aturan lanjutan promo (basis KATEGORI = REGULER,
+        // kata kunci, exclude kode). Dicocokkan ke item yang benar-benar ada di keranjang.
+        const listedMap = new Map<string, PromoListedItem>();
         for (const pi of listed) {
-          const key = `${pi.kode}||${pi.ukuran}`;
+          const k = `${String(pi.kode ?? "")
+            .trim()
+            .toUpperCase()}||${String(pi.ukuran ?? "")
+            .trim()
+            .toUpperCase()}`;
+          listedMap.set(k, pi);
+        }
+
+        for (const item of items.value) {
+          if (!item.kode || item.isFreeGift) continue;
+          const pi = listedMap.get(
+            `${item.kode.trim().toUpperCase()}||${String(item.ukuran ?? "")
+              .trim()
+              .toUpperCase()}`
+          );
+          if (!pi) continue;
+          if (!isItemEligible(item, promo)) continue;
+
+          const key = `${item.kode}||${item.ukuran}`;
+          const persen = pi.discPersen ?? 0;
           const existing = itemDiscountMap.value.get(key);
-          if (!existing || pi.discPersen > existing.persen) {
+          if (!existing || persen > existing.persen) {
             itemDiscountMap.value.set(key, {
-              nama: pi.nama || pi.kode,
-              persen: pi.discPersen || 0,
-              rp: pi.discRp || 0,
+              nama: pi.nama || item.nama || item.kode,
+              persen,
+              rp: pi.discRp ?? 0,
             });
           }
         }

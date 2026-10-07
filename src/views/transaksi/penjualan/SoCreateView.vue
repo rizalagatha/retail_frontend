@@ -2188,7 +2188,7 @@ const onPenawaranSelected = async (penawaran: { nomor: string }) => {
         id: Date.now() + Math.random(),
         kode: d.pend_kode,
         nama: d.nama_barang, // Membawa nama asli atau nama custom dtf dari backend
-        kategori: d.kategori || (isCustom ? "PESANAN" : "REGULER"),
+        kategori: d.kategori || (isCustom ? "PESANAN" : ""),
         ukuran: ringkasanUkuran,
         stok: Number(d.stok) || 0,
         jumlah: Number(d.pend_jumlah) || 0,

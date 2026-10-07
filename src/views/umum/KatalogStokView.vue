@@ -18,6 +18,7 @@ interface StokRow {
   nama: string;
   ukuran: string;
   harga: number;
+  harga_promo?: number | null;
   stok: number;
   total_terjual: number;
   gambar_url?: string | null;
@@ -28,6 +29,7 @@ interface StokRow {
 interface SizeStock {
   ukuran: string;
   harga: number;
+  hargaPromo: number | null;
   stok: number;
 }
 
@@ -38,6 +40,9 @@ interface Product {
   lengan: string;
   hargaMin: number;
   hargaMax: number;
+  promoMin: number;
+  promoMax: number;
+  promoPersen: number;
   totalStok: number;
   terjual: number;
   sizes: SizeStock[];
@@ -62,7 +67,7 @@ const STOK_MENIPIS_UKURAN = 3; // stok satu ukuran <= ini: oranye
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 
-const formatHarga = (min: number, max: number) => {
+const formatHarga = (min: number, max: number): string | null => {
   if (!max || max <= 0) return null;
   if (min === max) return rp(min);
   return `${rp(min)} - ${new Intl.NumberFormat("id-ID").format(max)}`;
@@ -147,6 +152,9 @@ const products = computed<Product[]>(() => {
         lengan: (r.lengan || "").toUpperCase(),
         hargaMin: 0,
         hargaMax: 0,
+        promoMin: 0,
+        promoMax: 0,
+        promoPersen: 0,
         totalStok: 0,
         terjual: 0,
         sizes: [],
@@ -159,7 +167,9 @@ const products = computed<Product[]>(() => {
     }
 
     const stok = Math.max(0, Number(r.stok) || 0);
-    p.sizes.push({ ukuran: r.ukuran, harga: Number(r.harga) || 0, stok });
+    const harga = Number(r.harga) || 0;
+    const hp = Number(r.harga_promo) || 0;
+    p.sizes.push({ ukuran: r.ukuran, harga, hargaPromo: hp > 0 && hp < harga ? hp : null, stok });
     p.totalStok += stok;
     p.terjual += Number(r.total_terjual) || 0;
   });
@@ -169,6 +179,16 @@ const products = computed<Product[]>(() => {
     const prices = p.sizes.map((s) => s.harga).filter((h) => h > 0);
     p.hargaMin = prices.length ? Math.min(...prices) : 0;
     p.hargaMax = prices.length ? Math.max(...prices) : 0;
+
+    const berpromo = p.sizes.filter((s) => s.hargaPromo !== null);
+    if (berpromo.length) {
+      const akhir = p.sizes.map((s) => s.hargaPromo ?? s.harga).filter((h) => h > 0);
+      p.promoMin = Math.min(...akhir);
+      p.promoMax = Math.max(...akhir);
+      p.promoPersen = Math.max(
+        ...berpromo.map((s) => Math.round((1 - (s.hargaPromo as number) / s.harga) * 100))
+      );
+    }
   });
 
   return [...map.values()];
@@ -370,7 +390,7 @@ const totalState = (n: number): StokState =>
   n <= 0 ? "out" : n <= STOK_MENIPIS_TOTAL ? "low" : "ok";
 const sizeState = (n: number): StokState =>
   n <= 0 ? "out" : n <= STOK_MENIPIS_UKURAN ? "low" : "ok";
-const sizeLabel = (n: number) =>
+const sizeLabel = (n: number): string =>
   n <= 0 ? "Habis" : n <= STOK_MENIPIS_UKURAN ? `Sisa ${n}` : `${n} pcs`;
 
 // --- Navigasi ---
@@ -394,7 +414,9 @@ const headerSub = computed(() =>
 // --- Detail (dibaca dari data terbaru, jadi stok di dialog ikut berubah) ---
 const detailVisible = ref(false);
 const selectedKode = ref<string | null>(null);
-const selected = computed(() => products.value.find((p) => p.kode === selectedKode.value) ?? null);
+const selected = computed<Product | null>(
+  () => products.value.find((p) => p.kode === selectedKode.value) ?? null
+);
 const detailIndex = ref(0);
 
 const openDetail = (p: Product) => {
@@ -403,8 +425,14 @@ const openDetail = (p: Product) => {
   detailVisible.value = true;
 };
 
-const selectedHarga = computed(() =>
+const selectedHarga = computed<string | null>(() =>
   selected.value ? formatHarga(selected.value.hargaMin, selected.value.hargaMax) : null
+);
+
+const selectedPromo = computed<string | null>(() =>
+  selected.value && selected.value.promoPersen > 0
+    ? formatHarga(selected.value.promoMin, selected.value.promoMax)
+    : null
 );
 
 const detailImages = computed<string[]>(() => {
@@ -416,7 +444,7 @@ const detailImages = computed<string[]>(() => {
 
 // Ukuran dipecah per kolom (maksimal 7); di HP satu kolom saja
 const perColumn = computed(() => 20); // panel sempit: satu kolom
-const sizeColumns = computed(() => {
+const sizeColumns = computed<SizeStock[][]>(() => {
   const list = selected.value?.sizes ?? [];
   const cols: SizeStock[][] = [];
   for (let i = 0; i < list.length; i += perColumn.value) {
@@ -808,10 +836,17 @@ onUnmounted(() => {
                       >
                         Sisa sedikit
                       </span>
+                      <span v-if="p.promoPersen > 0" class="k-promo-badge">
+                        -{{ p.promoPersen }}%
+                      </span>
                     </div>
                     <div class="k-card-body">
                       <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
-                      <div v-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
+                      <div v-if="p.promoPersen > 0" class="k-card-price k-card-price--promo">
+                        <span>{{ formatHarga(p.promoMin, p.promoMax) }}</span>
+                        <span class="k-price-old">{{ formatHarga(p.hargaMin, p.hargaMax) }}</span>
+                      </div>
+                      <div v-else-if="formatHarga(p.hargaMin, p.hargaMax)" class="k-card-price">
                         {{ formatHarga(p.hargaMin, p.hargaMax) }}
                       </div>
                       <div v-else class="k-card-price k-card-price--na">
@@ -902,7 +937,12 @@ onUnmounted(() => {
               <div class="k-detail-info">
                 <h2 class="k-detail-name">{{ selected.nama }}</h2>
                 <div class="k-detail-code">Kode: {{ selected.kode }}</div>
-                <div v-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
+                <div v-if="selectedPromo" class="k-detail-price k-detail-price--promo">
+                  <span>{{ selectedPromo }}</span>
+                  <span class="k-price-old">{{ selectedHarga }}</span>
+                  <span class="k-promo-chip">Promo -{{ selected.promoPersen }}%</span>
+                </div>
+                <div v-else-if="selectedHarga" class="k-detail-price">{{ selectedHarga }}</div>
                 <div v-else class="k-detail-price k-card-price--na">Tanya petugas untuk harga</div>
 
                 <div class="k-total" :class="`k-total--${totalState(selected.totalStok)}`">
@@ -929,7 +969,11 @@ onUnmounted(() => {
                       >
                         <span class="k-size">{{ s.ukuran }}</span>
                         <span class="k-price-val" :class="{ 'k-price-val--na': !s.harga }">
-                          {{ s.harga ? rp(s.harga) : "-" }}
+                          <template v-if="s.hargaPromo">
+                            <span class="k-price-old">{{ rp(s.harga) }}</span>
+                            {{ rp(s.hargaPromo) }}
+                          </template>
+                          <template v-else>{{ s.harga ? rp(s.harga) : "-" }}</template>
                         </span>
                         <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
                           {{ sizeLabel(s.stok) }}

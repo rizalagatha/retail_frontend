@@ -10,6 +10,7 @@ import type { AxiosError } from "axios";
 import AppDataTable from "@/components/AppDataTable.vue";
 
 interface KlerekItem {
+  nomor: string; // inv_id tmp, kunci proses di backend
   tanggal: string;
   ket: string;
   nominal: number;
@@ -17,6 +18,18 @@ interface KlerekItem {
   nmcus: string;
   setor: string;
   klerek: string | null;
+}
+
+interface KlerekSkipped {
+  nomor: string;
+  alasan: string;
+}
+
+interface KlerekResult {
+  message: string;
+  processed: number;
+  skipped: KlerekSkipped[];
+  warnings: string[];
 }
 
 interface CabangOption {
@@ -35,6 +48,12 @@ const loading = ref(true);
 const isProcessing = ref(false);
 const cabangOptions = ref<CabangOption[]>([]);
 const dialogConfirm = reactive({ show: false, title: "", text: "", onConfirm: () => {} });
+const resultDialog = reactive<{
+  show: boolean;
+  message: string;
+  skipped: KlerekSkipped[];
+  warnings: string[];
+}>({ show: false, message: "", skipped: [], warnings: [] });
 
 const filters = reactive({
   startDate: format(new Date(), "yyyy-MM-dd"),
@@ -103,21 +122,35 @@ const openProsesDialog = () => {
   }
   showConfirmation(
     "Konfirmasi Proses Klerek",
-    `Yakin akan memproses ${unpostedItems.length} invoice?`,
+    `Yakin akan memproses ${unpostedItems.length} invoice (total Rp ${unpostedItems
+      .reduce((s, i) => s + (Number(i.nominal) || 0), 0)
+      .toLocaleString("id-ID")})?`,
     executeProses
   );
 };
 
 const executeProses = async () => {
+  if (isProcessing.value) return;
   isProcessing.value = true;
   try {
     const payload = {
-      items: items.value.filter((item) => !item.klerek || item.klerek === "0"),
+      items: items.value
+        .filter((item) => !item.klerek || item.klerek === "0")
+        .map((item) => ({ nomor: item.nomor })),
       cabang: filters.cabang,
     };
-    const response = await api.post("/klerek/proses", payload);
-    toast.success(response.data.message);
-    fetchData(); // Muat ulang data
+    const response = await api.post<KlerekResult>("/klerek/proses", payload);
+    const { message, skipped = [], warnings = [] } = response.data;
+
+    if (skipped.length > 0 || warnings.length > 0) {
+      resultDialog.message = message;
+      resultDialog.skipped = skipped;
+      resultDialog.warnings = warnings;
+      resultDialog.show = true;
+    } else {
+      toast.success(message);
+    }
+    await fetchData();
   } catch (err: unknown) {
     const error = err as AxiosError<{ message: string }>;
     toast.error(error.response?.data?.message || "Gagal memproses klerek.");
@@ -259,6 +292,40 @@ watch(filters, fetchData, { deep: true });
       </v-card>
     </v-dialog>
   </PageLayout>
+
+  <v-dialog v-model="resultDialog.show" max-width="560px">
+    <v-card>
+      <v-card-title class="text-h6 font-weight-bold">Hasil Proses Klerek</v-card-title>
+      <v-card-text>
+        <div class="mb-3">{{ resultDialog.message }}</div>
+
+        <div v-if="resultDialog.skipped.length" class="mb-3">
+          <div class="text-subtitle-2 text-error mb-1">
+            Dilewati ({{ resultDialog.skipped.length }})
+          </div>
+          <v-list density="compact" class="pa-0">
+            <v-list-item v-for="s in resultDialog.skipped" :key="s.nomor" class="px-0">
+              <v-list-item-title class="text-body-2">{{ s.nomor }}</v-list-item-title>
+              <v-list-item-subtitle class="text-wrap">{{ s.alasan }}</v-list-item-subtitle>
+            </v-list-item>
+          </v-list>
+        </div>
+
+        <div v-if="resultDialog.warnings.length">
+          <div class="text-subtitle-2 text-warning mb-1">
+            Perlu dicek manual ({{ resultDialog.warnings.length }})
+          </div>
+          <ul class="ps-4 text-body-2">
+            <li v-for="(w, i) in resultDialog.warnings" :key="i">{{ w }}</li>
+          </ul>
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn color="primary" variant="tonal" @click="resultDialog.show = false">Tutup</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>

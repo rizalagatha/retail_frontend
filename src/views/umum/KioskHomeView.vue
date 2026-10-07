@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import api from "@/services/api";
 import LogoKaosan from "@/assets/logo.png";
+import QrKaostudio from "@/assets/qr-kaostudio.jpeg";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/manrope";
@@ -280,7 +281,6 @@ onUnmounted(() => {
           style="--i: 1"
           @click="router.push('/kiosk/studio')"
         >
-          <span class="kh-studio-badge">Baru</span>
           <span class="kh-studio-art" aria-hidden="true">
             <svg class="kh-studio-shirt" viewBox="0 0 120 120">
               <defs>
@@ -311,9 +311,18 @@ onUnmounted(() => {
             </svg>
             <span class="kh-studio-sw"><i></i><i></i><i></i><i></i></span>
           </span>
-          <span class="kh-tile-text">
-            <span class="kh-tile-title">KaoStudio</span>
-            <span class="kh-tile-desc">Rancang desain kaosmu, harga langsung terhitung</span>
+          <img
+            :src="QrKaostudio"
+            class="kh-studio-qr"
+            alt="Kode QR menuju kaostudio.kaosanofficial.com"
+            draggable="false"
+          />
+          <span class="kh-studio-main">
+            <span class="kh-studio-badge">Baru</span>
+            <span class="kh-tile-text">
+              <span class="kh-tile-title">KaoStudio</span>
+              <span class="kh-tile-desc">Rancang desain kaosmu, harga langsung terhitung</span>
+            </span>
           </span>
         </button>
 
@@ -628,8 +637,42 @@ onUnmounted(() => {
 /* Kaos Studio */
 .kh-tile--studio {
   grid-area: studio;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: clamp(14px, 1.6vw, 26px);
+  padding: clamp(12px, 1.2vw, 18px) clamp(18px, 2vw, 32px) clamp(12px, 1.2vw, 18px)
+    clamp(12px, 1.2vw, 18px);
   color: #1f1a19;
   background: #faf6f4;
+}
+.kh-studio-qr {
+  flex: none;
+  height: 100%;
+  width: auto;
+  max-width: 42%;
+  aspect-ratio: 440 / 632;
+  object-fit: contain;
+  mix-blend-mode: multiply; /* putih kartu melebur ke warna tile */
+  pointer-events: none;
+  user-select: none;
+}
+.kh-studio-main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: clamp(6px, 0.8vw, 14px) 0;
+}
+.kh-tile--studio .kh-studio-art {
+  width: clamp(90px, 9vw, 160px);
+}
+.kh-tile--studio .kh-tile-desc {
+  max-width: 22ch;
 }
 .kh-tile--studio .kh-tile-text {
   position: relative;

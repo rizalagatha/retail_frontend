@@ -24,6 +24,7 @@ interface StokRow {
   gambar_url?: string | null;
   urutan?: number;
   galeri?: { url: string; index: number }[] | string | null;
+  box?: string[];
 }
 
 interface SizeStock {
@@ -31,6 +32,8 @@ interface SizeStock {
   harga: number;
   hargaPromo: number | null;
   stok: number;
+  terjual: number;
+  box: string[];
 }
 
 interface Product {
@@ -50,6 +53,7 @@ interface Product {
   urutan: number;
   galeri: { url: string; index: number }[];
   coverIndex: number;
+  boxes: string[];
 }
 
 type StokState = "ok" | "low" | "out";
@@ -162,6 +166,7 @@ const products = computed<Product[]>(() => {
         urutan: r.urutan || 9999,
         galeri,
         coverIndex,
+        boxes: [],
       };
       map.set(r.kode, p);
     }
@@ -169,13 +174,26 @@ const products = computed<Product[]>(() => {
     const stok = Math.max(0, Number(r.stok) || 0);
     const harga = Number(r.harga) || 0;
     const hp = Number(r.harga_promo) || 0;
-    p.sizes.push({ ukuran: r.ukuran, harga, hargaPromo: hp > 0 && hp < harga ? hp : null, stok });
+    const terjual = Number(r.total_terjual) || 0;
+    const box = r.box ?? [];
+    p.sizes.push({
+      ukuran: r.ukuran,
+      harga,
+      hargaPromo: hp > 0 && hp < harga ? hp : null,
+      stok,
+      terjual,
+      box,
+    });
     p.totalStok += stok;
-    p.terjual += Number(r.total_terjual) || 0;
+    p.terjual += terjual;
+    for (const b of box) {
+      if (!p.boxes.includes(b)) p.boxes.push(b);
+    }
   });
 
   map.forEach((p) => {
     p.sizes.sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
+    p.boxes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
     const prices = p.sizes.map((s) => s.harga).filter((h) => h > 0);
     p.hargaMin = prices.length ? Math.min(...prices) : 0;
     p.hargaMax = prices.length ? Math.max(...prices) : 0;
@@ -316,15 +334,31 @@ watch(searchInput, (v) => {
   }, 400);
 });
 
+const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
+// Semua teks yang boleh dicari, digabung jadi satu string per produk
+const searchText = (p: Product): string =>
+  normalize([p.nama, p.kode, p.kategori, p.lengan, ...p.boxes].join(" "));
+
+const searchTokens = computed(() => normalize(searchTerm.value).split(" ").filter(Boolean));
+
 const filtered = computed(() => {
   let data = [...stocked.value];
-  if (selectedKategori.value !== "ALL")
+  const tokens = searchTokens.value;
+
+  // Saat mencari, cari di semua jenis kain; filter jenis kain hanya berlaku tanpa kata kunci
+  if (!tokens.length && selectedKategori.value !== "ALL")
     data = data.filter((p) => p.kategori === selectedKategori.value);
+
   if (lengan.value !== "SEMUA") data = data.filter((p) => p.lengan.includes(lengan.value));
-  if (searchTerm.value) {
-    const q = searchTerm.value.toLowerCase();
-    data = data.filter((p) => p.nama.toLowerCase().includes(q) || p.kode.toLowerCase().includes(q));
+
+  if (tokens.length) {
+    data = data.filter((p) => {
+      const text = searchText(p);
+      return tokens.every((t) => text.includes(t));
+    });
   }
+
   return data.sort(
     (a, b) =>
       Number(!a.gambar) - Number(!b.gambar) ||
@@ -855,6 +889,16 @@ onUnmounted(() => {
                       <div class="k-card-stock" :class="`k-card-stock--${totalState(p.totalStok)}`">
                         <i></i>{{ p.totalStok > 0 ? `${p.totalStok} pcs siap` : "Habis" }}
                       </div>
+                      <div v-if="p.terjual > 0" class="k-card-sold">Terjual {{ p.terjual }}</div>
+                      <div v-if="p.boxes.length" class="k-box-wrap">
+                        <v-icon size="12">mdi-package-variant</v-icon>
+                        <span v-for="b in p.boxes.slice(0, 2)" :key="b" class="k-box-chip">{{
+                          b
+                        }}</span>
+                        <span v-if="p.boxes.length > 2" class="k-box-more"
+                          >+{{ p.boxes.length - 2 }}</span
+                        >
+                      </div>
                     </div>
                   </article>
                 </div>
@@ -952,6 +996,20 @@ onUnmounted(() => {
                   }}
                 </div>
 
+                <div class="k-detail-meta">
+                  <span class="k-sold-pill">
+                    <v-icon size="14">mdi-cart-check</v-icon>
+                    Terjual {{ selected.terjual }} pcs
+                  </span>
+                </div>
+                <div v-if="selected.boxes.length" class="k-detail-boxes">
+                  <div class="k-detail-label">Lokasi barang (dari keterangan SJ)</div>
+                  <div class="k-box-wrap k-box-wrap--lg">
+                    <v-icon size="14">mdi-package-variant</v-icon>
+                    <span v-for="b in selected.boxes" :key="b" class="k-box-chip">{{ b }}</span>
+                  </div>
+                </div>
+
                 <template v-if="sizeColumns.length">
                   <div class="k-detail-label">Stok dan harga per ukuran</div>
                   <div
@@ -977,6 +1035,11 @@ onUnmounted(() => {
                         </span>
                         <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
                           {{ sizeLabel(s.stok) }}
+                        </span>
+                        <span v-if="s.terjual > 0 || s.box.length" class="k-srow-sub">
+                          <template v-if="s.box.length">{{ s.box.join(", ") }}</template>
+                          <template v-if="s.box.length && s.terjual > 0"> · </template>
+                          <template v-if="s.terjual > 0">terjual {{ s.terjual }}</template>
                         </span>
                       </div>
                     </div>
@@ -1145,6 +1208,62 @@ onUnmounted(() => {
 .k-stok-pill--out {
   color: #8a8a8a;
   background: #f0f0f0;
+}
+
+.k-card-sold {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #8a7f7b;
+}
+.k-box-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  color: #7a5b00;
+}
+.k-box-wrap--lg {
+  gap: 6px;
+  margin: 6px 0 14px;
+}
+.k-box-chip {
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  background: #fff3cd;
+  color: #7a5b00;
+}
+.k-box-wrap--lg .k-box-chip {
+  font-size: 12px;
+  padding: 2px 9px;
+}
+.k-box-more {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #8a7f7b;
+}
+.k-detail-meta {
+  margin-bottom: 14px;
+}
+.k-sold-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #e8f0fe;
+}
+.k-srow-sub {
+  grid-column: 1 / -1;
+  margin-top: -2px;
+  font-size: 10.5px;
+  color: #8a7f7b;
 }
 
 /* ---------- Halaman kategori: panel kiri 30% + daftar kain 70% ---------- */

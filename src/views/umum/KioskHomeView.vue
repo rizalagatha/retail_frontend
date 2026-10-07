@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import api from "@/services/api";
 import LogoKaosan from "@/assets/logo.png";
-import QrKaostudio from "@/assets/qr-kaostudio.jpeg";
+import QrKaostudio from "@/assets/qr-kaostudio.png";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/manrope";
@@ -311,12 +311,13 @@ onUnmounted(() => {
             </svg>
             <span class="kh-studio-sw"><i></i><i></i><i></i><i></i></span>
           </span>
-          <img
-            :src="QrKaostudio"
-            class="kh-studio-qr"
-            alt="Kode QR menuju kaostudio.kaosanofficial.com"
-            draggable="false"
-          />
+          <span class="kh-studio-qr">
+            <img
+              :src="QrKaostudio"
+              alt="Kode QR menuju kaostudio.kaosanofficial.com"
+              draggable="false"
+            />
+          </span>
           <span class="kh-studio-main">
             <span class="kh-studio-badge">Baru</span>
             <span class="kh-tile-text">
@@ -648,13 +649,22 @@ onUnmounted(() => {
 }
 .kh-studio-qr {
   flex: none;
+  display: flex;
   height: 100%;
-  width: auto;
   max-width: 42%;
-  aspect-ratio: 440 / 632;
-  object-fit: contain;
-  mix-blend-mode: multiply; /* putih kartu melebur ke warna tile */
+  aspect-ratio: 378 / 603;
+  overflow: hidden;
+  border: 1.5px solid #7a1626;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(122, 22, 38, 0.1);
   pointer-events: none;
+}
+.kh-studio-qr img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   user-select: none;
 }
 .kh-studio-main {

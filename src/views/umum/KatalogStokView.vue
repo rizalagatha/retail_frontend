@@ -24,7 +24,6 @@ interface StokRow {
   gambar_url?: string | null;
   urutan?: number;
   galeri?: { url: string; index: number }[] | string | null;
-  box?: string[];
 }
 
 interface SizeStock {
@@ -33,7 +32,6 @@ interface SizeStock {
   hargaPromo: number | null;
   stok: number;
   terjual: number;
-  box: string[];
 }
 
 interface Product {
@@ -53,7 +51,6 @@ interface Product {
   urutan: number;
   galeri: { url: string; index: number }[];
   coverIndex: number;
-  boxes: string[];
 }
 
 type StokState = "ok" | "low" | "out";
@@ -90,6 +87,7 @@ const selectedKategori = computed(() =>
 const rows = ref<StokRow[]>([]);
 const isLoading = ref(true);
 const hasError = ref(false);
+let lastSignature = "";
 
 const loadStok = async (silent = false) => {
   if (!silent) {
@@ -97,10 +95,15 @@ const loadStok = async (silent = false) => {
     hasError.value = false;
   }
   try {
-    const { data } = await api.get("/so/public/cek-stok", {
+    const { data } = await api.get<StokRow[]>("/so/public/cek-stok", {
       params: { cabang: PAMERAN_KODE, q: "" },
     });
-    rows.value = data;
+    // Data sama persis: jangan sentuh state, supaya tidak ada render ulang
+    const signature = JSON.stringify(data);
+    if (signature !== lastSignature) {
+      lastSignature = signature;
+      rows.value = data;
+    }
   } catch {
     if (!silent) hasError.value = true;
   } finally {
@@ -166,7 +169,6 @@ const products = computed<Product[]>(() => {
         urutan: r.urutan || 9999,
         galeri,
         coverIndex,
-        boxes: [],
       };
       map.set(r.kode, p);
     }
@@ -175,25 +177,19 @@ const products = computed<Product[]>(() => {
     const harga = Number(r.harga) || 0;
     const hp = Number(r.harga_promo) || 0;
     const terjual = Number(r.total_terjual) || 0;
-    const box = r.box ?? [];
     p.sizes.push({
       ukuran: r.ukuran,
       harga,
       hargaPromo: hp > 0 && hp < harga ? hp : null,
       stok,
       terjual,
-      box,
     });
     p.totalStok += stok;
     p.terjual += terjual;
-    for (const b of box) {
-      if (!p.boxes.includes(b)) p.boxes.push(b);
-    }
   });
 
   map.forEach((p) => {
     p.sizes.sort((a, b) => sizeRank(a.ukuran) - sizeRank(b.ukuran));
-    p.boxes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
     const prices = p.sizes.map((s) => s.harga).filter((h) => h > 0);
     p.hargaMin = prices.length ? Math.min(...prices) : 0;
     p.hargaMax = prices.length ? Math.max(...prices) : 0;
@@ -338,7 +334,7 @@ const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 
 // Semua teks yang boleh dicari, digabung jadi satu string per produk
 const searchText = (p: Product): string =>
-  normalize([p.nama, p.kode, p.kategori, p.lengan, ...p.boxes].join(" "));
+  normalize([p.nama, p.kode, p.kategori, p.lengan].join(" "));
 
 const searchTokens = computed(() => normalize(searchTerm.value).split(" ").filter(Boolean));
 
@@ -361,10 +357,7 @@ const filtered = computed(() => {
 
   return data.sort(
     (a, b) =>
-      Number(!a.gambar) - Number(!b.gambar) ||
-      a.urutan - b.urutan ||
-      b.terjual - a.terjual ||
-      a.nama.localeCompare(b.nama)
+      Number(!a.gambar) - Number(!b.gambar) || a.urutan - b.urutan || a.nama.localeCompare(b.nama)
   );
 });
 
@@ -393,7 +386,8 @@ const setSentinel = (el: unknown) => {
   observer.observe(el as Element);
 };
 
-watch(filtered, () => {
+// Reset hanya saat filter berubah, bukan saat data polling masuk
+watch([selectedKategori, lengan, searchTerm], () => {
   displayCount.value = 20;
 });
 
@@ -485,13 +479,6 @@ const sizeColumns = computed<SizeStock[][]>(() => {
     cols.push(list.slice(i, i + perColumn.value));
   }
   return cols;
-});
-
-// true bila ukuran-ukuran produk ini tersebar di box yang berbeda
-const boxPerUkuran = computed(() => {
-  const s = selected.value;
-  if (!s) return false;
-  return new Set(s.sizes.map((z) => z.box.join("|"))).size > 1;
 });
 
 // --- Lightbox ---
@@ -999,10 +986,6 @@ onUnmounted(() => {
                     <dt>Terjual</dt>
                     <dd>{{ selected.terjual }} pcs</dd>
                   </div>
-                  <div v-if="selected.boxes.length" class="k-fact">
-                    <dt>Lokasi</dt>
-                    <dd>{{ selected.boxes.join(" · ") }}</dd>
-                  </div>
                 </dl>
 
                 <template v-if="sizeColumns.length">
@@ -1031,18 +1014,7 @@ onUnmounted(() => {
                         <span class="k-stok-pill" :class="`k-stok-pill--${sizeState(s.stok)}`">
                           {{ sizeLabel(s.stok) }}
                         </span>
-                        <span
-                          v-if="s.terjual > 0 || (boxPerUkuran && s.box.length)"
-                          class="k-srow-sub"
-                        >
-                          <template v-if="boxPerUkuran && s.box.length">{{
-                            s.box.join(" · ")
-                          }}</template>
-                          <template v-if="boxPerUkuran && s.box.length && s.terjual > 0">
-                            ·
-                          </template>
-                          <template v-if="s.terjual > 0">terjual {{ s.terjual }}</template>
-                        </span>
+                        <span v-if="s.terjual > 0" class="k-srow-sub">terjual {{ s.terjual }}</span>
                       </div>
                     </div>
                   </div>

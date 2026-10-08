@@ -61,7 +61,6 @@ const { mdAndUp } = useDisplay();
 
 const ROUTE_NAME = "Katalog Stok";
 const POLL_MS = 20_000;
-const HANYA_ADA_STOK = true; // false = barang habis tetap tampil dengan label "Habis"
 const STOK_MENIPIS_TOTAL = 5; // total semua ukuran <= ini: "Sisa sedikit"
 const STOK_MENIPIS_UKURAN = 3; // stok satu ukuran <= ini: oranye
 
@@ -208,9 +207,8 @@ const products = computed<Product[]>(() => {
   return [...map.values()];
 });
 
-const stocked = computed(() =>
-  HANYA_ADA_STOK ? products.value.filter((p) => p.totalStok > 0) : products.value
-);
+// Hanya yang masih ada stok: dipakai untuk angka di panel hero
+const stocked = computed(() => products.value.filter((p) => p.totalStok > 0));
 
 const totalPcs = computed(() => stocked.value.reduce((sum, p) => sum + p.totalStok, 0));
 
@@ -233,7 +231,7 @@ const mainPhoto = (p: Product) => p.galeri[0]?.url ?? p.gambar;
 
 let coversReady = false;
 watch(
-  stocked,
+  products,
   (list) => {
     if (coversReady || !list.length) return;
     coversReady = true;
@@ -282,7 +280,7 @@ const panelColumns = computed(() => {
 
 const kategoriList = computed(() => {
   const count: Record<string, number> = {};
-  stocked.value.forEach((p) => {
+  products.value.forEach((p) => {
     count[p.kategori] = (count[p.kategori] || 0) + 1;
   });
   return Object.keys(count)
@@ -339,7 +337,7 @@ const searchText = (p: Product): string =>
 const searchTokens = computed(() => normalize(searchTerm.value).split(" ").filter(Boolean));
 
 const filtered = computed(() => {
-  let data = [...stocked.value];
+  let data = [...products.value];
   const tokens = searchTokens.value;
 
   // Saat mencari, cari di semua jenis kain; filter jenis kain hanya berlaku tanpa kata kunci
@@ -355,11 +353,17 @@ const filtered = computed(() => {
     });
   }
 
+  // Yang ada stok di depan, yang habis di belakang
   return data.sort(
     (a, b) =>
-      Number(!a.gambar) - Number(!b.gambar) || a.urutan - b.urutan || a.nama.localeCompare(b.nama)
+      Number(a.totalStok <= 0) - Number(b.totalStok <= 0) ||
+      Number(!a.gambar) - Number(!b.gambar) ||
+      a.urutan - b.urutan ||
+      a.nama.localeCompare(b.nama)
   );
 });
+
+const jumlahHabis = computed(() => filtered.value.filter((p) => p.totalStok <= 0).length);
 
 // --- Load more ---
 const displayCount = ref(20);
@@ -642,7 +646,7 @@ onUnmounted(() => {
             </div>
 
             <EmptyShelf
-              v-else-if="!stocked.length"
+              v-else-if="!products.length"
               key="empty"
               eyebrow="Belum ada barang"
               title="Rak pameran masih kosong"
@@ -665,7 +669,7 @@ onUnmounted(() => {
                 </div>
                 <div class="k-cat-body">
                   <div class="k-cat-name">SEMUA</div>
-                  <div class="k-cat-count">{{ stocked.length }} model</div>
+                  <div class="k-cat-count">{{ products.length }} model</div>
                 </div>
               </button>
 
@@ -766,7 +770,7 @@ onUnmounted(() => {
                 :class="{ 'k-side-item--active': selectedKategori === 'ALL' }"
                 @click="pilihKategori('ALL')"
               >
-                <span>Semua</span><small>{{ stocked.length }}</small>
+                <span>Semua</span><small>{{ products.length }}</small>
               </button>
               <button
                 v-for="kat in kategoriList"
@@ -830,12 +834,16 @@ onUnmounted(() => {
               </EmptyShelf>
 
               <div v-else :key="`grid-${selectedKategori}-${lengan}`">
-                <div class="k-count">{{ filtered.length }} model</div>
+                <div class="k-count">
+                  {{ filtered.length }} model<template v-if="jumlahHabis"
+                    >, {{ jumlahHabis }} stok habis</template
+                  >
+                </div>
                 <div class="k-grid">
                   <article
                     v-for="(p, i) in visible"
                     :key="p.kode"
-                    :class="['k-card', { 'k-enter': firstGrid }]"
+                    :class="['k-card', { 'k-enter': firstGrid, 'k-card--out': p.totalStok <= 0 }]"
                     :style="{ '--i': i % 12 }"
                     tabindex="0"
                     @click="openDetail(p)"
@@ -855,18 +863,13 @@ onUnmounted(() => {
                       />
                       <ProductPlaceholder v-else class="k-ph" />
 
-                      <span v-if="totalState(p.totalStok) === 'out'" class="k-badge k-badge-out">
-                        Habis
-                      </span>
-                      <span
-                        v-else-if="totalState(p.totalStok) === 'low'"
-                        class="k-badge k-badge-low"
-                      >
+                      <span v-if="totalState(p.totalStok) === 'low'" class="k-badge k-badge-low">
                         Sisa sedikit
                       </span>
-                      <span v-if="p.promoPersen > 0" class="k-promo-badge">
+                      <span v-if="p.promoPersen > 0 && p.totalStok > 0" class="k-promo-badge">
                         -{{ p.promoPersen }}%
                       </span>
+                      <span v-if="p.totalStok <= 0" class="k-soldout">Stok habis</span>
                     </div>
                     <div class="k-card-body">
                       <h3 class="k-card-name" :title="p.nama">{{ p.nama }}</h3>
@@ -880,8 +883,12 @@ onUnmounted(() => {
                       <div v-else class="k-card-price k-card-price--na">
                         Tanya petugas untuk harga
                       </div>
-                      <div class="k-card-stock" :class="`k-card-stock--${totalState(p.totalStok)}`">
-                        <i></i>{{ p.totalStok > 0 ? `${p.totalStok} pcs siap` : "Habis" }}
+                      <div
+                        v-if="p.totalStok > 0"
+                        class="k-card-stock"
+                        :class="`k-card-stock--${totalState(p.totalStok)}`"
+                      >
+                        <i></i>{{ `${p.totalStok} pcs siap` }}
                       </div>
                       <div v-if="p.terjual > 0" class="k-card-sold">Terjual {{ p.terjual }}</div>
                     </div>
@@ -927,7 +934,7 @@ onUnmounted(() => {
             </div>
 
             <div class="k-drawer-body">
-              <div class="k-detail-media">
+              <div :class="['k-detail-media', { 'k-detail-media--out': selected.totalStok <= 0 }]">
                 <v-carousel
                   v-if="detailImages.length"
                   v-model="detailIndex"
@@ -956,6 +963,8 @@ onUnmounted(() => {
                 <div v-else class="k-carousel">
                   <ProductPlaceholder />
                 </div>
+
+                <span v-if="selected.totalStok <= 0" class="k-soldout">Stok habis</span>
 
                 <div v-if="detailImages.length" class="k-zoom-hint" aria-hidden="true">
                   <v-icon size="16">mdi-magnify-plus-outline</v-icon>
@@ -1095,8 +1104,49 @@ onUnmounted(() => {
 .k-badge-low {
   background: #ef6c00;
 }
-.k-badge-out {
-  background: #616161;
+
+/* ---------- Stok habis: foto dipudarkan, satu label di tengah ---------- */
+.k-card--out .k-img,
+.k-card--out .k-ph,
+.k-detail-media--out .k-carousel {
+  filter: grayscale(1) contrast(0.92);
+}
+.k-card--out .k-card-img::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(250, 246, 244, 0.5);
+  pointer-events: none;
+}
+.k-card--out .k-card-name,
+.k-card--out .k-card-price,
+.k-card--out .k-price-old {
+  color: #6f6663;
+}
+.k-soldout {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f1a19;
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(60, 20, 15, 0.16);
+  pointer-events: none;
+}
+.k-detail-media--out {
+  position: relative;
+}
+.k-detail-media--out .k-soldout {
+  z-index: 3;
 }
 
 .k-card-stock,

@@ -984,19 +984,21 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     dpItems.value = dpItemsData;
     existingDpNomor.value = dpItemsData.length > 0 ? dpItemsData[0].nomor : "";
 
-    // [BARU] EKSTRAK DISKON MURNI DARI DATABASE SAAT EDIT
-    const tempTotalDisc = items.value.reduce(
-      (sum, item) => (isDiscountableItem(item) ? sum + item.total : sum),
-      0
-    );
+    // [EKSTRAK DISKON MURNI DARI DATABASE SAAT EDIT]
+    // Basis harus SAMA dengan calculateTotals(): totalSoBruto (semua item, termasuk jasa).
+    const brutoDb = items.value.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
     const p2Db = Number(footerData.diskonPersen2) || 0;
+    const p1Db = Number(footerData.diskonPersen1) || 0;
     const dbCombined = Number(footerData.diskonRp) || 0;
 
-    if (p2Db > 0 && p2Db < 100 && dbCombined > 0) {
-      // Reverse rumus untuk misahin Maps dari database
+    if (p1Db > 0) {
+      // Diskon dasar dihitung dari P1% × bruto, jangan simpan manual base
+      baseManualDiscountRp.value = 0;
+    } else if (p2Db > 0 && p2Db < 100 && dbCombined > 0) {
+      // combined = base + p2 × (bruto − base)  =>  base = (combined − p2 × bruto) / (1 − p2)
       baseManualDiscountRp.value = Math.max(
         0,
-        Math.round((dbCombined - (p2Db / 100) * tempTotalDisc) / (1 - p2Db / 100))
+        Math.round((dbCombined - (p2Db / 100) * brutoDb) / (1 - p2Db / 100))
       );
     } else {
       baseManualDiscountRp.value = dbCombined;

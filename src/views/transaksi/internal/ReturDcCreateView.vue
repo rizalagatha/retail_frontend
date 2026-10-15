@@ -70,6 +70,22 @@ interface BackendReturItem {
   // Tambahkan field lain jika ada dari backend
 }
 
+interface UnitForRetur {
+  unitSerial: string;
+  kode: string;
+  ukuran: string;
+  nama: string;
+  barcode: string;
+}
+
+interface ProductByBarcode {
+  kode: string;
+  barcode: string;
+  nama: string;
+  ukuran: string;
+  stok: number | string;
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
@@ -211,86 +227,120 @@ const handleBarcodeScan = async () => {
   const barcode = scannedBarcode.value;
   if (!barcode) return;
 
-  // BARU: coba dulu sebagai unit_serial (QR baru per-pcs)
   try {
-    const res = await api.get(`/retur-dc-form/lookup/unit-for-retur/${barcode}`, {
-      params: { gudang: authStore.user?.cabang },
-    });
-    const unit = res.data;
-    const existingUnitRow = items.value.find((item) => item.unitSerial === unit.unitSerial);
-    if (existingUnitRow) {
-      toast.info("Unit ini sudah ada di daftar.");
-      scannedBarcode.value = "";
-      return;
-    }
-    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
-    const newItem: Item = {
-      id: Date.now(),
-      kode: unit.kode,
-      nama: unit.nama,
-      ukuran: unit.ukuran,
-      stok: 0,
-      jumlah: 1,
-      harga: 0,
-      hargaDtf: 0,
-      jenis: "",
-      ket: "",
-      diskon: 0,
-      hargabaru: 0,
-      kodebaru: "",
-      barcode: unit.barcode,
-      unitSerial: unit.unitSerial,
-    };
-    if (emptyRowIndex !== -1) {
-      items.value.splice(emptyRowIndex, 1, newItem);
-    } else {
-      items.value.push(newItem);
-    }
-    addNewRow();
-    scannedBarcode.value = "";
-    return;
-  } catch (unitError) {
-    if (axios.isAxiosError(unitError) && unitError.response?.status !== 404) {
-      toast.error(unitError.response?.data?.message || "Gagal memproses QR.");
-      scannedBarcode.value = "";
-      return;
-    }
-    // 404 → bukan unit_serial baru, lanjut ke jalur lama di bawah
-  }
-
-  // Fallback: barcode SKU-level lama (SAMA seperti sebelumnya)
-  const existingItem = items.value.find((item) => item.barcode === barcode && item.kode);
-  if (existingItem) {
-    existingItem.jumlah = (existingItem.jumlah || 0) + 1;
-    toast.info(`Jumlah untuk ${existingItem.nama} ditambah.`);
-    scannedBarcode.value = "";
-    return;
-  }
-  try {
-    const response = await api.get(`/retur-dc-form/lookup/by-barcode/${barcode}`, {
-      params: { gudang: authStore.user?.cabang },
-    });
-    const product = response.data;
-    const emptyRowIndex = items.value.findIndex((item) => !item.kode);
-    if (emptyRowIndex !== -1) {
-      items.value.splice(emptyRowIndex, 1, { ...product, id: Date.now(), jumlah: 1 });
-      addNewRow();
-    }
-  } catch (error: unknown) {
-    let errorMessage = `Barcode ${barcode} tidak valid atau terjadi kesalahan.`;
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError<{ message?: string }>;
-      if (axiosError.response?.data?.message) {
-        errorMessage = axiosError.response.data.message;
-      } else if (axiosError.message) {
-        errorMessage = axiosError.message;
+    // 1) QR per-pcs (unit_serial)
+    const unit = await fetchUnitBySerial(barcode);
+    if (unit) {
+      if (items.value.some((i) => i.unitSerial === unit.unitSerial)) {
+        toast.info("Unit ini sudah ada di daftar.");
+        playSound("error");
+        return;
       }
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
+      moveToTop(
+        buildItem({
+          kode: unit.kode,
+          nama: unit.nama,
+          ukuran: unit.ukuran,
+          barcode: unit.barcode,
+          unitSerial: unit.unitSerial,
+        })
+      );
+      addNewRow();
+      playSound("success");
+      return;
     }
-    toast.error(errorMessage);
+
+    // 2) Barcode SKU yang sudah ada di grid: tambah qty, pindah ke atas
+    const existing = items.value.find((i) => i.kode && i.barcode === barcode);
+    if (existing) {
+      existing.jumlah = (existing.jumlah || 0) + 1;
+      moveToTop(existing);
+      toast.info(`Jumlah untuk ${existing.nama} ditambah.`);
+      playSound("success");
+      return;
+    }
+
+    // 3) Barcode SKU baru
+    const { data: product } = await api.get<ProductByBarcode>(
+      `/retur-dc-form/lookup/by-barcode/${encodeURIComponent(barcode)}`,
+      { params: { gudang: authStore.user?.cabang } }
+    );
+    moveToTop(
+      buildItem({
+        kode: product.kode,
+        nama: product.nama,
+        ukuran: product.ukuran,
+        barcode: product.barcode,
+        stok: Number(product.stok || 0),
+      })
+    );
+    addNewRow();
+    playSound("success");
+  } catch (error: unknown) {
+    toast.error(getErrorMessage(error, `Barcode ${barcode} tidak valid atau terjadi kesalahan.`));
+    playSound("error");
   } finally {
     scannedBarcode.value = "";
+  }
+};
+
+// --- SUARA SCAN ---
+const BASE_URL = import.meta.env.BASE_URL;
+const sfxSuccess = new Audio(`${BASE_URL}audio/beep_success.mp3`);
+const sfxError = new Audio(`${BASE_URL}audio/beep_error.mp3`);
+
+const playSound = (type: "success" | "error") => {
+  const sfx = type === "success" ? sfxSuccess : sfxError;
+  sfx.currentTime = 0;
+  void sfx.play().catch(() => {
+    // autoplay diblokir browser / file tidak termuat: abaikan, jangan ganggu alur scan
+  });
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message || error.message || fallback;
+  }
+  if (error instanceof Error) return error.message || fallback;
+  return fallback;
+};
+
+const buildItem = (
+  p: Pick<Item, "kode" | "nama" | "ukuran" | "barcode"> & Partial<Item>
+): Item => ({
+  id: Date.now() + Math.random(),
+  stok: 0,
+  jumlah: 1,
+  harga: 0,
+  hargaDtf: 0,
+  jenis: "",
+  ket: "",
+  diskon: 0,
+  hargabaru: 0,
+  kodebaru: "",
+  ...p,
+});
+
+// Pindahkan item ke baris paling atas (item baru: langsung disisipkan di atas).
+// Baris kosong tetap di bawah karena addNewRow() hanya menambah kalau baris terakhir sudah terisi.
+const moveToTop = (item: Item) => {
+  const idx = items.value.findIndex((i) => i.id === item.id);
+  if (idx === 0) return;
+  if (idx > 0) items.value.splice(idx, 1);
+  items.value.unshift(item);
+};
+
+// null = 404 (bukan unit_serial), error lain dilempar ke pemanggil
+const fetchUnitBySerial = async (serial: string): Promise<UnitForRetur | null> => {
+  try {
+    const res = await api.get<UnitForRetur>(
+      `/retur-dc-form/lookup/unit-for-retur/${encodeURIComponent(serial)}`,
+      { params: { gudang: authStore.user?.cabang } }
+    );
+    return res.data;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    throw error;
   }
 };
 
@@ -392,17 +442,19 @@ const save = () => {
   if (validItems.some((i) => (i.jumlah || 0) <= 0)) {
     return toast.error("Jumlah retur harus diisi dan lebih dari 0.");
   }
-  if (
-    validItems.some(
-      (i) =>
-        !i.unitSerial && (!i.unitSerials || i.unitSerials.length === 0) && (i.jumlah || 0) > i.stok
-    )
-  ) {
-    return toast.error("Ada jumlah retur yang melebihi stok yang tersedia.");
-  }
   // --- AKHIR VALIDASI ---
 
-  showConfirmation("Konfirmasi Simpan", "Anda yakin ingin menyimpan data ini?", executeSave);
+  // Stok tidak lagi memblokir simpan, hanya peringatan di dialog konfirmasi
+  const melebihiStok = validItems.filter(
+    (i) =>
+      !i.unitSerial && (!i.unitSerials || i.unitSerials.length === 0) && (i.jumlah || 0) > i.stok
+  );
+  const teksKonfirmasi =
+    melebihiStok.length > 0
+      ? `${melebihiStok.length} item jumlahnya melebihi stok yang tercatat. Tetap simpan?`
+      : "Anda yakin ingin menyimpan data ini?";
+
+  showConfirmation("Konfirmasi Simpan", teksKonfirmasi, executeSave);
 };
 
 const executeSave = async () => {
@@ -678,7 +730,6 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 class="text-center"
-                :rules="[(v) => v <= item.stok || 'Max stok']"
                 min="0"
               />
             </template>

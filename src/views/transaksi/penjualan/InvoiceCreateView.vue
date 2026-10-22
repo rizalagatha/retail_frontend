@@ -15,6 +15,7 @@ import LogoRezso from "@/assets/rezso.jpg";
 import LogoKiddify from "@/assets/kiddify.png";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { useAutoPromo } from "@/composables/useAutoPromo";
+import { hitungBagianDiskonInvoice } from "@/utils/diskonParsial";
 import {
   PROMO_GRAND_OPENING_K12,
   isEligibleFreeGiftItem,
@@ -73,6 +74,9 @@ interface Item {
   isFreeGift?: boolean;
   isHargaKhusus?: boolean;
   unitSerial?: string;
+  sodIdrec?: string;
+  qtySiap?: number;
+  alasanTidakSiap?: string;
 }
 interface LinkedDp {
   nomor: string;
@@ -190,6 +194,9 @@ interface SoItem {
   originalDiskonPersen?: number;
   lastPin?: string;
   isCustomOrder?: boolean;
+  sodIdrec?: string;
+  qtySiap?: number;
+  alasanTidakSiap?: string;
 }
 
 interface SjApiItem {
@@ -395,6 +402,11 @@ const initialHeaderState = {
   overdueNote: "",
 
   diskonMapsRp: 0,
+  diskonSoBaseRp: 0,
+  diskonSoMapsRp: 0,
+  brutoNetSo: 0,
+  diskonTerpakaiRp: 0,
+  adaInvoiceAktif: false,
   proNomorFreeItem: "" as string,
 };
 
@@ -406,6 +418,7 @@ const isLeftColumnVisible = ref(true);
 const header = reactive({ ...initialHeaderState });
 const items = ref<Item[]>([]);
 const linkedDps = ref<LinkedDp[]>([]);
+const totalSisaQtySo = ref(0); // total sisa qty SO saat dimuat (untuk deteksi invoice terakhir)
 const totals = reactive({
   subTotal: 0,
   totalDiskonItem: 0,
@@ -420,6 +433,19 @@ const totals = reactive({
   diskonNominal2: 0,
   diskonNominalRp: 0,
 });
+
+const isInvoiceParsial = computed(() => {
+  if (!header.nomorSo || isKpr.value || header.brutoNetSo <= 0) return false;
+  const qtyDiambil = items.value.reduce(
+    (sum, item) => (item.sodIdrec ? sum + (Number(item.jumlah) || 0) : sum),
+    0
+  );
+  return qtyDiambil < totalSisaQtySo.value || header.adaInvoiceAktif;
+});
+
+const isDiskonDariSo = computed(
+  () => !!header.nomorSo && !isKpr.value && header.gudang.kode !== "KDC" && !header.isMarketplace
+);
 
 const dialogs = reactive({
   customerSearch: false,
@@ -487,6 +513,13 @@ const scannedBarcode = ref("");
 const customerDiscountRule = ref<DiscountRule | null>(null);
 const activePromoForBonus = ref({ nomor: "", qty: 0 });
 const focusedRowId = ref<number | string>(-1);
+// Baris yang harganya MULAI dari 0 (wajib diisi manual) tetap boleh diedit setelah terisi
+const hargaDiisiManual = ref<Set<number>>(new Set());
+
+const onHargaFocus = (item: Item) => {
+  focusedRowId.value = item.id;
+  if (Number(item.harga || 0) === 0) hargaDiisiManual.value.add(item.id);
+};
 const isLockedFsk = ref(false);
 const isLookupOnly = ref(false);
 const customerDebt = ref(0);
@@ -561,6 +594,7 @@ const tableHeaders = [
   { title: "Stok Fisik", key: "stok", align: "end", width: "80px" },
   { title: "Stok Pesan", key: "stokPesanan", align: "end", width: "80px" },
   { title: "Qty SO", key: "qtyso", align: "end", width: "60px" },
+  { title: "Siap", key: "qtySiap", align: "end", width: "60px" },
   { title: "Jumlah", key: "jumlah", align: "end", width: "70px" },
   { title: "Harga", key: "harga", align: "end", width: "80px" },
   { title: "Disc %", key: "diskonPersen", align: "end", width: "70px" },
@@ -1278,6 +1312,11 @@ const onSoSelected = async (so: { Nomor: string }) => {
       overdueNote: soHeader.overdueNote || "",
       diskonRp: Number(soHeader.diskonBaseRp ?? soHeader.diskonRp ?? 0), // base saja
       diskonMapsRp: Number(soHeader.diskonMapsRp || 0),
+      diskonSoBaseRp: Number(soHeader.diskonBaseRp || 0),
+      diskonSoMapsRp: Number(soHeader.diskonMapsRp || 0),
+      brutoNetSo: Number(soHeader.brutoNetSo || 0),
+      diskonTerpakaiRp: Number(soHeader.diskonTerpakaiRp || 0),
+      adaInvoiceAktif: soHeader.adaInvoiceAktif === true,
       diskonPersen1: Number(soHeader.so_disc1 || soHeader.diskonPersen1 || 0),
       diskonPersen2: Number(soHeader.so_disc2 || soHeader.diskonPersen2 || 0),
 
@@ -1344,19 +1383,26 @@ const onSoSelected = async (so: { Nomor: string }) => {
     memberHpToSearch.value = soHeader.customer.telp || "";
     header.memberHp = soHeader.customer.telp || "";
 
-    // Map items dengan memastikan semua field yang diperlukan ada
-    items.value = soItems.map((item: SoItem, index: number) => {
+    const soItemsAktif = (soItems as SoItem[]).filter((item) => Number(item.qtyso ?? 0) > 0);
+    totalSisaQtySo.value = soItemsAktif.reduce((sum, item) => sum + Number(item.qtyso ?? 0), 0);
+
+    items.value = soItemsAktif.map((item: SoItem, index: number) => {
       const ukuranFinal = resolveUkuran(item);
+      // Cabang SO: qty default = qty yang siap ditagih. KPR (SJ) tidak punya qtySiap.
+      const qtyDefault = Number(item.qtySiap ?? item.qtyso ?? 0);
 
       return {
         id: Date.now() + index,
         kode: item.kode ?? "",
         nama: item.nama ?? "",
-        ukuran: ukuranFinal, // 🔥 FIX UTAMA
-        stok: Number(item.stokFisik || 0), // Masuk ke kolom Stok Fisik
-        stokPesanan: Number(item.stokPesanan || 0), // Masuk ke kolom Stok Pesan
+        ukuran: ukuranFinal,
+        stok: Number(item.stokFisik || 0),
+        stokPesanan: Number(item.stokPesanan || 0),
         qtyso: item.qtyso ?? 0,
-        jumlah: item.qtyso ?? 0,
+        jumlah: qtyDefault,
+        sodIdrec: item.sodIdrec ?? "",
+        qtySiap: item.qtySiap,
+        alasanTidakSiap: item.alasanTidakSiap ?? "",
         harga: item.harga ?? 0,
         diskonPersen: item.diskonPersen ?? 0,
         diskonRp: item.diskonRp ?? 0,
@@ -1371,13 +1417,14 @@ const onSoSelected = async (so: { Nomor: string }) => {
         promo: item.promo ?? "",
         originalDiskonRp: item.originalDiskonRp ?? 0,
         originalDiskonPersen: item.originalDiskonPersen ?? 0,
-        subtotal: (item.qtyso ?? 0) * (item.harga ?? 0),
+        subtotal: qtyDefault * (item.harga ?? 0),
         lastPin: item.lastPin ?? "",
         fromBackend: true,
       };
     });
 
     items.value = sortItemsBySize(items.value);
+    calculateTotals();
 
     linkedDps.value = dps;
     isSoLoaded.value = true;
@@ -1689,21 +1736,30 @@ const calculateTotals = () => {
   // Base calculation untuk tahap selanjutnya (Netto Item)
   const afterItemDiscount = netItemTotal;
 
-  // ---------------------------------------------------------------------
-  // FIX: JIKA INVOICE BERASAL DARI SO → DISKON FAKTUR TIDAK BOLEH DIHITUNG ULANG
-  // ---------------------------------------------------------------------
   if (header.nomorSo) {
     totals.subTotal = netItemTotal;
     totals.totalDiskonItem = totalDiskonItem;
 
-    // [FIX] Backend (getSoDetailsForGrid) sudah memisahkan diskonBaseRp dan
-    // diskonMapsRp secara presisi (diskonBaseRp + diskonMapsRp = so_disc
-    // persis). Pakai keduanya apa adanya — JANGAN nolkan mapsRp berdasar
-    // flag isMapsAlreadyInDiskonRp, itu peninggalan proteksi lama sebelum
-    // backend melakukan split sendiri, dan sekarang malah membuang
-    // komponen Maps sepenuhnya kalau SO memang pakai promo Maps.
-    const baseRpSO = Number(header.diskonRp || 0);
-    const mapsRpSO = Number(header.diskonMapsRp || 0);
+    let baseRpSO = Number(header.diskonRp || 0);
+    let mapsRpSO = Number(header.diskonMapsRp || 0);
+
+    // Invoice SO (bukan KPR): diskon SO dibagi proporsional ke barang yang diambil
+    if (header.brutoNetSo > 0 && !isKpr.value) {
+      const qtyDiambil = items.value.reduce(
+        (sum, item) => (item.sodIdrec ? sum + (Number(item.jumlah) || 0) : sum),
+        0
+      );
+      const bagian = hitungBagianDiskonInvoice({
+        diskonSo: header.diskonSoBaseRp + header.diskonSoMapsRp,
+        diskonMapsSo: header.diskonSoMapsRp,
+        brutoNetSo: header.brutoNetSo,
+        netDiambil: netItemTotal,
+        diskonTerpakai: header.diskonTerpakaiRp,
+        isTerakhir: qtyDiambil >= totalSisaQtySo.value,
+      });
+      baseRpSO = bagian.base;
+      mapsRpSO = bagian.maps;
+    }
 
     totals.diskonNominal1 = header.diskonPersen1 > 0 ? baseRpSO : 0;
     totals.diskonNominalRp = header.diskonPersen1 > 0 ? 0 : baseRpSO;
@@ -1713,11 +1769,13 @@ const calculateTotals = () => {
     const afterAllDiscount = afterItemDiscount - totals.totalDiskonFaktur;
 
     const totalPpn = afterAllDiscount * (header.ppnPersen / 100);
-    const totalDp = (linkedDps.value || []).reduce((sum, dp) => sum + (dp.nominal || 0), 0);
-
     totals.totalPpn = totalPpn;
     totals.grandTotal =
       afterAllDiscount + totalPpn + (header.biayaKirim || 0) - (header.mpBiayaPlatform || 0);
+
+    // DP tidak boleh terpakai melebihi tagihan invoice ini; sisanya tetap open di SO
+    const totalDpTersedia = (linkedDps.value || []).reduce((sum, dp) => sum + (dp.nominal || 0), 0);
+    const totalDp = Math.min(totalDpTersedia, Math.max(0, totals.grandTotal));
     totals.totalDp = totalDp;
     totals.sisaPiutang = Math.max(0, totals.grandTotal - totalDp);
 
@@ -2867,7 +2925,32 @@ const handleBarcodeScan = async () => {
 //   }
 // };
 
+// Batas qty untuk baris yang berasal dari SO (qty siap tagih)
+const getBatasQtySo = (item: Item): number => {
+  if (!header.nomorSo || isKpr.value || !item.sodIdrec) return Number.POSITIVE_INFINITY;
+  return Number(item.qtySiap ?? 0);
+};
+
+const clampQtySo = (item: Item): void => {
+  const batas = getBatasQtySo(item);
+  const qty = Math.max(0, Math.floor(Number(item.jumlah) || 0));
+  if (qty > batas) {
+    const alasan = item.alasanTidakSiap ? ` (${item.alasanTidakSiap})` : "";
+    toast.warning(`Qty ${item.nama} ${item.ukuran || ""} dibatasi ${batas}${alasan}.`);
+    item.jumlah = batas;
+  } else {
+    item.jumlah = qty;
+  }
+};
+
 const handleJumlahChange = async (item: Item) => {
+  // Baris dari SO: harga & diskon ikut SO, jangan tarik promo item lagi
+  if (header.nomorSo && item.sodIdrec) {
+    clampQtySo(item);
+    calculateTotals();
+    return;
+  }
+
   if (item.terhitungPromo) return;
 
   if (authStore.user?.cabang === "KDC") return;
@@ -2908,6 +2991,7 @@ const resetForm = async () => {
   isPromoMinimized.value = false;
   // Reset state ke awal
   Object.assign(header, initialHeaderState);
+  totalSisaQtySo.value = 0;
 
   // [BARU] GENERATE IDREC DI SINI (Idempotency Key)
   // ID ini dibuat saat form kosong. Jika user klik simpan berkali-kali karena lag,
@@ -2980,17 +3064,20 @@ const isHargaEditable = (item: Item) => {
 
   const cabang = authStore.user?.cabang || "";
 
-  // 1. Cabang KDC: Bebas edit harga apapun
-  if (cabang === "KDC") {
-    return true; // <--- UBAH DARI false MENJADI true
-  }
+  // 1. Cabang KDC: bebas edit harga apapun
+  if (cabang === "KDC") return true;
 
-  // 2. Cabang KON & K05: Tetap mengikuti aturan Marketplace
+  // 2. Harga sudah terisi (bukan 0) tidak boleh diubah,
+  //    kecuali baris ini memang dimulai dari 0 (diisi manual)
+  const hargaTerkunci = Number(item.harga || 0) !== 0 && !hargaDiisiManual.value.has(item.id);
+  if (hargaTerkunci) return false;
+
+  // 3. Cabang KON, K05 & K02: mengikuti aturan Marketplace
   if (cabang === "KON" || cabang === "K05" || cabang === "K02") {
     return header.isMarketplace === true;
   }
 
-  // 3. Cabang Lainnya: Mengikuti aturan default master barang
+  // 4. Cabang lainnya: mengikuti aturan default master barang
   return item._isHargaEditable === true;
 };
 
@@ -3030,7 +3117,8 @@ const loadDataForEdit = async (nomor: string) => {
 
     header.diskonPersen1 = h.inv_disc1 || 0;
     header.diskonPersen2 = h.inv_disc2 || 0;
-    header.diskonRp = 0;
+    header.diskonRp = h.inv_nomor_so ? Number(h.inv_disc || 0) : 0;
+    header.diskonMapsRp = 0;
     header.biayaKirim = h.inv_bkrm;
 
     header.ppnPersen = Number(h.inv_ppn) || 0;
@@ -3864,6 +3952,16 @@ watch(
         </div>
 
         <div class="scrollable-table-wrapper">
+          <div v-if="isInvoiceParsial" class="parsial-banner">
+            <v-icon size="18" color="primary">mdi-information-outline</v-icon>
+            <div class="parsial-text">
+              <strong>Invoice parsial</strong> dari SO {{ header.nomorSo }}
+              <span class="parsial-sep">•</span>
+              Diskon invoice ini: <strong>Rp {{ formatRupiah(totals.totalDiskonFaktur) }}</strong>
+              <span class="parsial-sep">•</span>
+              Sisa barang bisa ditagih di invoice berikutnya
+            </div>
+          </div>
           <div class="desktop-form-section table-section">
             <div v-if="!items.some((i) => i.kode)" class="empty-grid-state">
               <v-icon size="40">mdi-cart-outline</v-icon>
@@ -3908,6 +4006,17 @@ watch(
                 </div>
               </template>
 
+              <template v-slot:[`item.qtySiap`]="{ item }">
+                <v-tooltip v-if="item.alasanTidakSiap" :text="item.alasanTidakSiap" location="top">
+                  <template #activator="{ props }">
+                    <span v-bind="props" class="text-warning font-weight-bold">
+                      {{ item.qtySiap ?? 0 }}
+                    </span>
+                  </template>
+                </v-tooltip>
+                <span v-else>{{ item.qtySiap ?? "" }}</span>
+              </template>
+
               <template v-slot:[`item.jumlah`]="{ item }">
                 <v-text-field
                   v-model.number="item.jumlah"
@@ -3931,7 +4040,7 @@ watch(
                   @update:model-value="
                     item.harga = Number(String($event).replace(/[^0-9]/g, '')) || 0
                   "
-                  @focus="focusedRowId = item.id"
+                  @focus="onHargaFocus(item)"
                   @blur="focusedRowId = -1"
                   type="text"
                   min="0"
@@ -4270,6 +4379,8 @@ watch(
     />
     <DiskonForm
       v-if="dialogs.diskonForm"
+      :dari-so="isDiskonDariSo"
+      :potongan-invoice="totals.totalDiskonFaktur"
       :sub-total="totals.subTotal"
       :diskon-persen1="header.diskonPersen1"
       :diskon-persen2="header.diskonPersen2"
@@ -4568,7 +4679,29 @@ watch(
   padding: 0 !important;
   border: none !important;
 }
+.parsial-banner {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  background-color: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
+}
 
+.parsial-text {
+  min-width: 0;
+}
+
+.parsial-sep {
+  margin: 0 6px;
+  opacity: 0.4;
+}
 .vertically-aligned-table :deep(tbody tr td) {
   vertical-align: middle !important;
 }

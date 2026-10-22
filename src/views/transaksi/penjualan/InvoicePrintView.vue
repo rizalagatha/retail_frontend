@@ -45,8 +45,9 @@ interface PrintHeader {
   gdg_inv_komplain: string;
   terbilang: string;
   inv_rj_nomor: string | null;
-  inv_dp: number; // <--- TAMBAHKAN BARIS INI
+  inv_dp: number;
   inv_kembali: number;
+  parsial: { ke: number; jumlahInvoice: number; sisaQty: number } | null;
   summary: PrintHeaderSummary;
 }
 
@@ -149,6 +150,9 @@ onMounted(() => {
             {{ format(parseISO(printData.header.inv_tanggal), "dd-MM-yyyy") }}
           </div>
           <div><span class="label">No. Pesanan</span>: {{ printData.header.inv_nomor_so }}</div>
+          <div v-if="printData.header.parsial">
+            <span class="label">Pengambilan</span>: ke-{{ printData.header.parsial.ke }} dari SO ini
+          </div>
         </div>
         <div class="info-right">
           <div class="info-line">
@@ -312,6 +316,20 @@ onMounted(() => {
         <strong style="color: #c62828 !important">
           * Terdapat pemotongan tagihan dari Retur Jual (Pengembalian Dana) dengan nomor referensi
           {{ printData.header.inv_rj_nomor }}.
+        </strong>
+      </div>
+      <div
+        v-if="printData.header.parsial"
+        class="complain-info"
+        style="margin-top: 5px; font-size: 10pt"
+      >
+        <strong>
+          * Invoice parsial (pengambilan sebagian) atas pesanan
+          {{ printData.header.inv_nomor_so }}.
+          <template v-if="printData.header.parsial.sisaQty > 0">
+            Sisa pesanan yang belum diambil: {{ printData.header.parsial.sisaQty }} pcs.
+          </template>
+          <template v-else>Ini pengambilan terakhir.</template>
         </strong>
       </div>
       <div class="note">

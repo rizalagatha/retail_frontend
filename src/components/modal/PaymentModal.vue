@@ -261,7 +261,7 @@ const authDialog = reactive<AuthDialogState>({
 const temporaryPin = ref("");
 const isPrintOptionVisible = ref(false);
 const savedInvoiceNumber = ref("");
-const isFromSO = !!props.invoiceHeader.nomorSo;
+const isFromSO = computed(() => !!props.invoiceHeader.nomorSo);
 const isTunaiFocused = ref(false);
 const isTransferFocused = ref(false);
 const isKasirPreviewVisible = ref(false);
@@ -296,9 +296,27 @@ const dtPundi = new Date("2024-06-01");
 const maxPundi = 500;
 
 // --- Computed Properties for Real-time Calculation ---
-const dpTotal = computed(() => {
-  if (!props.linkedDps) return 0;
-  return props.linkedDps.reduce((s, d) => s + (d.nominal || 0), 0);
+// DP yang dipakai invoice ini (sudah dibatasi sampai grand total di calculateTotals).
+// Sisa DP yang tidak terpakai tetap open di SO.
+const dpTotal = computed(() => Number(props.totals.totalDp || 0));
+
+// Sisa DP yang tetap open (untuk informasi kasir)
+const sisaDpOpen = computed(() => {
+  const tersedia = (props.linkedDps || []).reduce((s, d) => s + (d.nominal || 0), 0);
+  return Math.max(0, tersedia - dpTotal.value);
+});
+
+// Ringkasan pengambilan sebagian (hanya invoice dari SO)
+const ringkasanParsial = computed(() => {
+  if (!props.invoiceHeader.nomorSo) return null;
+  const baris = (props.invoiceItems as InvoiceItem[]).filter((i) => i.kode && i.sodIdrec);
+  if (baris.length === 0) return null;
+  const diambil = baris.reduce((s, i) => s + Number(i.jumlah || 0), 0);
+  const sisa = baris.reduce(
+    (s, i) => s + Math.max(0, Number(i.qtyso || 0) - Number(i.jumlah || 0)),
+    0
+  );
+  return sisa > 0 ? { diambil, sisa } : null;
 });
 
 const totalBayar = computed(() => {
@@ -880,7 +898,7 @@ const executeSave = async () => {
     savedInvoiceNumber.value = response.data.nomor;
 
     // Langsung buka print option setelah save
-    if (isFromSO) {
+    if (isFromSO.value) {
       // Jika berasal dari SO → langsung cetak A4
       handlePrintSelection("a4");
     } else {
@@ -1210,7 +1228,7 @@ const correctedSisaPiutang = computed(() => {
 });
 
 const effectiveSisaPiutang = computed(() => {
-  return isFromSO
+  return isFromSO.value
     ? props.totals.sisaPiutang // gunakan backend (benar)
     : correctedSisaPiutang.value; // default existing logic
 });
@@ -1274,6 +1292,17 @@ watch(
                 <v-icon size="14" class="mr-1">mdi-receipt-text-outline</v-icon>
                 Ringkasan Invoice
               </div>
+              <v-alert
+                v-if="ringkasanParsial"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mb-3 text-caption"
+              >
+                Invoice parsial: {{ ringkasanParsial.diambil }} pcs diambil sekarang,
+                {{ ringkasanParsial.sisa }} pcs masih tersisa di SO. Invoice tidak dapat diubah atau
+                dihapus setelah disimpan. Pastikan qty sudah benar.
+              </v-alert>
               <div class="d-flex justify-space-between text-caption">
                 <span>Sub Total:</span>
                 <span>{{ formatRupiah(correctedSubTotal) }}</span>
@@ -1321,6 +1350,13 @@ watch(
               <div class="d-flex justify-space-between text-caption">
                 <span>Total DP:</span>
                 <span>- {{ formatRupiah(totals.totalDp) }}</span>
+              </div>
+              <div
+                v-if="sisaDpOpen > 0"
+                class="d-flex justify-space-between text-caption text-medium-emphasis"
+              >
+                <span>Sisa DP (tetap open di SO):</span>
+                <span>{{ formatRupiah(sisaDpOpen) }}</span>
               </div>
               <v-divider class="my-2" />
               <div class="d-flex justify-space-between font-weight-bold text-h6 text-red-invoice">

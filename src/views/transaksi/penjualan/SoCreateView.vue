@@ -361,27 +361,23 @@ const allVerified = computed(() => {
 // const hasReadyItems = computed(() => {
 //   return items.value.some((item) => (item.scannedQty || 0) > 0);
 // });
-const allMutated = computed(() => {
-  const validItems = items.value.filter((i) => i.kode && !i.isJasa);
-  if (validItems.length === 0) return false;
-
-  return validItems.every((item) => {
-    // 1. Tentukan apakah ini barang Produksi/Custom
-    const isProductionItem = item.kode === "CUSTOM" || !!item.noSoDtf;
-
-    if (isProductionItem) {
-      // Barang Produksi/Custom tidak perlu mutasi fisik showroom, cukup cek Ready
-      return item.isReady === true;
-    }
-
-    // 2. Barang Reguler (Stok) wajib sudah dimutasikan (Status Gembok)
-    return item.isMutated === true;
-  });
+const adaBarangSiapTagih = computed(() => {
+  const baris = items.value.filter((i) => i.kode && !i.isJasa);
+  const barangStok = baris.filter((i) => i.kode !== "CUSTOM" && !i.isCustomOrder && !i.noSoDtf);
+  // SO tanpa barang stok sama sekali: jangan diblok di client, biar server yang menilai
+  if (barangStok.length === 0) return baris.length > 0;
+  return barangStok.some((i) => i.isMutated === true);
 });
 const isLoading = ref(true);
 const isSaving = ref(false);
 const isInitialLoad = ref(false);
 const isSavingDisabled = ref(false);
+const masihAdaSisaTagih = ref(true);
+const bisaJadikanInvoice = computed(() =>
+  isSavingDisabled.value
+    ? !!header.value.nomor && masihAdaSisaTagih.value
+    : adaBarangSiapTagih.value
+);
 const scannedBarcode = ref("");
 const adjustmentLogs = ref<SoAdjustmentLog[]>([]);
 // const isSpkDialogVisible = ref(false);
@@ -1009,6 +1005,8 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
       isSavingDisabled.value = true;
       toast.warning("SO ini sudah menjadi Invoice, data tidak bisa diubah.");
     }
+
+    masihAdaSisaTagih.value = headerData.masihAdaSisaTagih !== false;
 
     // ===== CRITICAL SECTION: ADD NEW ROW =====
     try {
@@ -1699,43 +1697,23 @@ const save = async () => {
 };
 
 const saveAndConvertToInvoice = async () => {
-  // Validasi 1: Kelayakan Mutasi Stok Fisik
-  if (!allMutated.value) {
-    toast.error("Gagal: Masih ada barang fisik yang belum dimutasikan ke Stok Pesanan.");
+  // SO yang sudah punya invoice terkunci (tidak bisa disimpan ulang): langsung ke invoice berikutnya
+  if (isSavingDisabled.value && header.value.nomor) {
+    router.push({
+      path: "/transaksi/penjualan/invoice/new",
+      query: { refSo: header.value.nomor },
+    });
     return;
   }
 
-  // --- KUNCI: Cek Status LHK Real-time ke Backend ---
-  if (header.value.nomor && !isExemptFromLhkRule.value) {
-    // Cek dulu di frontend apakah ada indikasi barang Custom
-    const hasCustomOrDtf = items.value.some((i) => i.isCustomOrder || !!i.noSoDtf);
-
-    if (hasCustomOrDtf) {
-      try {
-        isSaving.value = true; // Muterin loading di tombol
-        toast.info("Memeriksa status pengerjaan (LHK) ke server...");
-
-        // "Nanya" ke backend
-        const response = await api.get(`/so-form/check-lhk/${header.value.nomor}`);
-        const { isReady, reason } = response.data;
-
-        if (!isReady) {
-          toast.error(`Akses Ditolak: ${reason}`);
-          return; // Hentikan fungsi, jangan simpan dan jangan pindah halaman
-        }
-      } catch (error) {
-        const err = error as AxiosError<{ message: string }>;
-        toast.error(err.response?.data?.message || "Gagal memeriksa status LHK ke server.");
-        return;
-      } finally {
-        isSaving.value = false;
-      }
-    }
+  if (!adaBarangSiapTagih.value) {
+    toast.error("Gagal: Belum ada barang yang siap ditagih (belum dimutasikan ke Stok Pesanan).");
+    return;
   }
 
-  // Jika aman (LHK sudah kelar atau user K01/K03), lanjutkan proses simpan & konversi ke Invoice
+  // Cek LHK per baris dilakukan di halaman invoice (kolom "Siap"), bukan di sini.
   nextActionAfterSave.value = "INVOICE";
-  save(); // Eksekusi fungsi save utama
+  save();
 };
 
 const executeSave = async (tipeKunjungan: "STORE" | "WA" | null = null) => {
@@ -3928,18 +3906,16 @@ const stopAndOpenPriceProposal = (index: number) => {
         prepend-icon="mdi-receipt-text-plus"
         @click="saveAndConvertToInvoice"
         :loading="isSaving"
-        :disabled="
-          isSaving || isSavingDisabled || !allMutated || (hasUnfinishedDtf && !isExemptFromLhkRule)
-        "
+        :disabled="isSaving || !bisaJadikanInvoice"
       >
         Jadikan Invoice
       </v-btn>
 
       <div
         v-if="hasUnfinishedDtf && !isExemptFromLhkRule"
-        class="text-caption text-error mt-1 font-weight-bold"
+        class="text-caption text-warning mt-1 font-weight-bold"
       >
-        * Ada item SO DTF yang belum selesai dikerjakan (LHK).
+        * Item SO DTF yang belum LHK tidak ikut ditagih. Sisanya bisa ditagih bertahap.
       </div>
 
       <div

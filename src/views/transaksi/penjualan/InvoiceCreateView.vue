@@ -3067,17 +3067,21 @@ const isHargaEditable = (item: Item) => {
   // 1. Cabang KDC: bebas edit harga apapun
   if (cabang === "KDC") return true;
 
-  // 2. Harga sudah terisi (bukan 0) tidak boleh diubah,
+  // 2. Mode Marketplace (KON, K05, K02, KF1): harga diinput manual per platform,
+  //    selalu bisa diedit walau sudah terisi dari master
+  if (header.isMarketplace === true && isUserMarketplaceEligible.value) return true;
+
+  // 3. Harga sudah terisi (bukan 0) tidak boleh diubah,
   //    kecuali baris ini memang dimulai dari 0 (diisi manual)
   const hargaTerkunci = Number(item.harga || 0) !== 0 && !hargaDiisiManual.value.has(item.id);
   if (hargaTerkunci) return false;
 
-  // 3. Cabang KON, K05 & K02: mengikuti aturan Marketplace
+  // 4. Cabang KON, K05 & K02 (non-marketplace): harga tidak boleh diedit
   if (cabang === "KON" || cabang === "K05" || cabang === "K02") {
-    return header.isMarketplace === true;
+    return false;
   }
 
-  // 4. Cabang lainnya: mengikuti aturan default master barang
+  // 5. Cabang lainnya: mengikuti aturan default master barang
   return item._isHargaEditable === true;
 };
 

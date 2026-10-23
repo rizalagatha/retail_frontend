@@ -90,6 +90,7 @@ interface SoItem {
   isFreeGift?: boolean;
   _oldJumlah?: number;
   phStatus?: string;
+  dbLineId?: string; // id baris dari database (kosong untuk baris baru yang belum tersimpan)
 }
 
 // Interface baru untuk Record Adjustment
@@ -372,11 +373,14 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const isInitialLoad = ref(false);
 const isSavingDisabled = ref(false);
+// SO sudah punya invoice: hanya boleh menambah baris baru
+const isAppendOnly = ref(false);
+const isRowLocked = (item: SoItem): boolean =>
+  !!item.isMutated || (isAppendOnly.value && !!item.dbLineId);
+const adaBarisBaru = computed(() => items.value.some((i) => i.kode && !i.dbLineId));
 const masihAdaSisaTagih = ref(true);
 const bisaJadikanInvoice = computed(() =>
-  isSavingDisabled.value
-    ? !!header.value.nomor && masihAdaSisaTagih.value
-    : adaBarangSiapTagih.value
+  isSavingDisabled.value || isAppendOnly.value ? !!header.value.nomor : adaBarangSiapTagih.value
 );
 const scannedBarcode = ref("");
 const adjustmentLogs = ref<SoAdjustmentLog[]>([]);
@@ -1002,8 +1006,15 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
 
     // ===== EDIT PERMISSION CHECK =====
     if (!headerData.canEdit) {
-      isSavingDisabled.value = true;
-      toast.warning("SO ini sudah menjadi Invoice, data tidak bisa diubah.");
+      if (headerData.hanyaTambah) {
+        isAppendOnly.value = true;
+        toast.info(
+          "SO ini sudah punya invoice. Baris yang ada tidak bisa diubah, tetapi Anda masih bisa menambah barang atau sablon."
+        );
+      } else {
+        isSavingDisabled.value = true;
+        toast.warning("SO ini sudah ditutup, data tidak bisa diubah.");
+      }
     }
 
     masihAdaSisaTagih.value = headerData.masihAdaSisaTagih !== false;
@@ -1706,6 +1717,15 @@ const saveAndConvertToInvoice = async () => {
     return;
   }
 
+  // Mode tambah-baris tanpa baris baru: langsung ke invoice berikutnya
+  if (isAppendOnly.value && !adaBarisBaru.value) {
+    router.push({
+      path: "/transaksi/penjualan/invoice/new",
+      query: { refSo: header.value.nomor },
+    });
+    return;
+  }
+
   if (!adaBarangSiapTagih.value) {
     toast.error("Gagal: Belum ada barang yang siap ditagih (belum dimutasikan ke Stok Pesanan).");
     return;
@@ -1738,6 +1758,7 @@ const executeSave = async (tipeKunjungan: "STORE" | "WA" | null = null) => {
           kode: item.kode || (item.isCustomOrder ? "CUSTOM" : ""),
           nama: item.nama,
           ukuran: item.ukuran,
+          dbLineId: item.dbLineId || "",
           jumlah: item.jumlah,
 
           sod_scanned: Number(item.scannedQty || 0),
@@ -1745,7 +1766,6 @@ const executeSave = async (tipeKunjungan: "STORE" | "WA" | null = null) => {
           harga: item.harga,
           total: item.total,
 
-          // 🔥 FLAG WAJIB: backend butuh ini
           isCustomOrder: item.isCustomOrder || false,
           sod_custom: item.isCustomOrder ? "Y" : "N",
           sod_custom_nama: item.isCustomOrder ? item.nama : null,
@@ -1903,6 +1923,11 @@ const resetForm = () => {
 const removeRow = (id: number | string) => {
   const item = items.value.find((i) => i.id === id);
   if (!item) return;
+
+  if (isAppendOnly.value && item.dbLineId) {
+    toast.warning("Baris ini sudah ada di SO yang punya invoice, tidak bisa dihapus.");
+    return;
+  }
 
   // Blok hapus jika PH terkait sudah ACC_DC ke atas
   if (item.noPengajuanHarga && PH_LOCKED_STATUSES.includes(item.phStatus || "")) {
@@ -4385,7 +4410,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                     density="compact"
                     hide-details
                     placeholder="F1/F2..."
-                    :disabled="item.isCustomOrder"
+                    :disabled="item.isCustomOrder || isRowLocked(item)"
                     @keydown="handleKodeKeydown($event, index, item)"
                   />
                 </div>
@@ -4424,8 +4449,8 @@ const stopAndOpenPriceProposal = (index: number) => {
                   density="compact"
                   hide-details
                   class="text-end font-weight-bold"
-                  :disabled="item.isMutated"
-                  :hint="item.isMutated ? 'Sudah dimutasi' : ''"
+                  :disabled="isRowLocked(item)"
+                  :hint="isRowLocked(item) ? 'Terkunci' : ''"
                   @focus="item._oldJumlah = item.jumlah"
                   @blur="handleQtyChange(item)"
                   @update:model-value="calculateTotals"
@@ -4496,7 +4521,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   density="compact"
                   hide-details
                   class="text-end"
-                  :disabled="item.isMutated || !item.kode"
+                  :disabled="isRowLocked(item) || !item.kode"
                   :readonly="isHargaReadonly(item)"
                   @update:model-value="calculateTotals"
                 />
@@ -4508,6 +4533,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   variant="underlined"
                   density="compact"
                   hide-details
+                  :disabled="isRowLocked(item)"
                   class="text-end"
                   @blur="handleItemDiscountChange(index)"
                 />
@@ -4532,7 +4558,7 @@ const stopAndOpenPriceProposal = (index: number) => {
                   hide-details
                   single-line
                   class="text-end"
-                  :disabled="!item.kode"
+                  :disabled="!item.kode || isRowLocked(item)"
                   :readonly="item.diskonPersen > 0"
                 ></v-text-field>
               </template>
@@ -4590,7 +4616,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               </template>
               <template #[`item.actions`]="{ item }">
                 <v-btn
-                  v-if="item.kode && !item.isMutated"
+                  v-if="item.kode && !isRowLocked(item)"
                   icon="mdi-delete"
                   size="x-small"
                   variant="text"

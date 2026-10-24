@@ -238,14 +238,7 @@ watch([startDate, endDate, selectedCabang], fetchData, { immediate: false });
         @click="router.push('/transaksi/penjualan/dtf/lhk-so-dtf-stok/new')"
         >Baru</v-btn
       >
-      <v-btn
-        v-if="authStore.can(MENU_ID, 'edit')"
-        size="small"
-        :disabled="!isSingleSelected"
-        prepend-icon="mdi-pencil"
-        @click="router.push(`/transaksi/penjualan/dtf/lhk-so-dtf-stok/ubah/${selected[0].Nomor}`)"
-        >Ubah</v-btn
-      >
+      <!-- LHK Stok yang sudah disimpan terkunci (tidak bisa diubah) -->
       <v-btn
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"

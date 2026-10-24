@@ -6,6 +6,7 @@ import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { format, parseISO } from "date-fns";
 import axios from "axios";
+import type { Alignment, Borders, Cell } from "exceljs";
 
 // Interface Header (Resize & Filter)
 interface DataTableHeader {
@@ -388,6 +389,259 @@ const handleUpload = async () => {
 const formatCm = (val: number) =>
   new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(val);
 
+const isExporting = ref(false);
+
+const exportData = async (type: "header" | "detail") => {
+  const rows = filteredList.value;
+  if (rows.length === 0) {
+    toast.warning("Tidak ada data untuk diekspor.");
+    return;
+  }
+  if (isExporting.value) return;
+  isExporting.value = true;
+
+  try {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    // ── Helper ─────────────────────────────────────────────
+    interface ExportCol {
+      header: string;
+      width: number;
+      align: Alignment["horizontal"];
+      fmt?: string;
+    }
+
+    const borderThin: Partial<Borders> = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+
+    // Hilangkan noise floating point (mis. 12.3 * 100 = 1230.0000000000002)
+    const round1 = (n: number) => Math.round((Number(n) || 0) * 10) / 10;
+
+    const fmtTgl = (v: string) => {
+      try {
+        return format(parseISO(v), "dd/MM/yyyy");
+      } catch {
+        return v || "-";
+      }
+    };
+
+    const applyHeader = (cell: Cell) => {
+      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = borderThin;
+    };
+
+    const applyTotal = (cell: Cell) => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = {
+        top: { style: "medium" },
+        left: { style: "thin" },
+        bottom: { style: "medium" },
+        right: { style: "thin" },
+      };
+    };
+
+    // ══════════════════════════════════════════════════════
+    // EXPORT HEADER (rekap per tanggal)
+    // ══════════════════════════════════════════════════════
+    if (type === "header") {
+      const sheet = workbook.addWorksheet("Log Mesin DTF");
+
+      const cols: ExportCol[] = [
+        { header: "Tanggal", width: 13, align: "center" },
+        { header: "Mulai (Min)", width: 14, align: "center" },
+        { header: "Selesai (Max)", width: 14, align: "center" },
+        { header: "Total Panjang (cm)", width: 20, align: "right", fmt: "#,##0.0" },
+        { header: "Total Lebar (cm)", width: 18, align: "right", fmt: "#,##0.0" },
+        { header: "Total Qty", width: 12, align: "right", fmt: "#,##0" },
+      ];
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeader(cell));
+
+      let totalPanjang = 0;
+      let totalQty = 0;
+
+      rows.forEach((item) => {
+        totalPanjang += item.PanjangCm;
+        totalQty += item.Qty;
+
+        const row = sheet.addRow([
+          fmtTgl(item.Tanggal),
+          item.WaktuMulai || "",
+          item.WaktuSelesai || "",
+          round1(item.PanjangCm),
+          round1(item.LebarCm),
+          item.Qty,
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          cell.border = borderThin;
+          cell.alignment = { horizontal: cols[i - 1].align, vertical: "middle" };
+          if (cols[i - 1].fmt) cell.numFmt = cols[i - 1].fmt!;
+        });
+      });
+
+      const totalRow = sheet.addRow([
+        `TOTAL (${rows.length} hari)`,
+        "",
+        "",
+        round1(totalPanjang),
+        "",
+        totalQty,
+      ]);
+      sheet.mergeCells(`A${totalRow.number}:C${totalRow.number}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell);
+        cell.alignment = { horizontal: i <= 3 ? "left" : "right", vertical: "middle" };
+        if (cols[i - 1].fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+      sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+
+      // ══════════════════════════════════════════════════════
+      // EXPORT DETAIL (satu baris per task, tanggal diulang agar mudah di-filter/pivot)
+      // ══════════════════════════════════════════════════════
+    } else {
+      const sheet = workbook.addWorksheet("Detail Log Mesin DTF");
+
+      const cols: ExportCol[] = [
+        { header: "Tanggal", width: 13, align: "center" },
+        { header: "Task Name / File", width: 40, align: "left" },
+        { header: "Waktu Mulai", width: 14, align: "center" },
+        { header: "Waktu Selesai", width: 14, align: "center" },
+        { header: "Material", width: 22, align: "left" },
+        { header: "P (cm)", width: 11, align: "right", fmt: "#,##0.0" },
+        { header: "L (cm)", width: 11, align: "right", fmt: "#,##0.0" },
+        { header: "Qty", width: 9, align: "right", fmt: "#,##0" },
+        { header: "Status", width: 10, align: "center" },
+        { header: "Terhubung No. SO", width: 20, align: "left" },
+        { header: "Cabang", width: 10, align: "center" },
+        { header: "User", width: 14, align: "center" },
+      ];
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeader(cell));
+
+      let totalPanjang = 0;
+      let totalQty = 0;
+      let jumlahBaris = 0;
+      let toggle = false;
+
+      rows.forEach((item) => {
+        const list = details.value[item.id] ?? [];
+        if (list.length === 0) return;
+
+        // Warna selang-seling per tanggal
+        const bg = toggle ? "FFF3F8FD" : "FFFAFAFA";
+        toggle = !toggle;
+
+        list.forEach((d, idx) => {
+          totalPanjang += d.PanjangCm;
+          totalQty += Number(d.Qty) || 0;
+          jumlahBaris++;
+
+          const row = sheet.addRow([
+            fmtTgl(item.Tanggal),
+            d.TaskName || "",
+            d.WaktuMulai || "",
+            d.WaktuSelesai || "",
+            d.Material || "",
+            round1(d.PanjangCm),
+            round1(d.LebarCm),
+            Number(d.Qty) || 0,
+            d.Status || "",
+            d.NoSO || "",
+            d.Cabang || "",
+            d.User || "",
+          ]);
+
+          row.eachCell({ includeEmpty: true }, (cell, i) => {
+            cell.border = {
+              left: { style: "thin" },
+              right: { style: "thin" },
+              bottom: { style: "thin" },
+              top: idx === 0 ? { style: "medium" } : { style: "thin" },
+            };
+            cell.alignment = { horizontal: cols[i - 1].align, vertical: "middle" };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+            if (cols[i - 1].fmt) cell.numFmt = cols[i - 1].fmt!;
+
+            if (cols[i - 1].header === "Status") {
+              cell.font = {
+                bold: true,
+                color: { argb: d.Status === "OK" ? "FF2E7D32" : "FFC62828" },
+              };
+            }
+          });
+        });
+      });
+
+      if (jumlahBaris === 0) {
+        toast.warning("Tidak ada data detail untuk diekspor.");
+        return;
+      }
+
+      const totalRow = sheet.addRow([
+        `TOTAL (${jumlahBaris} task)`,
+        "",
+        "",
+        "",
+        "",
+        round1(totalPanjang),
+        "",
+        totalQty,
+        "",
+        "",
+        "",
+        "",
+      ]);
+      sheet.mergeCells(`A${totalRow.number}:E${totalRow.number}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell);
+        cell.alignment = { horizontal: i <= 5 ? "left" : "right", vertical: "middle" };
+        if (cols[i - 1].fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+      sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+    }
+
+    // ── Download ───────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Export_LogMesinDTF_${type === "header" ? "Header" : "Detail"}_${
+      filters.startDate
+    }_${filters.endDate}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Export ${type} berhasil!`);
+  } catch (error) {
+    console.error("Error Export:", error);
+    toast.error("Gagal mengekspor data.");
+  } finally {
+    isExporting.value = false;
+  }
+};
+
 let fetchTimeout: number;
 watch(
   [filters, filterSearchValue],
@@ -419,6 +673,28 @@ onMounted(async () => {
       >
         Import Excel Log
       </v-btn>
+
+      <v-menu v-if="hasViewPermission" offset-y>
+        <template #activator="{ props }">
+          <v-btn
+            size="small"
+            color="teal"
+            prepend-icon="mdi-file-excel"
+            :loading="isExporting"
+            v-bind="props"
+          >
+            Export
+          </v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item @click="exportData('header')">
+            <v-list-item-title>Export Header (Rekap per Tanggal)</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="exportData('detail')">
+            <v-list-item-title>Export Detail (Per Task)</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </template>
 
     <div v-if="!hasViewPermission" class="state-container text-center pt-10">

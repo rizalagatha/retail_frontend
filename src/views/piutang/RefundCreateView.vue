@@ -9,11 +9,14 @@ import { useAuthStore } from "@/stores/authStore";
 import { useRouter, useRoute } from "vue-router";
 import { format } from "date-fns";
 import axios from "axios";
+import { formatRupiah } from "@/utils/formatRupiah";
+import { useAuthPolling } from "@/composables/useAuthPolling";
 
 const toast = useToast();
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const { startGlobalPolling } = useAuthPolling();
 const MENU_ID = "55";
 const API_BASE_PATH = "/refund-form";
 
@@ -42,6 +45,7 @@ interface RefundHeader {
   isProcessed: boolean; // ckProses
   isApproved: boolean; // ckApv
   keterangan: string;
+  statusAcc: string; // rf_status_acc: LAMA | MENUNGGU | ACC | DITOLAK
 }
 
 interface Transaction {
@@ -84,6 +88,7 @@ const header = ref<RefundHeader>({
   isProcessed: false,
   isApproved: false,
   keterangan: "",
+  statusAcc: "",
 });
 
 const items = ref<RefundDetail[]>([]);
@@ -93,6 +98,14 @@ const isTransactionSearchVisible = ref(false);
 const activeRowIndex = ref(0);
 const searchType = ref<"invoice" | "deposit">("invoice"); // F1 atau F2
 const isSaving = ref(false);
+import AuthWaitingDialog from "@/components/AuthWaitingDialog.vue";
+
+const isWaitingAuth = ref(false);
+
+const keBrowse = () => {
+  isWaitingAuth.value = false;
+  router.push({ name: "Refund" });
+};
 const isLoading = ref(true);
 const isDataLoading = ref(false);
 const isEditMode = ref(false);
@@ -121,15 +134,7 @@ const totalRefund = computed(() => {
 });
 
 // Komputasi Izin Aproval (Analogi zAccKor di Delphi)
-const isApprover = computed(() => {
-  // Opsi A: Jika backend sudah diupdate dan user sudah login ulang
-  if (authStore.user?.canApproveRefund) return true;
-
-  // Opsi B: Hardcode di frontend sebagai backup (jika user belum relogin)
-  const allowedUsers = ["DARUL", "LIA", "HANI", "DEVI"];
-  const currentUser = authStore.user?.kode?.toUpperCase() || "";
-  return allowedUsers.includes(currentUser);
-});
+const isApprover = computed(() => authStore.user?.canApproveRefund === true);
 
 const pageTitle = computed(() =>
   isEditMode.value ? `Ubah Refund: ${header.value?.nomor || ""}` : "Pengajuan Refund"
@@ -139,10 +144,17 @@ const canInsert = computed(() => authStore.can(MENU_ID, "insert"));
 const canEdit = computed(() => authStore.can(MENU_ID, "edit"));
 // Izin simpan bergantung pada mode dan apakah user adalah approver atau bukan
 const canSave = computed(() => {
-  // Jika Approver, mereka bisa 'edit' (meskipun hanya checkbox APV/Refund/Bank)
-  if (isApprover.value) return canEdit.value;
-  // Jika bukan Approver, mereka bisa 'insert' (baru) atau 'edit' (jika belum diapprove)
-  return isEditMode.value ? canEdit.value && !header.value.isApproved : canInsert.value;
+  const statusAcc = header.value.statusAcc;
+  // Approver: hanya setelah ACC SPV (atau dokumen lama)
+  if (isApprover.value) {
+    return canEdit.value && statusAcc !== "MENUNGGU" && statusAcc !== "DITOLAK";
+  }
+  // Pengaju: edit hanya bila belum diajukan ke SPV (dokumen lama) atau sudah ditolak
+  if (isEditMode.value) {
+    const sudahDiajukan = statusAcc === "MENUNGGU" || statusAcc === "ACC";
+    return canEdit.value && !header.value.isApproved && !sudahDiajukan;
+  }
+  return canInsert.value;
 });
 // Izin approve hanya jika KDC DAN punya hak edit
 const canApprove = computed(() => isApprover.value && canEdit.value);
@@ -190,6 +202,7 @@ const initForm = async () => {
     isProcessed: false,
     isApproved: false,
     keterangan: "",
+    statusAcc: "",
   };
   items.value = [];
   addNewRow();
@@ -436,22 +449,53 @@ const simpanData = () => {
 };
 
 // Metode Konfirmasi dan Pembatalan (Analogi MessageDlg)
+const requestSpvAuth = async (nomor: string, lines: RefundDetail[]) => {
+  const totalSaldo = lines.reduce((sum, i) => sum + (Number(i.nominal) || 0), 0);
+  const customers = Array.from(new Set(lines.map((i) => i.customer).filter(Boolean)));
+
+  const authResponse = await api.post("/auth-pin/request", {
+    transaksi: nomor,
+    jenis: "REFUND",
+    keterangan: `Pengajuan Refund ${nomor}\nCustomer: ${
+      customers.join(", ") || "-"
+    }\nTotal saldo: ${formatRupiah(totalSaldo)} (${lines.length} transaksi)`,
+    nominal: totalSaldo,
+    cabang: authStore.user?.cabang,
+    user: authStore.user?.kode,
+    barcode: "",
+    target_cabang: "",
+  });
+
+  // Latar belakang: form tidak menunggu. Status sebenarnya tersimpan di dokumen refund
+  isWaitingAuth.value = true;
+  startGlobalPolling(
+    authResponse.data.authNomor,
+    () => {
+      if (isWaitingAuth.value) keBrowse();
+    },
+    {
+      pesanDisetujui: (approver) =>
+        `Refund ${nomor} disetujui ${approver}. Menunggu diproses finance.`,
+      pesanDitolak: `Refund ${nomor} ditolak SPV. Perbaiki dan ajukan ulang dari daftar refund.`,
+    }
+  );
+};
+
 const executeSave = async () => {
+  if (isSaving.value) return; // cegah klik ganda di dialog konfirmasi
   if (!canSave.value) {
     toast.error("Anda tidak memiliki izin untuk menyimpan data ini.");
     return;
   }
   isSaving.value = true;
   try {
-    const detailsToSend = items.value
-      .filter((item) => item.nomor)
-      .map((item) => ({
-        ...item,
-        // Jika User adalah Approver DAN item TIDAK dicentang,
-        // maka kirim refund = 0 (artinya ditolak/tidak diapprove baris ini)
-        // Jika dicentang, gunakan nominal asli (item.refund)
-        refund: isApprover.value ? (item.apv ? item.refund : 0) : item.refund,
-      }));
+    const lines = items.value.filter((item) => item.nomor);
+    const detailsToSend = lines.map((item) => ({
+      ...item,
+      // Jika User adalah Approver DAN item TIDAK dicentang,
+      // maka kirim refund = 0 (artinya ditolak/tidak diapprove baris ini)
+      refund: isApprover.value ? (item.apv ? item.refund : 0) : item.refund,
+    }));
 
     const payload = {
       header: header.value,
@@ -469,9 +513,28 @@ const executeSave = async () => {
       : await api.post(url, payload);
 
     toast.success(response.data.message);
-    const savedNomor = response.data.nomor;
+    const savedNomor: string = response.data.nomor;
 
-    // Panggil dialog cetak
+    // Pengajuan baru / pengajuan ulang setelah ditolak: minta ACC SPV di latar belakang
+    if (response.data.perluAcc) {
+      try {
+        await requestSpvAuth(savedNomor, lines);
+        return; // dialog menunggu tampil; pindah ke browse diurus dialog
+      } catch (authErr: unknown) {
+        const msg = axios.isAxiosError<{ message: string }>(authErr)
+          ? authErr.response?.data?.message
+          : undefined;
+        toast.warning(
+          `Refund ${savedNomor} tersimpan, tetapi permintaan ACC SPV gagal terkirim: ${
+            msg || "periksa koneksi"
+          }. Hubungi admin untuk kirim ulang.`
+        );
+      }
+      router.push({ name: "Refund" });
+      return;
+    }
+
+    // Jalur finance: dialog cetak seperti semula
     dialogConfirmCetak.nomor = savedNomor;
     dialogConfirmCetak.onConfirm = () => {
       const routeData = router.resolve({ name: "RefundPrint", params: { nomor: savedNomor } });
@@ -484,7 +547,6 @@ const executeSave = async () => {
     dialogConfirmCetak.show = true;
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      // Sekarang AxiosError digunakan untuk akses properti response
       toast.error(error.response?.data?.message || "Gagal menyimpan data.");
     } else if (error instanceof Error) {
       toast.error(error.message);
@@ -556,11 +618,12 @@ onMounted(async () => {
 
   if (nomor) {
     // Mode Edit: Panggil fungsi load data refund
+    isEditMode.value = true;
     await loadRefundData(nomor);
   } else {
     // Mode Baru: Panggil fungsi inisialisasi form
-    await initForm(); // Panggil initForm untuk reset/inisialisasi
-    isEditMode.value = false; // Pastikan false saat baru
+    await initForm();
+    isEditMode.value = false;
   }
 
   // Set loading flags to false AFTER data loading/initialization is complete
@@ -594,6 +657,22 @@ onMounted(async () => {
 
     <div class="form-grid-container">
       <div class="left-column">
+        <v-alert
+          v-if="header.statusAcc === 'MENUNGGU'"
+          type="warning"
+          variant="tonal"
+          density="compact"
+        >
+          Menunggu ACC SPV. Dokumen belum bisa diubah atau diproses finance.
+        </v-alert>
+        <v-alert
+          v-else-if="header.statusAcc === 'DITOLAK'"
+          type="error"
+          variant="tonal"
+          density="compact"
+        >
+          Ditolak SPV. Perbaiki lalu simpan untuk mengajukan ulang.
+        </v-alert>
         <div class="desktop-form-section header-section">
           <v-row dense class="hide-details">
             <v-col cols="6"
@@ -827,6 +906,8 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <AuthWaitingDialog :model-value="isWaitingAuth" @tutup="keBrowse" />
   </PageLayout>
 </template>
 

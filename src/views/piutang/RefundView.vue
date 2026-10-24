@@ -29,8 +29,9 @@ interface RefundHeader {
   User: string;
   // Tambahkan 'BATAL' di sini agar perbandingan menjadi valid
   Status: "PROSES" | "APPROVE" | "BATAL" | "";
+  StatusAcc: "LAMA" | "MENUNGGU" | "ACC" | "DITOLAK" | "";
   Approved: string | null;
-  TglApvove: string | null;
+  TglApprove: string | null;
   Closing: string | null;
   AlasanBatal: string | null;
 }
@@ -110,49 +111,44 @@ const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed<RefundHeader | null>(() =>
   isSingleSelected.value ? selected.value[0] : null
 );
-const isApprover = computed(() => authStore.user?.cabang === "KDC");
+const isApprover = computed(() => authStore.user?.canApproveRefund === true);
+// Server memberi data bank dan akses lintas cabang berdasarkan cabang KDC, bukan hak approve
+const isPusat = computed(() => authStore.user?.cabang === "KDC");
 
 const canNew = computed(() => !isApprover.value);
 const canEdit = computed(() => {
   if (!isSingleSelected.value || !selectedRow.value) return false;
-
-  // 1. Block jika status sudah 'BATAL'
   if (selectedRow.value.Status === "BATAL") return false;
 
-  // 2. Logika hak akses cabang/pusat
-  if (!isApprover.value) {
-    // Cabang hanya bisa edit jika belum diapprove dan belum closing
-    return !selectedRow.value.Approved && selectedRow.value.Closing !== "Y";
-  }
+  const acc = selectedRow.value.StatusAcc;
+  if (acc === "MENUNGGU") return false; // SPV belum memutuskan
 
-  // Approver (KDC) bisa edit selama bukan 'BATAL'
-  return true;
+  if (!isApprover.value) {
+    // Cabang: tidak boleh ubah setelah ACC (selaras dengan refundFormService)
+    return !selectedRow.value.Approved && selectedRow.value.Closing !== "Y" && acc !== "ACC";
+  }
+  // Finance: dokumen yang ditolak SPV tidak diproses
+  return acc !== "DITOLAK";
 });
 const canDelete = computed(() => {
   if (!isSingleSelected.value || isApprover.value) return false;
+  if (selectedRow.value?.StatusAcc === "MENUNGGU") return false;
   return !selectedRow.value?.Approved && selectedRow.value?.Closing !== "Y";
 });
 const canCetak = computed(() => {
-  // Tombol cetak aktif jika ada data dipilih DAN status bukan 'BATAL'
-  return isSingleSelected.value && selectedRow.value?.Status !== "BATAL";
+  if (!isSingleSelected.value || !selectedRow.value) return false;
+  if (selectedRow.value.Status === "BATAL") return false;
+  return !["MENUNGGU", "DITOLAK"].includes(selectedRow.value.StatusAcc);
 });
 const canCancel = computed(() => {
-  // 1. Wajib pilih baris dulu
   if (!selectedRow.value) return false;
-
-  // 2. Hanya Approver (KDC) yang memiliki hak akses tombol ini
   if (!isApprover.value) return false;
 
   const status = selectedRow.value.Status || "";
+  if (["MENUNGGU", "DITOLAK"].includes(selectedRow.value.StatusAcc)) return false;
 
-  // 3. Definisikan kondisi pemblokiran
-  const isAlreadyCancelled = status === "BATAL"; // Sudah batal
+  const isAlreadyCancelled = status === "BATAL";
   const isInitialState = status.trim() === ""; // Masih merah (tahap 1)
-
-  // 4. Tombol hanya aktif jika:
-  // - Belum Closing ('N')
-  // - BUKAN status BATAL
-  // - BUKAN status Kosong (Merah)
   return selectedRow.value.Closing !== "Y" && !isAlreadyCancelled && !isInitialState;
 });
 
@@ -170,6 +166,7 @@ const headers = ref<DataTableHeader[]>([
   { title: "Tanggal", key: "Tanggal", width: 120 },
   { title: "User", key: "User", width: 100 },
   { title: "Status", key: "Status", width: 100 },
+  { title: "Status ACC", key: "StatusAcc", width: 130 },
   { title: "Approved", key: "Approved", width: 100 },
   { title: "Tgl Approve", key: "TglApprove", width: 120 },
   { title: "Closing", key: "Closing", width: 120 },
@@ -184,7 +181,7 @@ const detailHeaders = computed<DataTableHeader[]>(() => {
     { title: "Nominal Saldo", key: "Nominal", align: "end", width: 120 },
     { title: "Nominal Refund", key: "Approval", align: "end", width: 120 },
   ];
-  if (isApprover.value) {
+  if (isPusat.value) {
     h.push({ title: "Bank", key: "BankTujuan", width: 120 });
     h.push({ title: "No. Rekening", key: "NoRekening", width: 150 });
     h.push({ title: "Atas Nama", key: "AtasNama", width: 150 });
@@ -287,6 +284,9 @@ const loadDetails = async (newlyExpandedItems: ExpandedItem[]) => {
 const getRowTextColor = (item: RefundHeader) => {
   // 1. Jika Batal -> Abu-abu saja
   if (item.Status === "BATAL") return "text-grey";
+
+  // Menunggu SPV: jangan tampil merah "belum diproses" karena finance belum boleh menyentuhnya
+  if (item.StatusAcc === "MENUNGGU") return "text-orange font-weight-bold";
 
   // 2. Jika Kosong -> Merah (Tahap 1: Belum diproses)
   if (!item.Status || item.Status.trim() === "") return "text-red font-weight-bold";
@@ -603,7 +603,7 @@ watch(filters, fetchMasterData, { deep: true });
           variant="outlined"
           class="ms-4"
           style="max-width: 200px"
-          :readonly="!isApprover"
+          :readonly="!isPusat"
         />
         <v-spacer />
         <div class="d-flex align-center ga-2 text-caption font-weight-bold">
@@ -612,6 +612,9 @@ watch(filters, fetchMasterData, { deep: true });
 
           <v-icon color="blue" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon>
           <span class="text-blue">Sedang diproses</span>
+
+          <v-icon color="orange" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon>
+          <span class="text-orange">Menunggu ACC SPV</span>
 
           <v-icon color="grey" icon="mdi-square-rounded" size="small" class="ms-2"></v-icon>
           <span class="text-grey">Dibatalkan</span>
@@ -711,6 +714,25 @@ watch(filters, fetchMasterData, { deep: true });
                   <v-icon v-if="item.Status === 'BATAL'" start icon="mdi-cancel" size="12"></v-icon>
                   {{ item.Status || "PROSES" }}
                 </v-chip>
+              </template>
+
+              <template v-else-if="header.key === 'StatusAcc'">
+                <v-chip
+                  v-if="item.StatusAcc && item.StatusAcc !== 'LAMA'"
+                  :color="
+                    item.StatusAcc === 'MENUNGGU'
+                      ? 'warning'
+                      : item.StatusAcc === 'ACC'
+                      ? 'success'
+                      : 'error'
+                  "
+                  size="x-small"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  {{ item.StatusAcc === "MENUNGGU" ? "MENUNGGU ACC" : item.StatusAcc }}
+                </v-chip>
+                <span v-else>-</span>
               </template>
 
               <template v-else>
@@ -962,6 +984,10 @@ watch(filters, fetchMasterData, { deep: true });
 
 :deep(td.text-blue) {
   color: rgb(var(--v-theme-primary)) !important;
+}
+
+:deep(td.text-orange) {
+  color: rgb(var(--v-theme-warning)) !important;
 }
 
 :deep(.v-dialog) .v-card {

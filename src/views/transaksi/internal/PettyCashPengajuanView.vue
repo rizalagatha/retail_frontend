@@ -61,52 +61,57 @@ const fetchDrafts = async () => {
   }
 };
 
-// --- STATE BACKGROUND POLLING ---
-const pollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
-const isPolling = computed(() => pollingInterval.value !== null);
-
 const handleSave = async () => {
-  if (draftItems.value.length === 0) return toast.warning("Kosong.");
-
+  if (isSaving.value || draftItems.value.length === 0) return;
   isSaving.value = true;
-  try {
-    // 1. SUBMIT KLAIM DULU KE DATABASE (Status: SUBMITTED)
-    const payloadToSubmit = {
-      nomorList: draftItems.value.map((item) => item.nomor),
-      keterangan: form.value.keterangan,
-    };
-    const submitRes = await api.post("/petty-cash/submit-klaim", payloadToSubmit);
-    const generatedPckNomor = submitRes.data.pck_nomor;
 
-    // 2. MINTA OTORISASI PAKAI NOMOR PCK
-    const authPayload = {
-      transaksi: generatedPckNomor,
+  const totalSaatIni = totalKlaim.value;
+  const ketSaatIni = form.value.keterangan;
+  let pckNomor = "";
+
+  try {
+    // 1. Submit klaim: nota langsung berstatus SUBMITTED di server
+    const submitRes = await api.post("/petty-cash/submit-klaim", {
+      nomorList: draftItems.value.map((item) => item.nomor),
+      keterangan: ketSaatIni,
+    });
+    pckNomor = submitRes.data.pck_nomor;
+
+    // 2. Segarkan daftar sekarang juga supaya nota yang sama tidak bisa dikirim ulang
+    form.value.keterangan = "";
+    await fetchDrafts();
+
+    // 3. Minta otorisasi memakai nomor PCK
+    const authResponse = await api.post("/auth-pin/request", {
+      transaksi: pckNomor,
       jenis: "KLAIM_PETTYCASH",
-      keterangan: `Pengajuan Klaim Petty Cash\nTotal: ${formatRupiah(totalKlaim.value)}\nKet: ${
-        form.value.keterangan || "-"
+      keterangan: `Pengajuan Klaim Petty Cash\nTotal: ${formatRupiah(totalSaatIni)}\nKet: ${
+        ketSaatIni || "-"
       }`,
-      nominal: totalKlaim.value,
+      nominal: totalSaatIni,
       cabang: authStore.user?.cabang,
       user: authStore.user?.kode,
       barcode: "",
       target_cabang: "",
-    };
-    const authResponse = await api.post("/auth-pin/request", authPayload);
-    const generatedAuthNomor = authResponse.data.authNomor;
+    });
 
-    // 3. MUNCULKAN POP-UP LOADING
+    // 4. Dialog menunggu tampil tetapi bisa ditutup kapan saja; polling tetap jalan di latar belakang
     isWaitingAuth.value = true;
-    toast.info("Terkirim! Proses berjalan di latar belakang, Anda bisa menutup dialog ini.");
-
-    // 4. JALANKAN POLLING GLOBAL!
-    // Kita titipkan "pesan" (callback) agar kalau kasir masih diam di halaman ini, pop-upnya nutup & datanya ke-refresh
-    startGlobalPolling(generatedAuthNomor, () => {
+    startGlobalPolling(authResponse.data.authNomor, () => {
       isWaitingAuth.value = false;
       fetchDrafts();
     });
+    toast.info(`Klaim ${pckNomor} terkirim ke SPV. Proses ACC berjalan di latar belakang.`);
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
-    toast.error(err.response?.data?.message || "Gagal memproses pengajuan.");
+    const msg = err.response?.data?.message || "Gagal memproses pengajuan.";
+    if (pckNomor) {
+      toast.error(
+        `Klaim ${pckNomor} sudah tersimpan, tetapi permintaan ACC gagal terkirim: ${msg}`
+      );
+    } else {
+      toast.error(msg);
+    }
   } finally {
     isSaving.value = false;
   }
@@ -140,10 +145,10 @@ watch(
         color="primary"
         prepend-icon="mdi-content-save-check"
         :loading="isSaving"
-        :disabled="draftItems.length === 0 || isPolling"
+        :disabled="draftItems.length === 0 || isWaitingAuth"
         @click="handleSave"
       >
-        {{ isPolling ? "Menunggu ACC SPV..." : "Simpan Pengajuan" }}
+        {{ isWaitingAuth ? "Menunggu ACC SPV..." : "Simpan Pengajuan" }}
       </v-btn>
     </template>
 

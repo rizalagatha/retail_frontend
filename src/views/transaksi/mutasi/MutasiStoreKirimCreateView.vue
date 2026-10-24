@@ -12,6 +12,7 @@ import StoreSearchModal from "@/components/lookup/StoreSearchModal.vue";
 import ProductSidePanel from "@/components/panel/ProductSidePanel.vue";
 import type { ProductPanelSelection } from "@/components/panel/ProductSidePanel.vue";
 import type { AxiosError } from "axios";
+import { useAuthPolling } from "@/composables/useAuthPolling";
 
 // --- Tipe Data ---
 interface Header {
@@ -48,6 +49,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { markAsSaved } = useUnsavedChanges();
+const { startGlobalPolling } = useAuthPolling();
 const MENU_ID = "46"; // Sesuaikan
 
 const isEditMode = computed(() => !!route.params.nomor);
@@ -65,6 +67,14 @@ const header = reactive<Header>({
 const items = ref<Item[]>([]);
 const isLoading = ref(true);
 const isSaving = ref(false);
+import AuthWaitingDialog from "@/components/AuthWaitingDialog.vue";
+
+const isWaitingAuth = ref(false);
+
+const keBrowse = () => {
+  isWaitingAuth.value = false;
+  router.push({ name: "MutasiKirim" });
+};
 const dialog = reactive({ storeSearch: false });
 const isProductPanelVisible = ref(false);
 const activeRowIndex = ref(0);
@@ -180,25 +190,69 @@ const save = () => {
   showConfirmation("Konfirmasi Simpan", "Anda yakin ingin menyimpan data ini?", executeSave);
 };
 
-const executeSave = async () => {
-  isSaving.value = true;
-  const payload = {
-    header,
-    items: items.value.filter((i) => i.kode),
-    isNew: !isEditMode.value,
-  };
-  try {
-    const response = await api.post("/mutasi-kirim-form/save", payload);
-    toast.success(response.data.message);
-    markAsSaved();
-    const nomorDokumen = response.data.nomor;
-    if (nomorDokumen) {
-      const url = router.resolve({
-        name: "MutasiKirimPrint",
-        params: { nomor: nomorDokumen },
-      }).href;
-      window.open(url, "_blank");
+const requestSpvAuth = async (nomor: string, detail: Item[]) => {
+  const totalQty = detail.reduce((sum, i) => sum + (i.jumlah || 0), 0);
+  const authResponse = await api.post("/auth-pin/request", {
+    transaksi: nomor,
+    jenis: "MUTASI_KIRIM",
+    keterangan: `Mutasi Antar Store ${nomor}\nKe: ${header.storeTujuanKode} - ${
+      header.storeTujuanNama
+    }\nTotal: ${totalQty} pcs (${detail.length} item)\nKet: ${header.keterangan || "-"}`,
+    nominal: 0,
+    cabang: authStore.user?.cabang,
+    user: authStore.user?.kode,
+    barcode: "",
+    target_cabang: "",
+  });
+
+  isWaitingAuth.value = true;
+  startGlobalPolling(
+    authResponse.data.authNomor,
+    () => {
+      // Hanya pindah kalau kasir masih melihat dialog
+      if (isWaitingAuth.value) keBrowse();
+    },
+    {
+      pesanDisetujui: (approver) =>
+        `Mutasi ${nomor} disetujui ${approver}. Sudah bisa dicetak dari daftar mutasi.`,
+      pesanDitolak: `Mutasi ${nomor} ditolak SPV dan dibatalkan. Stok dikembalikan.`,
     }
+  );
+};
+
+const executeSave = async () => {
+  if (isSaving.value) return; // cegah klik ganda di dialog konfirmasi
+  isSaving.value = true;
+
+  const isNew = !isEditMode.value;
+  const payloadItems = items.value.filter((i) => i.kode);
+
+  try {
+    const response = await api.post("/mutasi-kirim-form/save", {
+      header,
+      items: payloadItems,
+      isNew,
+    });
+    markAsSaved();
+
+    const nomorDokumen: string | undefined = response.data.nomor;
+
+    if (isNew && nomorDokumen) {
+      try {
+        await requestSpvAuth(nomorDokumen, payloadItems);
+        return; // dialog menunggu tampil; pindah ke browse diurus dialog
+      } catch (authErr: unknown) {
+        const e = authErr as AxiosError<{ message: string }>;
+        toast.warning(
+          `Mutasi ${nomorDokumen} tersimpan, tetapi permintaan ACC SPV gagal terkirim: ${
+            e.response?.data?.message || "periksa koneksi"
+          }. Hubungi admin untuk kirim ulang.`
+        );
+      }
+    } else {
+      toast.success(response.data.message);
+    }
+
     router.push({ name: "MutasiKirim" });
   } catch (err: unknown) {
     const error = err as AxiosError<{ message: string }>;
@@ -347,13 +401,20 @@ onMounted(async () => {
 
   const nomor = route.params.nomor as string;
   if (isEditMode.value && nomor) {
-    const response = await api.get(`/mutasi-kirim-form/${nomor}`);
-    Object.assign(header, response.data.header);
-    header.tanggal = format(parseISO(header.tanggal), "yyyy-MM-dd");
-    items.value = response.data.items.map((item: Item) => ({
-      ...item,
-      id: Date.now() + Math.random(),
-    }));
+    try {
+      const response = await api.get(`/mutasi-kirim-form/${nomor}`);
+      Object.assign(header, response.data.header);
+      header.tanggal = format(parseISO(header.tanggal), "yyyy-MM-dd");
+      items.value = response.data.items.map((item: Item) => ({
+        ...item,
+        id: Date.now() + Math.random(),
+      }));
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message: string }>;
+      toast.error(error.response?.data?.message || "Gagal memuat dokumen.");
+      router.replace({ name: "MutasiKirim" });
+      return;
+    }
   }
   addNewRow();
   isLoading.value = false;
@@ -542,6 +603,8 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <AuthWaitingDialog :model-value="isWaitingAuth" @tutup="keBrowse" />
   </PageLayout>
 </template>
 

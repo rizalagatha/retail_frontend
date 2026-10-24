@@ -127,11 +127,11 @@ const headers = ref<DataTableHeader[]>([
   { title: "", key: "data-table-expand", width: 50, fixed: true },
   { title: "Nomor", key: "nomor", width: 180, fixed: true },
   { title: "Tanggal", key: "tanggal", width: 120 },
-  { title: "Nominal", key: "nominal", width: 120 },
-  { title: "Dibayarkan", key: "diBayarkan", width: 120 },
-  { title: "Sisa", key: "sisa", width: 120 },
+  { title: "Nominal", key: "nominal", align: "end", width: 120 },
+  { title: "Dibayarkan", key: "diBayarkan", align: "end", width: 120 },
+  { title: "Sisa", key: "sisa", align: "end", width: 120 },
   { title: "No. Invoice", key: "invoice", width: 180 },
-  { title: "Link Pembayaran", key: "linkPiutang", width: 180 }, // <--- TAMBAHKAN INI DISINI
+  { title: "Link Pembayaran", key: "linkPiutang", width: 180 },
   { title: "Jenis", key: "jenis", width: 100 },
   { title: "Customer", key: "nama", width: 250 },
   { title: "Keterangan", key: "keterangan", width: 250 },
@@ -395,7 +395,8 @@ watch(filters, fetchMasterData, { deep: true });
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-plus"
         @click="handleNew"
         >Baru</v-btn
@@ -403,6 +404,8 @@ watch(filters, fetchMasterData, { deep: true });
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-pencil"
         @click="handleEdit"
         :disabled="!canEdit"
@@ -413,7 +416,8 @@ watch(filters, fetchMasterData, { deep: true });
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
-        color="green"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-printer"
         @click="handlePrint"
@@ -422,7 +426,12 @@ watch(filters, fetchMasterData, { deep: true });
       </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
             >Export</v-btn
           >
         </template>
@@ -446,16 +455,16 @@ watch(filters, fetchMasterData, { deep: true });
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 180px"
+          class="periode-field"
         />
-        <span class="mx-2">s/d</span>
+        <span class="filter-sep">s/d</span>
         <v-text-field
           v-model="filters.endDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 180px"
+          class="periode-field"
         />
         <v-select
           label="Cabang"
@@ -466,8 +475,8 @@ watch(filters, fetchMasterData, { deep: true });
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-4"
-          style="max-width: 200px"
+          class="cabang-select"
+          :menu-props="{ class: 'retur-filter-menu' }"
         />
       </div>
 
@@ -541,22 +550,30 @@ watch(filters, fetchMasterData, { deep: true });
               </template>
               <template v-else-if="header.key === 'jenis'">
                 <v-chip
-                  :color="item.jenis === 'RETUR ONLINE' ? 'orange-darken-4' : 'primary'"
+                  v-if="item.jenis === 'RETUR ONLINE'"
+                  color="orange-darken-4"
                   size="x-small"
                   variant="flat"
                   class="font-weight-bold"
                 >
                   {{ item.jenis }}
                 </v-chip>
+                <v-chip
+                  v-else
+                  color="grey-darken-1"
+                  size="x-small"
+                  variant="tonal"
+                  class="font-weight-bold"
+                >
+                  {{ item.jenis }}
+                </v-chip>
               </template>
               <template v-else-if="['nominal', 'diBayarkan', 'sisa'].includes(header.key)">
-                {{ formatRupiah(Number(item[header.key])) }}
+                <span class="amount">{{ formatRupiah(Number(item[header.key])) }}</span>
               </template>
 
               <template v-else-if="header.key === 'linkPiutang'">
-                <span v-if="item.linkPiutang" class="font-weight-bold text-primary">{{
-                  item.linkPiutang
-                }}</span>
+                <span v-if="item.linkPiutang" class="font-weight-bold">{{ item.linkPiutang }}</span>
                 <span v-else class="text-grey">-</span>
               </template>
 
@@ -661,28 +678,10 @@ watch(filters, fetchMasterData, { deep: true });
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
-}
 
-.filter-section {
-  flex-shrink: 0;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.filter-section {
-  flex-shrink: 0;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  /* Tema merah lokal: header, checkbox, dan chip primary di halaman ini ikut merah */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
 .table-container {
@@ -691,6 +690,99 @@ watch(filters, fetchMasterData, { deep: true });
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* ══════════════ TOMBOL HEADER ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════════ FILTER ══════════════ */
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+
+.filter-section {
+  gap: 8px;
+}
+
+.filter-sep {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+
+.filter-section .periode-field {
+  flex: none;
+  width: 150px;
+}
+
+.filter-section .cabang-select {
+  flex: none;
+  width: 200px;
+  margin-left: 12px;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field) {
+  width: 100%;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .cabang-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
 }
 
 /* --- Tabel Style --- */
@@ -713,14 +805,25 @@ watch(filters, fetchMasterData, { deep: true });
 }
 
 /* --- Header Resize --- */
-.resizable-header {
-  background-color: rgb(var(--v-theme-primary)) !important;
-  color: rgb(var(--v-theme-on-primary)) !important;
+.desktop-table :deep(thead tr th.resizable-header) {
+  position: relative;
+  background: #b71c1c !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
+  border-bottom: 2px solid #8e0000 !important;
+  padding: 0 8px !important;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.desktop-table :deep(thead tr th.resizable-header *),
+.desktop-table :deep(thead tr th.resizable-header .v-icon) {
+  color: #ffffff !important;
 }
 
 .header-content {
@@ -750,7 +853,20 @@ watch(filters, fetchMasterData, { deep: true });
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
+}
+
+/* --- Baris --- */
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Detail Sticky --- */
@@ -777,12 +893,50 @@ watch(filters, fetchMasterData, { deep: true });
 
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* --- Pagination (jika footer tampil) --- */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+.desktop-table :deep(.v-pagination__item--is-active .v-btn),
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+</style>
+
+<style>
+/* Menu dropdown di-teleport ke luar halaman, jadi tidak bisa memakai scoped */
+.retur-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.retur-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

@@ -32,6 +32,7 @@ interface MasterDataItem {
   keterangan: string;
   usr: string;
   closing: "Y" | "N" | string;
+  statusAcc: string;
 }
 interface DetailItem {
   kode: string;
@@ -88,6 +89,7 @@ const headers = ref<DataTableHeader[]>([
   { title: "Ke Store", key: "namaStoreTujuan", width: 200 },
   { title: "Keterangan", key: "keterangan", width: 300 },
   { title: "User", key: "usr", width: 100 },
+  { title: "Status ACC", key: "statusAcc", width: 130, align: "center" },
   { title: "Closing", key: "closing", width: 100, align: "center" },
 ]);
 
@@ -135,6 +137,13 @@ const handleRowClick = (_event: Event, { item }: { item: MasterDataItem }) => {
 // --- Computed ---
 const isSingleSelected = computed(() => selected.value.length === 1);
 const selectedRow = computed(() => (isSingleSelected.value ? selected.value[0] : null));
+const bisaDiubah = computed(() => selectedRow.value?.statusAcc === "LAMA");
+const bisaDicetak = computed(
+  () => !!selectedRow.value && selectedRow.value.statusAcc !== "MENUNGGU"
+);
+const bisaDihapus = computed(
+  () => !!selectedRow.value && selectedRow.value.statusAcc !== "MENUNGGU"
+);
 
 // --- Methods ---
 const showConfirmation = (title: string, text: string, onConfirm: () => void) => {
@@ -387,7 +396,7 @@ watch(
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
         prepend-icon="mdi-pencil"
-        :disabled="!isSingleSelected"
+        :disabled="!isSingleSelected || !bisaDiubah"
         @click="handleEdit"
       >
         Ubah
@@ -397,7 +406,7 @@ watch(
         size="small"
         prepend-icon="mdi-delete"
         color="error"
-        :disabled="!isSingleSelected"
+        :disabled="!isSingleSelected || !bisaDihapus"
         @click="handleDelete"
       >
         Hapus
@@ -406,7 +415,7 @@ watch(
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
         color="green"
-        :disabled="!isSingleSelected"
+        :disabled="!isSingleSelected || !bisaDicetak"
         prepend-icon="mdi-printer"
         @click="handlePrint"
       >
@@ -563,6 +572,15 @@ watch(
                 {{
                   item[header.key] ? format(parseISO(item[header.key] as string), "dd/MM/yyyy") : ""
                 }}
+              </template>
+              <template v-else-if="header.key === 'statusAcc'">
+                <v-chip v-if="item.statusAcc === 'MENUNGGU'" size="x-small" color="warning">
+                  MENUNGGU ACC
+                </v-chip>
+                <v-chip v-else-if="item.statusAcc === 'ACC'" size="x-small" color="success">
+                  ACC
+                </v-chip>
+                <span v-else>-</span>
               </template>
               <template v-else-if="header.key === 'closing'">
                 <v-chip v-if="item.closing === 'Y'" size="x-small" color="success">YA</v-chip>

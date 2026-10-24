@@ -200,9 +200,10 @@ onMounted(loadItems);
 
 <template>
   <v-dialog :model-value="true" @update:modelValue="$emit('close')" max-width="900px" persistent>
-    <v-card class="d-flex flex-column modal-style-delphi" style="height: 70vh">
-      <v-toolbar color="primary" density="compact">
-        <v-toolbar-title class="text-subtitle-2">Bantuan - Pilih Invoice</v-toolbar-title>
+    <v-card class="dialog-card d-flex flex-column" style="height: 70vh">
+      <v-toolbar density="compact" class="modal-toolbar">
+        <v-icon icon="mdi-file-search-outline" class="ms-2 me-1" size="20"></v-icon>
+        <v-toolbar-title class="text-subtitle-1 font-weight-bold">Pilih Invoice</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-btn icon="mdi-close" @click="$emit('close')" variant="text" size="small"></v-btn>
       </v-toolbar>
@@ -210,14 +211,14 @@ onMounted(loadItems);
       <v-card-text class="pa-4 d-flex flex-column flex-grow-1">
         <v-text-field
           v-model="search"
-          label="Cari berdasarkan Nomor, Tanggal, atau Customer..."
+          label="Cari nomor invoice atau customer..."
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
           density="compact"
           clearable
           hide-details
           autofocus
-          class="mb-4 flex-shrink-0 search-input-compact"
+          class="mb-4 flex-shrink-0 search-input"
         />
 
         <v-data-table
@@ -227,7 +228,7 @@ onMounted(loadItems);
           hover
           density="compact"
           fixed-header
-          class="flex-grow-1 table-font-11"
+          class="desktop-table flex-grow-1"
           @click:row="handleRowClick"
         >
           <template #[`item.Tanggal`]="{ item }">
@@ -272,30 +273,130 @@ onMounted(loadItems);
 </template>
 
 <style scoped>
-/* Konsistensi Font 11px untuk menyerupai Grid Delphi */
-.table-font-11 :deep(table) {
-  font-size: 11px !important;
+.dialog-card {
+  /* Tema merah lokal: progress loading dan elemen primary di dalam modal ikut merah */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+
+  font-size: 12px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.table-font-11 :deep(th) {
-  font-size: 11px !important;
-  font-weight: bold !important;
-  background-color: #f5f5f5 !important;
-  color: #333 !important;
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title) {
+  color: #ffffff;
+}
+.modal-toolbar :deep(.v-btn) {
+  color: #ffffff !important;
 }
 
-.table-font-11 :deep(td) {
-  height: 30px !important;
-  /* Baris lebih padat */
+/* Search */
+.search-input :deep(.v-field) {
+  border-radius: 8px;
+  font-size: 12px;
+}
+.search-input :deep(.v-field--focused .v-field__outline),
+.search-input :deep(.v-field--focused .v-label) {
+  color: #b71c1c !important;
+}
+.search-input :deep(.v-icon) {
+  color: rgba(183, 28, 28, 0.7);
+}
+
+/* Tabel */
+.desktop-table {
+  font-size: 11px;
+}
+.desktop-table :deep(td),
+.desktop-table :deep(th) {
+  padding: 0 8px !important;
+  height: 28px !important;
+}
+.desktop-table :deep(td) {
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.desktop-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  border-bottom: 2px solid #8e0000 !important;
 }
 
-.search-input-compact :deep(input),
-.search-input-compact :deep(label) {
-  font-size: 12px !important;
+/* Baris: seluruh baris bisa diklik */
+.desktop-table :deep(tbody tr) {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.desktop-table :deep(tbody tr:nth-child(even)) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.desktop-table :deep(tbody tr:hover) {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+}
+.desktop-table :deep(tbody tr:active) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
 }
 
-.modal-style-delphi {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+/* Footer pagination */
+.desktop-table :deep(.v-data-table-footer) {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px !important;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  font-size: 12px;
+}
+.desktop-table :deep(.v-data-table-footer__items-per-page) {
+  margin-right: auto;
+  gap: 8px;
+}
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-select) {
+  max-width: 92px;
+}
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+.desktop-table :deep(.v-data-table-footer__info) {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.65);
+  margin: 0 16px;
+}
+.desktop-table :deep(.v-data-table-footer__pagination) {
+  gap: 4px;
+}
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+  transition: background-color 0.15s ease;
+}
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled) {
+  background-color: rgba(0, 0, 0, 0.03);
+  opacity: 0.4;
+}
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon.v-btn--disabled .v-icon) {
+  color: rgba(0, 0, 0, 0.3);
 }
 </style>

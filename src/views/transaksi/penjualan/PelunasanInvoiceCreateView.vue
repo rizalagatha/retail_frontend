@@ -110,6 +110,31 @@ const totalAllocated = computed(() => {
   }
 });
 
+const isRowChecked = (item: InvoiceRow) =>
+  !!item.ph_nomor && selectedIds.value.includes(item.ph_nomor);
+
+const isOver = (item: InvoiceRow) =>
+  isRowChecked(item) && (Number(item.bayar) || 0) > (item.sisa_tagihan ?? 0);
+
+const jumlahMelebihi = computed(() => invoiceList.value.filter((i) => isOver(i)).length);
+
+const jumlahInvoice = computed(() =>
+  isViewMode.value ? invoiceList.value.length : selectedIds.value.length
+);
+
+const totalSisaTerpilih = computed(() =>
+  invoiceList.value
+    .filter((i) => isRowChecked(i))
+    .reduce((sum, i) => sum + (i.sisa_tagihan ?? 0), 0)
+);
+
+const openCustomer = () => {
+  if (!isViewMode.value) dialogs.customerSearch = true;
+};
+const openRekening = () => {
+  if (!isViewMode.value) dialogs.rekeningSearch = true;
+};
+
 const tableHeaders = computed<DataTableHeader[]>(() => {
   const base: DataTableHeader[] = [
     { title: "No. Invoice", key: "inv_nomor", width: "140px" },
@@ -234,6 +259,10 @@ const handleSave = () => {
   // Validasi Awal
   if (!form.customer.kode) return toast.error("Pilih customer terlebih dahulu.");
   if (totalAllocated.value <= 0) return toast.error("Tidak ada nominal yang dibayarkan.");
+  if (totalAllocated.value <= 0) return toast.error("Tidak ada nominal yang dibayarkan.");
+  if (jumlahMelebihi.value > 0) {
+    return toast.error(`${jumlahMelebihi.value} invoice dibayar melebihi sisa tagihan.`);
+  }
   if (form.metode === "TRANSFER" && !form.bankAccount.kode) {
     return toast.error("Pilih akun bank untuk metode transfer.");
   }
@@ -357,11 +386,12 @@ onMounted(() => {
     <template #header-actions>
       <v-btn
         v-if="!isViewMode"
-        color="success"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-content-save"
         :loading="isSaving"
-        :disabled="totalAllocated <= 0"
+        :disabled="totalAllocated <= 0 || jumlahMelebihi > 0"
         @click="handleSave"
       >
         Simpan
@@ -369,74 +399,97 @@ onMounted(() => {
 
       <v-btn
         v-if="!isViewMode"
-        color="warning"
-        variant="tonal"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-refresh"
         @click="handleReset"
       >
         Batal
       </v-btn>
 
-      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose"> Tutup </v-btn>
+      <v-btn
+        size="small"
+        variant="tonal"
+        class="btn-header-action"
+        prepend-icon="mdi-close"
+        @click="handleClose"
+      >
+        Tutup
+      </v-btn>
     </template>
 
     <div class="form-grid-container">
-      <div class="left-column">
-        <div class="desktop-form-section header-section">
-          <div class="text-subtitle-2 font-weight-bold mb-3 text-primary">INFORMASI PEMBAYARAN</div>
+      <!-- ───────── Panel kiri ───────── -->
+      <div class="form-panel">
+        <section class="panel-group">
+          <h3 class="group-title">Bukti pelunasan</h3>
 
           <v-text-field
-            label="Nomor Bukti"
+            label="Nomor bukti"
             v-model="form.nomor"
             readonly
-            variant="filled"
+            variant="outlined"
             density="compact"
-            placeholder="(Otomatis)"
+            placeholder="(otomatis)"
             hide-details
-            class="mb-3"
+            class="readonly-field nomor-field"
           />
 
           <v-text-field
-            label="Tanggal Bayar"
+            label="Tanggal bayar"
             v-model="form.tanggal"
             type="date"
             variant="outlined"
             density="compact"
             :readonly="isViewMode"
             hide-details
-            class="mb-3"
           />
+        </section>
 
-          <v-text-field
-            label="Customer / Marketplace"
-            :model-value="form.customer.nama"
-            readonly
-            variant="outlined"
-            density="compact"
-            :append-inner-icon="!isViewMode ? 'mdi-magnify' : ''"
-            :placeholder="!isViewMode ? 'Pilih Customer...' : ''"
-            @click="!isViewMode && (dialogs.customerSearch = true)"
-            hide-details
-            :class="{ 'field-disabled': isViewMode }"
-            class="mb-3"
-          />
+        <section class="panel-group">
+          <h3 class="group-title">Pembayaran</h3>
 
-          <v-select
-            label="Metode Pembayaran"
-            v-model="form.metode"
-            :items="['TRANSFER', 'TUNAI', 'GIRO']"
-            variant="outlined"
-            density="compact"
-            :readonly="isViewMode"
-            hide-details
-            class="mb-3"
-          />
+          <div>
+            <v-text-field
+              label="Marketplace / customer"
+              :model-value="form.customer.nama"
+              readonly
+              variant="outlined"
+              density="compact"
+              hide-details
+              :append-inner-icon="!isViewMode ? 'mdi-magnify' : ''"
+              :placeholder="!isViewMode ? 'Pilih customer' : ''"
+              :class="isViewMode ? 'readonly-field' : 'search-field'"
+              @click="openCustomer"
+              @keydown.enter="openCustomer"
+            />
+            <div v-if="form.customer.alamat" class="field-note">
+              {{ form.customer.alamat }}
+            </div>
+          </div>
+
+          <div>
+            <div class="field-caption">Metode pembayaran</div>
+            <v-btn-toggle
+              v-model="form.metode"
+              mandatory
+              divided
+              density="compact"
+              variant="outlined"
+              class="metode-toggle"
+              :disabled="isViewMode"
+            >
+              <v-btn value="TRANSFER">Transfer</v-btn>
+              <v-btn value="TUNAI">Tunai</v-btn>
+              <v-btn value="GIRO">Giro</v-btn>
+            </v-btn-toggle>
+          </div>
 
           <v-expand-transition>
             <div v-if="form.metode === 'TRANSFER' || isViewMode">
               <v-text-field
-                label="Akun Bank (Masuk Ke)"
+                label="Akun bank (masuk ke)"
                 :model-value="
                   form.bankAccount.rekening
                     ? `${form.bankAccount.kode} - ${form.bankAccount.rekening}`
@@ -445,10 +498,12 @@ onMounted(() => {
                 readonly
                 variant="outlined"
                 density="compact"
-                :append-inner-icon="!isViewMode ? 'mdi-bank' : ''"
-                @click="!isViewMode && (dialogs.rekeningSearch = true)"
                 hide-details
-                class="mb-3"
+                :append-inner-icon="!isViewMode ? 'mdi-bank' : ''"
+                :placeholder="!isViewMode ? 'Pilih akun bank' : ''"
+                :class="isViewMode ? 'readonly-field' : 'search-field'"
+                @click="openRekening"
+                @keydown.enter="openRekening"
               />
             </div>
           </v-expand-transition>
@@ -459,37 +514,38 @@ onMounted(() => {
             variant="outlined"
             density="compact"
             rows="3"
+            auto-grow
             :readonly="isViewMode"
             hide-details
           />
-        </div>
+        </section>
 
-        <div v-if="isViewMode" class="mt-auto pt-4 text-caption text-grey">
-          <div>
-            Dibuat oleh: <strong>{{ form.userCreate }}</strong>
-          </div>
+        <div v-if="isViewMode" class="panel-meta">
+          Dibuat oleh <strong>{{ form.userCreate }}</strong>
         </div>
       </div>
 
+      <!-- ───────── Kolom kanan ───────── -->
       <div class="right-column">
-        <div class="d-flex align-center justify-space-between mb-2">
-          <div class="text-subtitle-2 font-weight-bold text-grey-darken-2">
-            DAFTAR TAGIHAN (INVOICE)
-          </div>
+        <div class="list-head">
+          <h3 class="list-title">
+            {{ isViewMode ? "Invoice yang dilunasi" : "Tagihan outstanding" }}
+          </h3>
           <v-btn
             v-if="!isViewMode"
             size="x-small"
             variant="text"
+            color="primary"
             prepend-icon="mdi-refresh"
             :loading="isLoading"
-            @click="loadOutstanding"
             :disabled="!form.customer.kode"
+            @click="loadOutstanding"
           >
-            Refresh
+            Muat ulang
           </v-btn>
         </div>
 
-        <div class="table-wrapper flex-grow-1">
+        <div class="table-wrapper">
           <v-data-table
             v-model="selectedIds"
             :headers="tableHeaders"
@@ -498,61 +554,85 @@ onMounted(() => {
             :show-select="!isViewMode"
             item-value="ph_nomor"
             density="compact"
-            class="desktop-table header-browse-blue border"
+            class="desktop-table"
             fixed-header
             height="100%"
             :items-per-page="-1"
             hide-default-footer
+            :item-props="(item: InvoiceRow) => ({ class: isRowChecked(item) ? 'row-picked' : '' })"
           >
             <template v-slot:[`item.sisa_tagihan`]="{ item }">
-              <span class="font-weight-medium">{{ formatRupiah(item.sisa_tagihan ?? 0) }}</span>
+              <span class="amount">{{ formatRupiah(item.sisa_tagihan ?? 0) }}</span>
             </template>
 
             <template v-slot:[`item.bayar`]="{ item }">
-              <div v-if="!isViewMode">
+              <div v-if="!isViewMode" class="bayar-cell">
                 <v-text-field
                   v-model.number="item.bayar"
                   type="number"
                   min="0"
                   :max="item.sisa_tagihan"
-                  variant="underlined"
+                  variant="outlined"
                   density="compact"
                   hide-details
-                  class="text-right input-bayar"
-                  :class="{ 'font-weight-bold text-primary': item.bayar > 0 }"
                   prefix="Rp"
+                  class="bayar-field"
+                  :class="{ 'bayar-over': isOver(item) }"
+                  :disabled="!isRowChecked(item)"
+                  :aria-label="`Nominal bayar ${item.inv_nomor}`"
                 />
+                <div v-if="isOver(item)" class="over-note">
+                  <v-icon size="12">mdi-alert</v-icon> Melebihi sisa
+                </div>
               </div>
-              <div v-else class="text-right font-weight-bold text-success">
-                {{ formatRupiah(item.bayar) }}
-              </div>
+              <div v-else class="amount text-right">{{ formatRupiah(item.bayar) }}</div>
             </template>
 
             <template v-slot:no-data>
-              <div class="pa-8 text-center text-grey">
-                <v-icon
-                  icon="mdi-invoice-text-outline"
-                  size="40"
-                  class="mb-2 text-grey-lighten-1"
-                />
-                <div v-if="!form.customer.kode">Silakan pilih Customer terlebih dahulu.</div>
-                <div v-else>Tidak ada tagihan outstanding.</div>
+              <div class="empty-state">
+                <v-icon icon="mdi-invoice-text-outline" size="36" />
+                <template v-if="!form.customer.kode">
+                  <p>Pilih customer untuk melihat tagihan yang belum lunas.</p>
+                  <v-btn
+                    v-if="!isViewMode"
+                    size="small"
+                    variant="flat"
+                    class="btn-primary-red"
+                    prepend-icon="mdi-magnify"
+                    @click="openCustomer"
+                  >
+                    Pilih customer
+                  </v-btn>
+                </template>
+                <p v-else>Customer ini tidak punya tagihan outstanding.</p>
               </div>
             </template>
           </v-data-table>
         </div>
 
-        <div
-          class="footer-summary mt-2 pa-3 bg-grey-lighten-4 rounded border d-flex align-center justify-space-between"
-        >
-          <div class="text-caption text-grey-darken-1 font-weight-medium">
-            {{ isViewMode ? "TOTAL PELUNASAN" : "TOTAL YANG AKAN DIBAYARKAN" }}
+        <div class="summary-bar">
+          <div v-if="jumlahMelebihi > 0" class="summary-warn">
+            <v-icon size="16">mdi-alert</v-icon>
+            {{ jumlahMelebihi }} invoice dibayar melebihi sisa tagihan
           </div>
-          <div
-            class="text-h5 font-weight-bold"
-            :class="isViewMode ? 'text-success' : 'text-primary'"
-          >
-            {{ formatRupiah(totalAllocated) }}
+
+          <div class="summary-item">
+            <span class="summary-label">{{
+              isViewMode ? "Jumlah invoice" : "Invoice dipilih"
+            }}</span>
+            <span class="summary-value">{{ jumlahInvoice }}</span>
+          </div>
+
+          <div v-if="!isViewMode" class="summary-item">
+            <span class="summary-label">Sisa tagihan terpilih</span>
+            <span class="summary-value">{{ formatRupiah(totalSisaTerpilih) }}</span>
+          </div>
+
+          <div class="summary-item summary-total">
+            <span class="summary-label">{{
+              isViewMode ? "Total pelunasan" : "Total dibayarkan"
+            }}</span>
+            <span class="summary-value">{{ formatRupiah(totalAllocated) }}</span>
           </div>
         </div>
       </div>
@@ -577,16 +657,16 @@ onMounted(() => {
         <v-card-text>{{ dialogConfirm.text }}</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
+          <v-btn variant="text" @click="dialogConfirm.show = false">Batal</v-btn>
           <v-btn
-            color="primary"
-            variant="tonal"
+            variant="flat"
+            class="btn-primary-red"
             @click="
               dialogConfirm.onConfirm();
               dialogConfirm.show = false;
             "
           >
-            Ya, Lanjutkan
+            Ya, lanjutkan
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -595,62 +675,353 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* ══════════════ LAYOUT ══════════════ */
 .form-grid-container {
-  display: flex;
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 16px;
   height: calc(100vh - 64px - 48px);
   overflow: hidden;
-}
 
-.left-column {
-  flex: 0 0 320px;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding-right: 4px;
+  /* Tema merah lokal: checkbox, toggle, tombol teks di halaman ini ikut merah */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
 .right-column {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 10px;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
+/* ══════════════ TOMBOL HEADER ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.btn-primary-red:disabled {
+  opacity: 0.45;
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════════ PANEL KIRI ══════════════ */
+.form-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  background-color: rgba(183, 28, 28, 0.04);
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-left: 4px solid #b71c1c;
+  border-radius: 8px;
+}
+
+.panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group-title {
+  margin: 0;
+  padding-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b71c1c;
+  border-bottom: 1.5px solid rgba(183, 28, 28, 0.2);
+}
+
+/* Field putih di atas panel yang sedikit tinted */
+.form-panel :deep(.v-field) {
+  background-color: rgb(var(--v-theme-surface));
+}
+
+.field-caption {
+  margin-bottom: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.field-note {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.7;
+}
+
+/* Field hanya-baca: jelas bukan untuk diketik */
+.readonly-field :deep(.v-field) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  box-shadow: none !important;
+}
+.readonly-field :deep(input) {
+  color: rgba(var(--v-theme-on-surface), 0.75) !important;
+  font-weight: 500;
+}
+.nomor-field :deep(input) {
+  font-weight: 800 !important;
+  color: #b71c1c !important;
+}
+
+/* Field pencarian: ikon jadi tombol (pola SoCreateView) */
+.search-field :deep(.v-field) {
+  cursor: pointer;
+}
+.search-field :deep(.v-field__append-inner) {
+  display: flex;
+  align-items: center;
+}
+.search-field :deep(.v-field__append-inner .v-icon) {
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #b71c1c;
+  border-radius: 6px;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  opacity: 1;
+  transition: background-color 0.15s ease;
+}
+.search-field:hover :deep(.v-field__append-inner .v-icon) {
+  background-color: #8e0000;
+}
+.search-field :deep(.v-field--focused .v-field__outline) {
+  color: #b71c1c !important;
+}
+
+/* Metode pembayaran */
+.metode-toggle {
+  display: flex;
+  width: 100%;
+  height: 36px;
+}
+.metode-toggle :deep(.v-btn) {
+  flex: 1;
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0;
+  background-color: rgb(var(--v-theme-surface));
+}
+.metode-toggle :deep(.v-btn--active) {
+  background-color: #b71c1c;
+  color: #ffffff;
+}
+.metode-toggle :deep(.v-btn__overlay) {
+  display: none;
+}
+
+.panel-meta {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 11px;
+  opacity: 0.75;
+  border-top: 1px solid rgba(183, 28, 28, 0.15);
+}
+
+/* ══════════════ DAFTAR TAGIHAN ══════════════ */
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.list-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .table-wrapper {
-  flex-grow: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 8px;
 }
 
 .desktop-table {
   height: 100%;
 }
 
-.desktop-table :deep(th) {
-  background-color: #0d47a1 !important;
-  color: white !important;
-  font-weight: bold !important;
+.desktop-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
   white-space: nowrap;
+  border-bottom: 2px solid #8e0000 !important;
+}
+.desktop-table :deep(thead tr th .v-icon) {
+  color: #ffffff !important;
+}
+/* Teks isi tabel: 11px, konsisten dengan header dan tabel detail di browse */
+.desktop-table :deep(tbody tr td) {
+  font-size: 11px !important;
 }
 
-.input-bayar :deep(input) {
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.06);
+}
+
+/* Baris yang akan dibayar */
+.desktop-table :deep(tbody tr.row-picked > td) {
+  background-color: rgba(183, 28, 28, 0.09) !important;
+}
+.desktop-table :deep(tbody tr.row-picked > td:first-child) {
+  box-shadow: inset 3px 0 0 #b71c1c;
+}
+
+.amount {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bayar-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 4px 0;
+}
+
+.bayar-field {
+  width: 170px;
+}
+.bayar-field :deep(input) {
+  font-size: 11px;
   text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bayar-field :deep(.v-text-field__prefix) {
+  font-size: 11px;
+}
+.bayar-field :deep(input[type="number"]) {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.bayar-field :deep(input::-webkit-outer-spin-button),
+.bayar-field :deep(input::-webkit-inner-spin-button) {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.field-disabled {
-  pointer-events: none;
-  opacity: 0.8;
+/* Peringatan melebihi sisa: amber, supaya tidak tertukar dengan merah tema */
+.bayar-over :deep(.v-field__outline) {
+  color: #b26a00 !important;
+  --v-field-border-opacity: 1;
+}
+.over-note {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b26a00;
 }
 
-.header-section {
-  border: 1px solid #e0e0e0;
-  padding: 16px;
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  text-align: center;
+}
+.empty-state .v-icon {
+  opacity: 0.4;
+}
+.empty-state p {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+/* ══════════════ RINGKASAN ══════════════ */
+.summary-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 32px;
+  padding: 10px 16px;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-top: 3px solid #b71c1c;
   border-radius: 8px;
-  background-color: #fff;
+}
+
+.summary-warn {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b26a00;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.summary-label {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.summary-value {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.summary-total .summary-value {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
+  .form-grid-container {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+  .form-panel {
+    overflow: visible;
+  }
+  .table-wrapper {
+    min-height: 360px;
+  }
+  .summary-bar {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
 }
 </style>

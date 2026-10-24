@@ -151,7 +151,7 @@ const isPrintOptionVisible = ref(false);
 const savedDocumentNumber = ref<string | null>(null);
 
 const tableHeaders = [
-  { title: "Kode", key: "kode", width: "100px" },
+  { title: "Kode", key: "kode", width: "140px" },
   { title: "Nama Barang", key: "nama" },
   { title: "Ukuran", key: "ukuran", width: "60px" },
   { title: "Qty Inv", key: "qtyInv", align: "end", width: "60px" },
@@ -162,6 +162,7 @@ const tableHeaders = [
   { title: "Total", key: "total", align: "end", width: "70px" },
   { title: "Barcode", key: "barcode", width: "90px" },
   { title: "Sudah Retur", key: "sudah", align: "end", width: "60px" },
+  { title: "", key: "actions", sortable: false, align: "center", width: "36px" },
 ] as const;
 
 // --- Methods ---
@@ -267,6 +268,11 @@ const save = () => {
   const validItems = items.value.filter((i) => i.kode && (i.jumlah || 0) > 0);
   if (validItems.length === 0) {
     return toast.error("Detail barang retur harus diisi minimal 1 baris.");
+  }
+  if (jumlahMelebihi.value > 0) {
+    return toast.error(
+      `Ada ${jumlahMelebihi.value} baris dengan qty retur melebihi sisa yang bisa diretur.`
+    );
   }
   // --- AKHIR VALIDASI ---
 
@@ -537,6 +543,23 @@ const removeRow = (id: number) => {
   if (index !== -1) items.value.splice(index, 1);
 };
 
+const sisaRetur = (item: Item): number => (Number(item.qtyInv) || 0) - (Number(item.sudah) || 0);
+
+// Hanya baris asal invoice (qtyInv > 0) yang dibatasi
+const isOver = (item: Item): boolean =>
+  !!header.invoice &&
+  !isQtyLimitBypassed.value &&
+  !!item.kode &&
+  Number(item.qtyInv) > 0 &&
+  (Number(item.jumlah) || 0) > sisaRetur(item);
+
+const jumlahMelebihi = computed(() => items.value.filter(isOver).length);
+
+// Baris manual (tanpa referensi invoice) boleh dihapus; baris invoice cukup di-nol-kan
+const canRemove = (item: Item): boolean => !!item.kode && Number(item.qtyInv) === 0;
+
+const jumlahBarisTerisi = computed(() => items.value.filter((i) => i.kode).length);
+
 const handleKodeKeydown = (e: KeyboardEvent, index: number) => {
   if (header.invoice) return;
 
@@ -616,309 +639,298 @@ watch(
     <template #header-actions>
       <v-btn
         size="small"
-        color="primary"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-content-save"
-        @click="save"
         :loading="isSaving"
+        @click="save"
         >Simpan</v-btn
       >
-      <v-btn size="small" prepend-icon="mdi-refresh" @click="handleCancel">Batal</v-btn>
-      <v-btn size="small" prepend-icon="mdi-close" @click="handleClose">Tutup</v-btn>
+      <v-btn
+        v-if="!isEditMode"
+        size="small"
+        variant="tonal"
+        class="btn-header-action"
+        prepend-icon="mdi-refresh"
+        @click="handleCancel"
+        >Batal</v-btn
+      >
+      <v-btn
+        size="small"
+        variant="tonal"
+        class="btn-header-action"
+        prepend-icon="mdi-close"
+        @click="handleClose"
+        >Tutup</v-btn
+      >
     </template>
+
     <div class="form-grid-container">
-      <div class="left-column">
-        <div class="desktop-form-section header-section">
-          <v-row dense>
-            <v-col cols="6">
-              <v-text-field
-                label="Cabang"
-                v-model="header.cabangKode"
-                readonly
-                :filled="authStore.user?.cabang !== 'KDC'"
-                :variant="authStore.user?.cabang === 'KDC' ? 'outlined' : 'filled'"
-                @click="openGudangSearch"
-                density="compact"
-                hide-details
-              >
-                <template #append-inner>
-                  <v-icon v-if="authStore.user?.cabang === 'KDC'" @click="openGudangSearch">
-                    mdi-magnify
-                  </v-icon>
-                </template>
-              </v-text-field>
-            </v-col>
-            <v-col cols="6"
-              ><v-text-field
-                v-model="header.cabangNama"
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="No. Retur"
-                v-model="header.nomor"
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="6"
-              ><v-text-field
-                label="Tanggal"
-                v-model="header.tanggal"
-                type="date"
-                variant="outlined"
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="12">
-              <v-radio-group
-                v-model="header.jenis"
-                inline
-                label="Jenis Retur"
-                hide-details
-                :key="authStore.user?.cabang"
-              >
-                <v-radio label="Pengembalian" value="Y"></v-radio>
-                <v-radio label="Tukar Barang" value="N"></v-radio>
-                <v-radio
-                  v-if="authStore.user?.cabang === 'KON'"
-                  label="Retur Online (Ke DC)"
-                  value="O"
-                ></v-radio>
-              </v-radio-group>
-            </v-col>
-            <v-col cols="12">
-              <v-text-field
-                label="No. Invoice"
-                v-model="header.invoice"
-                @click="dialog.invoiceSearch = true"
-                prepend-inner-icon="mdi-magnify"
-                readonly
-                variant="outlined"
-                hide-details
-                density="compact"
-              />
-            </v-col>
+      <!-- ══════════ KIRI: DATA DOKUMEN ══════════ -->
+      <aside class="left-column">
+        <section class="panel">
+          <h3 class="panel-title">Dokumen</h3>
 
-            <v-col cols="12"
-              ><v-text-field
-                label="Customer"
-                :model-value="
-                  header.customer ? `${header.customer.kode} - ${header.customer.nama}` : ''
-                "
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
-                label="Alamat"
-                :model-value="header.customer?.alamat"
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="12"
-              ><v-text-field
-                label="Kota / Telp"
-                :model-value="
-                  header.customer ? `${header.customer.kota} / ${header.customer.telp}` : ''
-                "
-                readonly
-                filled
-                hide-details
-                density="compact"
-            /></v-col>
+          <div class="kv">
+            <span class="kv-label">No. retur</span>
+            <span class="kv-value">{{ header.nomor || "-" }}</span>
+          </div>
 
-            <v-col cols="12">
-              <v-textarea
-                label="Keterangan *"
-                v-model="header.keterangan"
-                rows="3"
-                variant="outlined"
-                :class="{ 'bg-orange-lighten-5': header.jenis === 'O' }"
-                hide-details="auto"
-                density="compact"
-                :rules="[(v) => !!v || 'Keterangan wajib diisi']"
-              />
-            </v-col>
-          </v-row>
-        </div>
-      </div>
-      <div class="right-column">
-        <div class="scanner-wrapper mb-4">
           <v-text-field
-            v-model="scannedBarcode"
-            label="Scan Barcode di Sini..."
+            label="Cabang"
+            :model-value="`${header.cabangKode} - ${header.cabangNama}`"
+            readonly
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="form-field mb-3"
+            :class="{ 'is-locked': authStore.user?.cabang !== 'KDC' }"
+            @click="openGudangSearch"
+          >
+            <template #append-inner>
+              <v-icon v-if="authStore.user?.cabang === 'KDC'" size="small">mdi-magnify</v-icon>
+            </template>
+          </v-text-field>
+
+          <v-text-field
+            label="Tanggal"
+            v-model="header.tanggal"
+            type="date"
             variant="outlined"
             density="compact"
-            prepend-inner-icon="mdi-barcode-scan"
             hide-details
-            clearable
-            @keydown.enter.prevent="handleBarcodeScan"
+            class="form-field mb-3"
           />
-        </div>
-        <v-data-table
-          :headers="tableHeaders"
-          :items="items"
-          class="desktop-table fill-height-table"
+
+          <div class="field-caption">Jenis retur</div>
+          <v-btn-toggle
+            v-model="header.jenis"
+            mandatory
+            divided
+            density="compact"
+            variant="outlined"
+            class="jenis-toggle"
+            :key="authStore.user?.cabang"
+          >
+            <v-btn value="Y" size="small">Pengembalian</v-btn>
+            <v-btn value="N" size="small">Tukar barang</v-btn>
+            <v-btn v-if="authStore.user?.cabang === 'KON'" value="O" size="small"
+              >Retur online (ke DC)</v-btn
+            >
+          </v-btn-toggle>
+        </section>
+
+        <section class="panel">
+          <h3 class="panel-title">Invoice dan customer</h3>
+
+          <v-text-field
+            label="No. invoice"
+            v-model="header.invoice"
+            @click="dialog.invoiceSearch = true"
+            prepend-inner-icon="mdi-magnify"
+            readonly
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="form-field mb-3"
+          />
+
+          <div class="customer-card" :class="{ 'is-empty': !header.customer }">
+            <template v-if="header.customer">
+              <div class="customer-name">
+                {{ header.customer.kode }} - {{ header.customer.nama }}
+              </div>
+              <div class="customer-line">{{ header.customer.alamat || "-" }}</div>
+              <div class="customer-line">
+                {{ header.customer.kota || "-" }} / {{ header.customer.telp || "-" }}
+              </div>
+            </template>
+            <span v-else class="customer-empty">Pilih invoice untuk mengisi data customer.</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3 class="panel-title">Keterangan</h3>
+          <v-textarea
+            label="Keterangan *"
+            v-model="header.keterangan"
+            rows="3"
+            auto-grow
+            variant="outlined"
+            :class="{ 'bg-orange-lighten-5': header.jenis === 'O' }"
+            class="form-field"
+            hide-details="auto"
+            density="compact"
+            :rules="[(v) => !!v || 'Keterangan wajib diisi']"
+          />
+        </section>
+      </aside>
+
+      <!-- ══════════ KANAN: BARANG + TOTAL ══════════ -->
+      <div class="right-column">
+        <v-text-field
+          v-model="scannedBarcode"
+          placeholder="Scan barcode di sini lalu tekan Enter"
+          variant="outlined"
+          density="comfortable"
+          prepend-inner-icon="mdi-barcode-scan"
           hide-details
-          density="compact"
-          fixed-header
-          :items-per-page="-1"
-        >
-          <template #[`item.kode`]="{ item, index }">
-            <v-text-field
-              v-model="item.kode"
-              variant="underlined"
-              density="compact"
-              hide-details
-              placeholder="F1/F2..."
-              @keydown="handleKodeKeydown($event, index)"
-              :readonly="!!header.invoice"
-            />
-          </template>
+          clearable
+          class="scan-field"
+          @keydown.enter.prevent="handleBarcodeScan"
+        />
 
-          <template #[`item.jumlah`]="{ item }">
-            <v-text-field
-              v-model.number="item.jumlah"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              :rules="
-                isQtyLimitBypassed
-                  ? []
-                  : [(v) => v <= item.qtyInv - item.sudah || `Maks: ${item.qtyInv - item.sudah}`]
-              "
-              min="0"
-            />
-          </template>
-
-          <template #[`item.harga`]="{ item }">
-            <v-text-field
-              v-model.number="item.harga"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              readonly
-            />
-          </template>
-
-          <template #[`item.disc`]="{ item }">
-            <v-text-field
-              v-model.number="item.disc"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              readonly
-            />
-          </template>
-
-          <template #[`item.diskon`]="{ item }">
-            <v-text-field
-              v-model.number="item.diskon"
-              type="number"
-              variant="underlined"
-              class="text-end"
-              density="compact"
-              hide-details
-              readonly
-            />
-          </template>
-
-          <template #[`item.actions`]="{ item }">
-            <v-btn
-              v-if="item.kode"
-              icon="mdi-delete"
-              size="x-small"
-              variant="text"
-              color="error"
-              @click="removeRow(item.id)"
-            />
-          </template>
-
-          <template #bottom>
-            <div class="pa-2 text-right">
-              <v-btn size="small" @click="addNewRow" prepend-icon="mdi-plus">Tambah Baris</v-btn>
-            </div>
-          </template>
-        </v-data-table>
-        <div class="footer-section pa-4">
-          <v-row dense>
-            <v-col cols="4"
-              ><v-text-field
-                label="Total"
-                :model-value="formatRupiah(footer.subTotal)"
-                readonly
-                filled
-                class="text-end"
-                hide-details
+        <div class="table-card">
+          <v-data-table
+            :headers="tableHeaders"
+            :items="items"
+            class="desktop-table items-table"
+            density="compact"
+            fixed-header
+            :items-per-page="-1"
+          >
+            <template #[`item.kode`]="{ item, index }">
+              <v-text-field
+                v-if="!header.invoice"
+                v-model="item.kode"
+                variant="underlined"
                 density="compact"
-            /></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="Diskon Rp"
-                v-model.number="footer.diskonRp"
-                type="number"
-                variant="outlined"
-                class="text-end"
                 hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="PPN"
-                :model-value="formatRupiah(footer.ppnRp)"
-                readonly
-                filled
-                class="text-end"
-                hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="4"></v-col>
-            <v-col cols="4"
-              ><v-text-field
+                placeholder="F1 / F2"
+                class="cell-input"
+                @keydown="handleKodeKeydown($event, index)"
+              />
+              <span v-else class="cell-code">{{ item.kode }}</span>
+            </template>
+
+            <template #[`item.qtyInv`]="{ item }">
+              <span class="num">{{ item.kode ? item.qtyInv : "" }}</span>
+            </template>
+
+            <template #[`item.jumlah`]="{ item }">
+              <template v-if="item.kode">
+                <v-text-field
+                  v-model.number="item.jumlah"
+                  type="number"
+                  min="0"
+                  variant="underlined"
+                  density="compact"
+                  hide-details
+                  class="cell-input cell-qty"
+                  :class="{ 'cell-over': isOver(item) }"
+                />
+                <div v-if="isOver(item)" class="cell-hint">Maks {{ sisaRetur(item) }}</div>
+              </template>
+            </template>
+
+            <template #[`item.harga`]="{ item }">
+              <span class="num">{{ item.kode ? formatRupiah(item.harga) : "" }}</span>
+            </template>
+
+            <template #[`item.disc`]="{ item }">
+              <span class="num">{{ item.kode ? item.disc : "" }}</span>
+            </template>
+
+            <template #[`item.diskon`]="{ item }">
+              <span class="num">{{ item.kode ? formatRupiah(item.diskon) : "" }}</span>
+            </template>
+
+            <template #[`item.total`]="{ item }">
+              <span class="num font-weight-bold">{{
+                item.kode ? formatRupiah(item.total) : ""
+              }}</span>
+            </template>
+
+            <template #[`item.sudah`]="{ item }">
+              <span class="num">{{ item.kode ? item.sudah : "" }}</span>
+            </template>
+
+            <template #[`item.actions`]="{ item }">
+              <v-btn
+                v-if="canRemove(item)"
+                icon="mdi-delete-outline"
+                size="x-small"
+                variant="text"
+                color="error"
+                @click="removeRow(item.id)"
+              />
+            </template>
+
+            <template #bottom>
+              <div class="table-bottom">
+                <span class="table-count">{{ jumlahBarisTerisi }} baris barang</span>
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  class="btn-header-action"
+                  prepend-icon="mdi-plus"
+                  @click="addNewRow"
+                  >Tambah baris</v-btn
+                >
+              </div>
+            </template>
+          </v-data-table>
+        </div>
+
+        <!-- ══════════ FOOTER TOTAL ══════════ -->
+        <div class="footer-section">
+          <div class="discount-group">
+            <div class="panel-title">Diskon faktur</div>
+            <div class="discount-fields">
+              <v-text-field
                 label="Diskon % 1"
                 v-model.number="footer.diskonPersen1"
                 type="number"
                 variant="outlined"
-                class="text-end"
-                hide-details
                 density="compact"
-            /></v-col>
-            <v-col cols="4"
-              ><v-text-field
-                label="Grand Total"
-                :model-value="formatRupiah(footer.grandTotal)"
-                readonly
-                filled
-                class="text-end font-weight-bold"
                 hide-details
-                density="compact"
-            /></v-col>
-            <v-col cols="4"></v-col>
-            <v-col cols="4"
-              ><v-text-field
+                class="form-field"
+              />
+              <v-text-field
                 label="Diskon % 2"
                 v-model.number="footer.diskonPersen2"
                 type="number"
                 variant="outlined"
-                class="text-end"
-                hide-details
                 density="compact"
-            /></v-col>
-          </v-row>
+                hide-details
+                class="form-field"
+              />
+              <v-text-field
+                label="Diskon Rp"
+                v-model.number="footer.diskonRp"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="form-field"
+                :class="{ 'is-locked': footer.diskonPersen1 > 0 }"
+                :readonly="footer.diskonPersen1 > 0"
+              />
+            </div>
+            <div v-if="footer.diskonPersen1 > 0" class="field-note">
+              Diskon Rp dihitung otomatis selama Diskon % 1 terisi.
+            </div>
+          </div>
+
+          <dl class="summary">
+            <div class="summary-row">
+              <dt>Total</dt>
+              <dd>{{ formatRupiah(footer.subTotal) }}</dd>
+            </div>
+            <div class="summary-row">
+              <dt>Diskon faktur</dt>
+              <dd>{{ formatRupiah(footer.diskonRp) }}</dd>
+            </div>
+            <div class="summary-row">
+              <dt>PPN {{ header.ppnPersen ? `(${header.ppnPersen}%)` : "" }}</dt>
+              <dd>{{ formatRupiah(footer.ppnRp) }}</dd>
+            </div>
+          </dl>
+
+          <div class="grand-total">
+            <span class="grand-label">Grand total</span>
+            <strong class="grand-value">{{ formatRupiah(footer.grandTotal) }}</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -958,13 +970,13 @@ watch(
           <v-spacer></v-spacer>
           <v-btn text @click="dialogConfirm.show = false">Tidak</v-btn>
           <v-btn
-            color="primary"
             variant="tonal"
+            class="btn-header-action"
             @click="
               dialogConfirm.onConfirm();
               dialogConfirm.show = false;
             "
-            >Ya, Lanjutkan</v-btn
+            >Ya, lanjutkan</v-btn
           >
         </v-card-actions>
       </v-card>
@@ -973,17 +985,343 @@ watch(
 </template>
 
 <style scoped>
-.desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
-  /* Biru Tua */
+/* ══════════ LAYOUT: tinggi dikunci, tabel yang scroll, footer selalu kelihatan ══════════ */
+.form-grid-container {
+  /* Tema merah lokal: tombol toggle, fokus input, underline, checkbox ikut merah */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 12px;
+  height: calc(100vh - 64px - 32px - 28px);
+  overflow: hidden;
+  font-size: 11px;
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ══════════ TOMBOL HEADER ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
   color: #ffffff !important;
-  /* Teks Putih */
-  font-weight: bold !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════ PANEL KIRI ══════════ */
+.panel {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.panel-title {
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b71c1c;
+  border-bottom: 1px solid rgba(183, 28, 28, 0.15);
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.kv-label,
+.field-caption {
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.kv-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.field-caption {
+  margin-bottom: 4px;
+}
+.field-note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #b26a00;
+}
+
+/* Field editable: tinta merah tipis. Field terkunci: abu, tanpa border merah */
+.form-field :deep(.v-field) {
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.form-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.form-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.form-field :deep(input),
+.form-field :deep(textarea) {
+  font-size: 11px;
+}
+.form-field.is-locked :deep(.v-field) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.12) !important;
+}
+
+/* Jenis retur: toggle merah */
+.jenis-toggle {
+  width: 100%;
+  height: 30px !important;
+}
+.jenis-toggle .v-btn {
+  flex: 1;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.jenis-toggle .v-btn--active {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+/* Customer: blok info, bukan tiga input disabled */
+.customer-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid #b71c1c;
+  background-color: rgba(183, 28, 28, 0.04);
+}
+.customer-card.is-empty {
+  border-left-color: rgba(var(--v-theme-on-surface), 0.2);
+  background-color: rgba(var(--v-theme-on-surface), 0.04);
+}
+.customer-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+.customer-line {
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.customer-empty {
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+/* ══════════ SCANNER ══════════ */
+.scan-field {
+  flex: none;
+}
+.scan-field :deep(.v-field) {
+  font-size: 12px;
+  border-radius: 10px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.3) !important;
+  box-shadow: none !important;
+}
+.scan-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.scan-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.scan-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c;
+  opacity: 1;
+}
+
+/* ══════════ TABEL BARANG ══════════ */
+.table-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 10px;
+}
+
+.items-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.items-table :deep(.v-table__wrapper) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.items-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
-  height: 40px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-bottom: none !important;
-  /* Supaya lebih rapi */
+  height: 36px !important;
+  border-bottom: 2px solid #8e0000 !important;
+  box-shadow: none !important;
+}
+
+.items-table :deep(tbody tr td) {
+  font-size: 11px !important;
+}
+.items-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.items-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.cell-code {
+  font-weight: 600;
+}
+
+.cell-input :deep(.v-field__input) {
+  min-height: 26px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 11px;
+}
+.cell-qty :deep(input) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+/* Melebihi sisa retur: amber, bukan merah, supaya tidak tertukar dengan warna tema */
+.cell-over :deep(input) {
+  color: #b26a00;
+}
+.cell-over :deep(.v-field__outline) {
+  color: #b26a00 !important;
+}
+.cell-hint {
+  font-size: 10px;
+  text-align: right;
+  color: #b26a00;
+}
+
+.table-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+.table-count {
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+
+/* ══════════ FOOTER TOTAL ══════════ */
+.footer-section {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 12px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 10px;
+}
+
+.discount-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.discount-fields :deep(input) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.summary-row dt {
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.summary-row dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Satu elemen penanda: bar grand total */
+.grand-total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background-color: #b71c1c;
+  color: #ffffff;
+}
+.grand-label {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.grand-value {
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 </style>

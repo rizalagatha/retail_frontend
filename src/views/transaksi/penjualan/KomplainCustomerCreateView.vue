@@ -96,6 +96,24 @@ const kategoriOptions = [
   "LAIN-LAIN",
 ];
 
+// Alur status untuk indikator di atas form
+const alurLangkah = [
+  { kode: "DRAFT", label: "Draft" },
+  { kode: "SUBMITTED", label: "Diajukan" },
+  { kode: "ON_REVIEW", label: "Direview pusat" },
+  { kode: "RESOLVED", label: "Solusi diberikan" },
+] as const;
+
+const indeksLangkah = computed(() => alurLangkah.findIndex((s) => s.kode === header.status));
+
+const solusiLocked = computed(() => !canInputSolusi.value && !canInputTanggungJawab.value);
+
+const pusatHint = computed(() => {
+  if (canInputSolusi.value) return "Isi solusi, lalu klik Simpan solusi & selesai.";
+  if (canInputTanggungJawab.value) return "Isi pertanggungjawaban, lalu simpan.";
+  return "";
+});
+
 // --- STATE DIALOG PREVIEW ---
 const isPreviewOpen = ref(false);
 const previewImageUrl = ref<string>("");
@@ -130,10 +148,13 @@ const logs = ref<KomplainLog[]>([]);
 
 // [PERBAIKAN]: Table Headers dibikin lebih compact
 const tableHeaders = [
-  { title: "Info Barang", key: "barang_info", minWidth: "160px" },
-  { title: "Qty Mslh", key: "qty", width: "80px", align: "center" },
-  { title: "Foto", key: "foto", width: "70px", align: "center" },
-  { title: "Aksi", key: "actions", width: "50px", sortable: false, align: "center" },
+  { title: "Kode", key: "kode_barang", width: "150px", sortable: false },
+  { title: "Nama barang", key: "nama_barang", sortable: false },
+  { title: "Ukuran", key: "ukuran", width: "80px", align: "center", sortable: false },
+  { title: "Qty inv", key: "qty_invoice", width: "80px", align: "end", sortable: false },
+  { title: "Qty masalah", key: "qty", width: "110px", align: "center", sortable: false },
+  { title: "Foto", key: "foto", width: "120px", align: "center", sortable: false },
+  { title: "", key: "actions", width: "50px", align: "center", sortable: false },
 ] as const;
 
 const removeRow = (index: number) => items.value.splice(index, 1);
@@ -473,6 +494,16 @@ const getStatusColor = (status: string) => {
 };
 
 onMounted(() => {
+  const bolehBuka = isEditMode.value
+    ? authStore.can(MENU_ID, "view") || authStore.can(MENU_ID, "edit")
+    : authStore.can(MENU_ID, "insert");
+
+  if (!bolehBuka) {
+    toast.error("Anda tidak memiliki izin untuk membuka halaman ini.");
+    router.back();
+    return;
+  }
+
   if (isEditMode.value) loadData(route.params.nomor as string);
 });
 </script>
@@ -482,286 +513,358 @@ onMounted(() => {
     <template #header-actions>
       <v-btn
         v-if="canEditDraft"
-        color="primary"
-        variant="outlined"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-content-save"
         :loading="isSaving"
         @click="saveData(false)"
-        >Simpan Draft</v-btn
+        >Simpan draft</v-btn
       >
       <v-btn
         v-if="canEditDraft"
-        color="success"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-send-check"
         :loading="isSaving"
         @click="saveData(true)"
         >Submit BAP</v-btn
       >
-
       <v-btn
         v-if="canProcessReview && header.status === 'SUBMITTED'"
-        color="warning"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-magnify-scan"
         :loading="isSaving"
         @click="markAsOnReview"
-        >Proses Review</v-btn
+        >Proses review</v-btn
       >
       <v-btn
         v-if="canInputSolusi"
-        color="success"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-check-decagram"
         :loading="isSaving"
         @click="submitSolusi"
-        >Simpan Solusi & Selesai</v-btn
+        >Simpan solusi & selesai</v-btn
       >
       <v-btn
         v-if="canInputTanggungJawab"
-        color="primary"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-content-save-all"
         :loading="isSaving"
         @click="submitTanggungJawab"
-        >Simpan Penanggung Jawab</v-btn
+        >Simpan pertanggungjawaban</v-btn
       >
-
       <v-btn
         v-if="isEditMode"
-        color="green-darken-2"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-printer"
         @click="printData"
         >Cetak</v-btn
       >
-      <v-btn size="small" prepend-icon="mdi-arrow-left" @click="handleBack">Kembali</v-btn>
+      <v-btn
+        size="small"
+        variant="tonal"
+        class="btn-header-action"
+        prepend-icon="mdi-arrow-left"
+        @click="handleBack"
+        >Kembali</v-btn
+      >
     </template>
 
-    <v-row class="mt-1 px-2" align="start">
-      <v-col cols="12" md="4" class="d-flex flex-column gap-4">
-        <v-card variant="outlined" class="rounded-lg shadow-sm bg-white">
-          <v-card-title
-            class="bg-grey-lighten-4 text-subtitle-2 font-weight-bold d-flex justify-space-between align-center px-4 py-3 border-b"
+    <div class="form-page">
+      <!-- ══════════ ALUR STATUS ══════════ -->
+      <div class="alur-wrap">
+        <ol class="alur" aria-label="Alur status BAP">
+          <li
+            v-for="(langkah, i) in alurLangkah"
+            :key="langkah.kode"
+            class="alur-step"
+            :class="{ 'is-done': i < indeksLangkah, 'is-active': i === indeksLangkah }"
           >
-            <span><v-icon start size="small">mdi-information-outline</v-icon> INFO HEADER</span>
-            <v-chip
-              :color="getStatusColor(header.status)"
-              size="x-small"
-              class="font-weight-bold text-uppercase"
-              >{{ header.status.replace("_", " ") }}</v-chip
-            >
-          </v-card-title>
-          <v-card-text class="pa-4">
-            <v-row dense>
-              <v-col cols="6"
-                ><v-text-field
-                  label="No. BAP"
-                  v-model="header.nomor"
-                  readonly
-                  filled
-                  density="compact"
-                  hide-details
-                  placeholder="Otomatis"
-              /></v-col>
-              <v-col cols="6"
-                ><v-text-field
-                  label="Tanggal"
-                  v-model="header.tanggal"
-                  type="date"
-                  density="compact"
-                  hide-details
-                  :readonly="!canEditDraft"
-                  variant="outlined"
-              /></v-col>
-              <v-col cols="12"
-                ><v-text-field
-                  label="Nama Customer"
-                  v-model="header.customer_nama"
-                  density="compact"
-                  hide-details
-                  readonly
-                  filled
-              /></v-col>
-              <v-col cols="6"
-                ><v-text-field
-                  label="Nama CP"
-                  v-model="header.contact_nama"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canEditDraft"
-                  placeholder="Nama Pelapor"
-              /></v-col>
-              <v-col cols="6"
-                ><v-text-field
-                  label="No. Telp CP"
-                  v-model="header.contact_telp"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canEditDraft"
-                  placeholder="WA Aktif"
-              /></v-col>
-              <v-col cols="12"
-                ><v-select
-                  label="Kategori Masalah"
-                  v-model="header.kategori"
-                  :items="kategoriOptions"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canEditDraft"
-              /></v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
+            <span class="alur-dot">
+              <v-icon v-if="i < indeksLangkah" size="12">mdi-check</v-icon>
+              <template v-else>{{ i + 1 }}</template>
+            </span>
+            <span class="alur-label">{{ langkah.label }}</span>
+          </li>
+        </ol>
+      </div>
 
-        <v-card variant="outlined" class="rounded-lg shadow-sm bg-white">
-          <v-card-title
-            class="bg-grey-lighten-4 text-subtitle-2 font-weight-bold px-4 py-3 border-b"
-          >
-            <v-icon start size="small">mdi-receipt-text-outline</v-icon> REFERENSI INVOICE
-          </v-card-title>
-          <v-card-text class="pa-4 pb-2">
-            <v-row dense class="mb-3">
-              <v-col cols="12"
-                ><v-text-field
-                  label="Cari No. Invoice"
-                  v-model="header.ref_nomor"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canEditDraft"
-                  placeholder="Klik icon cari ➔"
-                  prepend-inner-icon="mdi-magnify"
-                  @click:prepend-inner="canEditDraft && (dialogs.invoiceSearch = true)"
-                  @click="canEditDraft && (dialogs.invoiceSearch = true)"
-              /></v-col>
-              <v-col cols="12">
-                <v-text-field
-                  label="Potensi Kerugian (Rp)"
-                  :model-value="formatRupiah(potensiKerugian)"
-                  density="compact"
-                  hide-details
-                  readonly
-                  filled
-                  class="font-weight-bold text-error input-bg-red"
-                  hint="Dihitung otomatis dari Qty Masalah x Harga Barang"
-                  persistent-hint
-                />
-              </v-col>
-            </v-row>
-          </v-card-text>
-
-          <v-data-table
-            :headers="tableHeaders"
-            :items="items"
-            class="compact-table border-t"
-            density="compact"
-            :items-per-page="-1"
-            hide-default-footer
-          >
-            <template #[`item.barang_info`]="{ item }">
-              <div class="py-1">
-                <div class="text-caption font-weight-bold text-primary">{{ item.kode_barang }}</div>
-                <div
-                  class="text-caption text-truncate"
-                  style="max-width: 150px"
-                  :title="item.nama_barang"
-                >
-                  {{ item.nama_barang }}
-                </div>
-                <div class="text-caption text-grey-darken-1">
-                  Size: {{ item.ukuran }} | Qty Inv: {{ item.qty_invoice }}
-                </div>
-              </div>
-            </template>
-            <template #[`item.qty`]="{ item }">
-              <v-text-field
-                v-model.number="item.qty"
-                type="number"
-                min="0"
-                :max="item.qty_invoice"
-                density="compact"
-                variant="outlined"
-                hide-details
-                class="text-center font-weight-bold"
-                :readonly="!canEditDraft"
-                @input="validateQty(item)"
-              />
-            </template>
-            <template #[`item.foto`]="{ item }">
-              <div class="d-flex justify-center">
-                <div v-if="item.foto_url" class="position-relative" style="display: inline-block">
-                  <v-avatar
-                    rounded
-                    size="32"
-                    class="border cursor-pointer"
-                    @click="openPreview(item.foto_url)"
-                  >
-                    <v-img :src="item.foto_url" cover></v-img>
-                  </v-avatar>
-
-                  <v-btn
-                    v-if="canEditDraft"
-                    icon="mdi-close-circle"
-                    color="error"
-                    variant="flat"
-                    size="16"
-                    class="position-absolute"
-                    style="
-                      top: -6px;
-                      right: -6px;
-                      height: 16px;
-                      width: 16px;
-                      min-width: 16px;
-                      padding: 0;
-                    "
-                    @click.stop="hapusFoto(item)"
-                    title="Ganti Gambar"
-                  />
-                </div>
-
-                <v-file-input
-                  :key="'input-' + item.id"
-                  v-model="item._fileObj"
-                  accept="image/png, image/jpeg"
-                  density="compact"
-                  variant="plain"
-                  hide-details
-                  prepend-icon=""
-                  prepend-inner-icon="mdi-camera"
-                  :loading="item.isUploading"
-                  @update:model-value="uploadFoto(item)"
-                />
-              </div>
-            </template>
-            <template #[`item.actions`]="{ index }">
-              <v-btn
-                v-if="canEditDraft"
-                icon="mdi-delete"
-                variant="text"
-                color="error"
+      <!-- ══════════ RINGKASAN ══════════ -->
+      <section class="panel">
+        <div class="summary-grid">
+          <div class="s-readonly">
+            <span class="s-label">No. BAP</span>
+            <span class="s-value s-nomor">
+              {{ header.nomor || "Otomatis saat disimpan" }}
+              <v-chip
+                :color="getStatusColor(header.status)"
                 size="x-small"
-                @click="removeRow(index)"
-              />
-            </template>
-          </v-data-table>
-        </v-card>
+                variant="flat"
+                class="font-weight-bold text-uppercase"
+                >{{ header.status.replace("_", " ") }}</v-chip
+              >
+            </span>
+          </div>
 
-        <v-card
-          v-if="isEditMode && logs.length > 0"
-          variant="outlined"
-          class="rounded-lg shadow-sm bg-white"
+          <v-text-field
+            label="Tanggal"
+            v-model="header.tanggal"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field"
+            :class="{ 'is-locked': !canEditDraft }"
+            :readonly="!canEditDraft"
+          />
+
+          <v-select
+            label="Kategori masalah"
+            v-model="header.kategori"
+            :items="kategoriOptions"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field s-span-2"
+            :class="{ 'is-locked': !canEditDraft }"
+            :readonly="!canEditDraft"
+            :menu-props="{ class: 'bap-menu' }"
+          />
+
+          <v-text-field
+            label="No. invoice"
+            v-model="header.ref_nomor"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field"
+            :class="{ 'is-locked': !canEditDraft }"
+            :readonly="!canEditDraft"
+            placeholder="Klik untuk mencari"
+            prepend-inner-icon="mdi-magnify"
+            @click:prepend-inner="canEditDraft && (dialogs.invoiceSearch = true)"
+            @click="canEditDraft && (dialogs.invoiceSearch = true)"
+          />
+
+          <div class="s-readonly" :class="{ 'is-empty': !header.customer_kode }">
+            <span class="s-label">Customer</span>
+            <span class="s-value">
+              {{
+                header.customer_kode
+                  ? `${header.customer_kode} - ${header.customer_nama}`
+                  : "Pilih invoice terlebih dahulu"
+              }}
+            </span>
+          </div>
+
+          <v-text-field
+            label="Nama CP"
+            v-model="header.contact_nama"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field"
+            :class="{ 'is-locked': !canEditDraft }"
+            :readonly="!canEditDraft"
+            placeholder="Nama pelapor"
+          />
+
+          <v-text-field
+            label="No. telp CP"
+            v-model="header.contact_telp"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field"
+            :class="{ 'is-locked': !canEditDraft }"
+            :readonly="!canEditDraft"
+            placeholder="WA aktif"
+          />
+        </div>
+      </section>
+
+      <!-- ══════════ BARANG BERMASALAH ══════════ -->
+      <section class="panel panel-flush">
+        <div class="panel-head">
+          <h3 class="panel-title">
+            Barang bermasalah
+            <span class="panel-count">({{ items.length }})</span>
+          </h3>
+          <div class="loss-inline" title="Dihitung dari qty masalah x harga barang">
+            <span class="loss-label">Potensi kerugian</span>
+            <strong class="loss-value">{{ formatRupiah(potensiKerugian) }}</strong>
+          </div>
+        </div>
+
+        <v-data-table
+          :headers="tableHeaders"
+          :items="items"
+          class="items-table"
+          density="compact"
+          :items-per-page="-1"
+          hide-default-footer
         >
-          <v-card-title
-            class="bg-grey-lighten-4 text-subtitle-2 font-weight-bold px-4 py-3 border-b"
-          >
-            <v-icon start size="small">mdi-history</v-icon> RIWAYAT TINDAKAN
-          </v-card-title>
-          <v-card-text class="pa-4">
+          <template #[`item.kode_barang`]="{ item }">
+            <span class="item-kode">{{ item.kode_barang }}</span>
+          </template>
+
+          <template #[`item.nama_barang`]="{ item }">
+            <span class="item-nama">{{ item.nama_barang }}</span>
+          </template>
+
+          <template #[`item.qty`]="{ item }">
+            <v-text-field
+              v-model.number="item.qty"
+              type="number"
+              min="0"
+              :max="item.qty_invoice"
+              density="compact"
+              variant="underlined"
+              hide-details
+              class="cell-qty"
+              :readonly="!canEditDraft"
+              @input="validateQty(item)"
+            />
+          </template>
+
+          <template #[`item.foto`]="{ item }">
+            <div class="d-flex justify-center align-center">
+              <div v-if="item.foto_url" class="foto-wrap">
+                <v-avatar rounded size="32" class="foto-thumb" @click="openPreview(item.foto_url)">
+                  <v-img :src="item.foto_url" cover></v-img>
+                </v-avatar>
+
+                <v-btn
+                  v-if="canEditDraft"
+                  icon="mdi-close-circle"
+                  color="error"
+                  variant="flat"
+                  size="16"
+                  class="foto-remove"
+                  @click.stop="hapusFoto(item)"
+                  title="Ganti gambar"
+                />
+              </div>
+
+              <v-file-input
+                :key="'input-' + item.id"
+                v-model="item._fileObj"
+                accept="image/png, image/jpeg"
+                density="compact"
+                variant="plain"
+                hide-details
+                prepend-icon=""
+                prepend-inner-icon="mdi-camera"
+                :loading="item.isUploading"
+                @update:model-value="uploadFoto(item)"
+              />
+            </div>
+          </template>
+
+          <template #[`item.actions`]="{ index }">
+            <v-btn
+              v-if="canEditDraft"
+              icon="mdi-delete-outline"
+              variant="text"
+              color="error"
+              size="x-small"
+              @click="removeRow(index)"
+            />
+          </template>
+
+          <template #no-data>
+            <div class="text-center text-caption text-grey pa-4">
+              {{
+                canEditDraft
+                  ? "Belum ada barang. Pilih invoice di bagian atas untuk memuat barang."
+                  : "Tidak ada barang."
+              }}
+            </div>
+          </template>
+        </v-data-table>
+      </section>
+
+      <!-- ══════════ LAPORAN TOKO | KEPUTUSAN PUSAT ══════════ -->
+      <div class="narasi-grid">
+        <section class="panel">
+          <h3 class="panel-title">Laporan toko</h3>
+          <div class="stack">
+            <v-textarea
+              label="Pokok permasalahan *"
+              v-model="header.keterangan"
+              rows="6"
+              auto-grow
+              variant="outlined"
+              hide-details
+              class="form-field"
+              :class="{ 'is-locked': !canEditDraft }"
+              :readonly="!canEditDraft"
+              placeholder="Jelaskan secara detail keluhan customer..."
+            />
+            <v-textarea
+              label="Sumber masalah (analisa toko)"
+              v-model="header.sumber_masalah"
+              rows="6"
+              auto-grow
+              variant="outlined"
+              hide-details
+              class="form-field"
+              :class="{ 'is-locked': !canEditDraft }"
+              :readonly="!canEditDraft"
+              placeholder="Contoh: kesalahan operator sablon, miskomunikasi CS..."
+            />
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Keputusan pusat</h3>
+            <span v-if="pusatHint" class="panel-hint">{{ pusatHint }}</span>
+          </div>
+          <div class="stack">
+            <v-textarea
+              label="Solusi dan tindak lanjut"
+              v-model="header.solusi"
+              rows="6"
+              auto-grow
+              variant="outlined"
+              hide-details
+              class="form-field"
+              :class="{ 'is-locked': solusiLocked, 'is-target': canInputSolusi }"
+              :readonly="solusiLocked"
+              placeholder="Diisi oleh KDC saat status On Review..."
+            />
+            <v-textarea
+              label="Pertanggungjawaban"
+              v-model="header.tanggung_jawab"
+              rows="6"
+              auto-grow
+              variant="outlined"
+              hide-details
+              class="form-field"
+              :class="{ 'is-locked': !canInputTanggungJawab, 'is-target': canInputTanggungJawab }"
+              :readonly="!canInputTanggungJawab"
+              placeholder="Diisi setelah solusi disepakati (Resolved)..."
+            />
+          </div>
+        </section>
+      </div>
+
+      <!-- ══════════ RIWAYAT (tertutup default) ══════════ -->
+      <v-expansion-panels v-if="isEditMode && logs.length > 0" variant="accordion" class="riwayat">
+        <v-expansion-panel elevation="0">
+          <v-expansion-panel-title>Riwayat tindakan ({{ logs.length }})</v-expansion-panel-title>
+          <v-expansion-panel-text>
             <v-timeline density="compact" side="end" truncate-line="both">
               <v-timeline-item
                 v-for="log in logs"
@@ -769,99 +872,17 @@ onMounted(() => {
                 :dot-color="getStatusColor(log.cmpl_status)"
                 size="x-small"
               >
-                <div class="text-caption font-weight-bold">{{ log.cmpl_status }}</div>
-                <div class="text-caption">{{ log.cmpl_catatan }}</div>
-                <div class="text-caption text-grey mt-1">
-                  {{ log.user_nama }} • {{ format(new Date(log.date_create), "dd/MM/yyyy HH:mm") }}
+                <div class="log-status">{{ log.cmpl_status.replace("_", " ") }}</div>
+                <div class="log-note">{{ log.cmpl_catatan }}</div>
+                <div class="log-meta">
+                  {{ log.user_nama }} · {{ format(new Date(log.date_create), "dd/MM/yyyy HH:mm") }}
                 </div>
               </v-timeline-item>
             </v-timeline>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" md="8" class="d-flex flex-column gap-4">
-        <v-card
-          variant="outlined"
-          class="rounded-lg shadow-sm"
-          style="border-color: #1976d2 !important"
-        >
-          <v-card-title
-            class="bg-blue-lighten-5 text-blue-darken-3 text-subtitle-1 font-weight-bold text-center py-3 border-b border-blue-lighten-3"
-          >
-            LAPORAN TOKO
-          </v-card-title>
-          <v-card-text class="pa-4 bg-white">
-            <v-row>
-              <v-col cols="12" md="6">
-                <v-textarea
-                  label="POKOK PERMASALAHAN"
-                  v-model="header.keterangan"
-                  rows="10"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canEditDraft"
-                  bg-color="white"
-                  placeholder="Jelaskan secara detail keluhan customer..."
-                ></v-textarea>
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-textarea
-                  label="SUMBER MASALAH (Analisa Toko)"
-                  v-model="header.sumber_masalah"
-                  rows="10"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canEditDraft"
-                  bg-color="white"
-                  placeholder="Contoh: Kesalahan operator sablon, Misskomunikasi CS..."
-                ></v-textarea>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-
-        <v-card
-          variant="outlined"
-          class="rounded-lg shadow-sm"
-          style="border-color: #388e3c !important"
-        >
-          <v-card-title
-            class="bg-green-lighten-5 text-green-darken-3 text-subtitle-1 font-weight-bold text-center py-3 border-b border-green-lighten-3"
-          >
-            KEPUTUSAN PUSAT
-          </v-card-title>
-          <v-card-text class="pa-4 bg-white">
-            <v-row>
-              <v-col cols="12" md="6">
-                <v-textarea
-                  label="SOLUSI DAN TINDAK LANJUT"
-                  v-model="header.solusi"
-                  rows="10"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canInputSolusi && !canInputTanggungJawab"
-                  :bg-color="canInputSolusi ? 'yellow-lighten-5' : 'white'"
-                  placeholder="Diisi oleh KDC saat status ON REVIEW..."
-                ></v-textarea>
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-textarea
-                  label="PERTANGGUNG JAWABAN"
-                  v-model="header.tanggung_jawab"
-                  rows="10"
-                  variant="outlined"
-                  hide-details
-                  :readonly="!canInputTanggungJawab"
-                  :bg-color="canInputTanggungJawab ? 'yellow-lighten-5' : 'white'"
-                  placeholder="Diisi setelah Solusi disepakati (RESOLVED)..."
-                ></v-textarea>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
+    </div>
 
     <InvoiceSearchModal
       v-if="dialogs.invoiceSearch"
@@ -883,34 +904,33 @@ onMounted(() => {
       "
       @success="handleAuthSuccess"
     />
-    <v-dialog v-model="isPreviewOpen" max-width="800px"
-      ><v-img :src="previewImageUrl"></v-img
-    ></v-dialog>
+
+    <!-- Konfirmasi -->
     <v-dialog v-model="dialogs.confirm" max-width="400px" persistent>
-      <v-card>
-        <v-card-title :class="`bg-${confirmData.color} text-white`"
-          ><v-icon start size="small">{{ confirmData.icon }}</v-icon>
-          {{ confirmData.title }}</v-card-title
-        >
+      <v-card class="dialog-card">
+        <v-card-title class="confirm-title">
+          <v-icon start size="small">{{ confirmData.icon }}</v-icon>
+          {{ confirmData.title }}
+        </v-card-title>
         <v-card-text class="pa-4 pt-5">{{ confirmData.message }}</v-card-text>
-        <v-card-actions
-          ><v-spacer /><v-btn text @click="dialogs.confirm = false">Batal</v-btn
-          ><v-btn :color="confirmData.color" variant="flat" @click="confirmData.action"
-            >Ya</v-btn
-          ></v-card-actions
-        >
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="dialogs.confirm = false">Batal</v-btn>
+          <v-btn variant="flat" class="btn-primary-red" @click="confirmData.action">Ya</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Dialog Preview Gambar -->
+    <!-- Preview foto -->
     <v-dialog v-model="isPreviewOpen" max-width="800px">
-      <v-card>
-        <v-toolbar density="compact" color="primary">
-          <v-toolbar-title class="text-subtitle-2 font-weight-bold"
-            >Preview Foto Bukti</v-toolbar-title
+      <v-card class="dialog-card">
+        <v-toolbar density="compact" class="modal-toolbar">
+          <v-icon icon="mdi-image-outline" class="ms-2 me-1" size="20"></v-icon>
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+            >Preview foto bukti</v-toolbar-title
           >
           <v-spacer />
-          <v-btn icon="mdi-close" @click="isPreviewOpen = false" variant="text" />
+          <v-btn icon="mdi-close" @click="isPreviewOpen = false" variant="text" size="small" />
         </v-toolbar>
         <v-card-text class="pa-0">
           <v-img :src="previewImageUrl || ''" contain class="bg-grey-lighten-4" max-height="70vh" />
@@ -921,86 +941,427 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.gap-4 {
-  gap: 16px;
-}
-.shadow-sm {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
-}
-.border-b {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12) !important;
-}
-.border-t {
-  border-top: 1px solid rgba(0, 0, 0, 0.12) !important;
+.form-page {
+  /* Tema merah lokal (DESIGN.md 10.3) */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 11px;
+  padding: 0 4px 16px;
 }
 
-/* Custom input styling for nominal to stand out */
-.input-bg-red :deep(input) {
-  color: #d32f2f !important;
-  font-weight: bold;
+/* ══════════ TOMBOL ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
 }
 
-/* ================================================== */
-/* PAKSA KONSISTEN FONT 11PX UNTUK SEMUA INPUT & TEKS */
-/* ================================================== */
+/* ══════════ ALUR STATUS (terpusat: dot di atas label, garis antar titik pusat) ══════════ */
+.alur-wrap {
+  padding: 14px 16px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 10px;
+}
+.alur {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.alur-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+/* Garis dari titik pusat langkah sebelumnya ke titik pusat langkah ini */
+.alur-step:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: rgba(var(--v-theme-on-surface), 0.12);
+}
+.alur-step.is-done:not(:first-child)::before,
+.alur-step.is-active:not(:first-child)::before {
+  background: #b71c1c;
+}
+.alur-dot {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: rgb(var(--v-theme-surface));
+  border: 2px solid rgba(var(--v-theme-on-surface), 0.2);
+}
+.alur-step.is-done .alur-dot {
+  background: #b71c1c;
+  border-color: #b71c1c;
+  color: #ffffff;
+}
+.alur-step.is-done .alur-label {
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+.alur-step.is-active .alur-dot {
+  border-color: #b71c1c;
+  color: #b71c1c;
+  box-shadow: 0 0 0 3px rgba(183, 28, 28, 0.15);
+}
+.alur-step.is-active .alur-label {
+  color: #b71c1c;
+  font-weight: 700;
+}
 
-/* Teks dalam input, textarea, dan dropdown */
-:deep(.v-field__input),
-:deep(.v-field__input input),
-:deep(textarea),
-:deep(.v-select__selection-text) {
+/* ══════════ PANEL ══════════ */
+.panel {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 10px;
+  padding: 12px;
+}
+.panel-flush {
+  padding: 0;
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(183, 28, 28, 0.15);
+}
+.panel-flush .panel-head {
+  margin: 0;
+  padding: 10px 12px;
+}
+.panel-title {
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b71c1c;
+  border-bottom: 1px solid rgba(183, 28, 28, 0.15);
+}
+.panel-head .panel-title {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.panel-count {
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.panel-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b26a00;
+}
+
+/* ══════════ RINGKASAN ══════════ */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.s-span-2 {
+  grid-column: span 2;
+}
+@media (max-width: 1100px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s-span-2 {
+    grid-column: auto;
+  }
+}
+
+/* Sel baca-saja disetarakan tinggi dan bentuknya dengan field compact (40px) */
+.s-readonly {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 40px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #b71c1c;
+  background-color: rgba(183, 28, 28, 0.04);
+  min-width: 0;
+}
+.s-readonly.is-empty {
+  border-left-color: rgba(var(--v-theme-on-surface), 0.2);
+  background-color: rgba(var(--v-theme-on-surface), 0.04);
+}
+.s-label {
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.s-value {
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-readonly.is-empty .s-value {
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.s-nomor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════ FIELD ══════════ */
+.form-field :deep(.v-field) {
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.form-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.form-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.form-field :deep(.v-field__input),
+.form-field :deep(input),
+.form-field :deep(textarea),
+.form-field :deep(.v-select__selection-text) {
   font-size: 11px !important;
   line-height: 1.4 !important;
 }
-
-/* Label normal */
-:deep(.v-label) {
+.form-field :deep(.v-label) {
   font-size: 11px !important;
 }
-
-/* Label saat input diisi (melayang ke atas) dibikin lebih kecil dikit biar presisi */
-:deep(.v-label.v-field-label--floating) {
+.form-field :deep(.v-label.v-field-label--floating) {
   font-size: 10px !important;
 }
-
-/* Dropdown list menu */
-:deep(.v-list-item-title) {
-  font-size: 11px !important;
+.form-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c;
+  opacity: 0.8;
+}
+.form-field.is-locked :deep(.v-field) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.12) !important;
+}
+.form-field.is-target :deep(.v-field) {
+  border: 2px solid #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.05) !important;
 }
 
-/* Judul Card dan Section biar proporsional */
-.text-subtitle-1 {
-  font-size: 12px !important;
+/* ══════════ BARANG BERMASALAH ══════════ */
+.loss-inline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
-.text-subtitle-2 {
-  font-size: 11px !important;
+.loss-label {
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
-.text-caption {
-  font-size: 11px !important;
+/* Nominal masalah: amber, bukan merah, supaya tidak menyaingi warna tema */
+.loss-value {
+  font-size: 16px;
+  color: #b26a00;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ================================================== */
-
-/* Compact table for left column */
-.compact-table :deep(th) {
+.items-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
   font-size: 11px !important;
-  padding: 0 8px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  padding: 0 12px !important;
+  height: 34px !important;
   white-space: nowrap;
-  background: #f5f5f5;
+  border-bottom: 2px solid #8e0000 !important;
 }
-.compact-table :deep(td) {
+.items-table :deep(td) {
   font-size: 11px !important;
-  padding: 4px 8px !important;
+  padding: 6px 12px !important;
 }
-.compact-table :deep(.v-text-field input) {
+.items-table :deep(td.v-data-table-column--align-end) {
+  font-variant-numeric: tabular-nums;
+}
+.items-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.items-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+.item-kode {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.item-nama {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.cell-qty {
+  max-width: 80px;
+  margin: 0 auto;
+}
+.cell-qty :deep(input) {
   text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px !important;
   padding: 4px 0 !important;
   min-height: unset;
-  font-size: 11px !important;
 }
-.compact-table :deep(.v-field__input) {
+.cell-qty :deep(.v-field__input) {
   min-height: 28px !important;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.foto-wrap {
+  position: relative;
+  display: inline-block;
+}
+.foto-thumb {
+  cursor: pointer;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.2);
+}
+.foto-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  height: 16px;
+  width: 16px;
+  min-width: 16px;
+  padding: 0;
+}
+
+/* ══════════ LAPORAN TOKO | KEPUTUSAN PUSAT ══════════ */
+.narasi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .narasi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ══════════ RIWAYAT ══════════ */
+.riwayat {
+  border: 1px solid rgba(183, 28, 28, 0.15);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.riwayat :deep(.v-expansion-panel-title) {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b71c1c;
+}
+.riwayat :deep(.v-expansion-panel-text__wrapper) {
+  padding: 4px 12px 12px;
+}
+.log-status {
+  font-size: 11px;
+  font-weight: 700;
+}
+.log-note {
+  font-size: 11px;
+}
+.log-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+/* ══════════ DIALOG (teleport, tetap membawa atribut scoped dari template ini) ══════════ */
+.dialog-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.modal-toolbar {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.modal-toolbar :deep(.v-toolbar-title),
+.modal-toolbar :deep(.v-btn) {
+  color: #ffffff !important;
+}
+.confirm-title {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+</style>
+
+<style>
+/* Menu dropdown di-teleport ke luar halaman, jadi tidak bisa memakai scoped */
+.bap-menu .v-list-item-title {
+  font-size: 11px !important;
+}
+.bap-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.bap-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

@@ -7,6 +7,7 @@ import api from "@/services/api";
 import { format, parseISO, startOfMonth } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import type { AxiosError } from "axios";
+import AppDataTable from "@/components/AppDataTable.vue";
 
 interface KomplainHeader {
   cmp_nomor: string;
@@ -38,8 +39,9 @@ const items = ref<KomplainHeader[]>([]);
 const totalItems = ref(0);
 const loading = ref(true);
 
-const selected = ref<string[]>([]);
-const expanded = ref<string[]>([]);
+const selected = ref<KomplainHeader[]>([]);
+const expanded = ref<KomplainHeader[]>([]);
+const tableKey = ref(0);
 const expandedData = ref<Record<string, KomplainDetail[]>>({});
 const loadingExpand = ref<Record<string, boolean>>({});
 
@@ -63,7 +65,7 @@ const filters = reactive({
 
 const options = ref({
   page: 1,
-  itemsPerPage: 15,
+  itemsPerPage: 50,
 });
 
 const statusOptions = [
@@ -126,10 +128,11 @@ const loadItems = async () => {
   }
 };
 
-const handleExpand = async (newExpanded: string[]) => {
-  const newItems = newExpanded.filter((nomor) => !expandedData.value[nomor]);
+const handleExpand = async (newExpanded: KomplainHeader[]) => {
+  const newItems = newExpanded.filter((row) => !expandedData.value[row.cmp_nomor]);
 
-  for (const nomor of newItems) {
+  for (const row of newItems) {
+    const nomor = row.cmp_nomor;
     loadingExpand.value[nomor] = true;
     try {
       const response = await api.get(`/komplain-form/${nomor}`);
@@ -163,11 +166,15 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const handleRowClick = (_event: Event, { item }: { item: KomplainHeader }) => {
-  if (selected.value[0] === item.cmp_nomor) {
+const handleRowClick = (event: Event, { item }: { item: KomplainHeader }) => {
+  // Klik pada checkbox / tombol expand punya aksinya sendiri, jangan ikut mengubah seleksi
+  const target = event.target as HTMLElement | null;
+  if (target?.closest(".v-selection-control, .v-btn")) return;
+
+  if (selected.value[0]?.cmp_nomor === item.cmp_nomor) {
     selected.value = [];
   } else {
-    selected.value = [item.cmp_nomor];
+    selected.value = [item];
   }
 };
 
@@ -177,15 +184,32 @@ const handleCreate = () => {
 
 const handleEditSelected = () => {
   if (selected.value.length === 0) return toast.warning("Pilih data terlebih dahulu.");
-  const nomor = selected.value[0];
+  const nomor = selected.value[0].cmp_nomor;
   router.push({ name: "KomplainCustomerEdit", params: { nomor } });
 };
 
 const printData = () => {
   if (selected.value.length === 0) return toast.warning("Pilih data komplain terlebih dahulu.");
-  const nomor = selected.value[0];
+  const nomor = selected.value[0].cmp_nomor;
   const url = router.resolve({ name: "KomplainCustomerPrint", params: { nomor } }).href;
   window.open(url, "_blank");
+};
+
+// AppDataTable menyimpan page-nya sendiri dan tidak bisa diatur dari luar.
+// Kalau sedang bukan di halaman 1, remount (key) supaya kembali ke halaman 1.
+const reloadFromFirstPage = () => {
+  if (options.value.page !== 1) {
+    options.value = { page: 1, itemsPerPage: 50 };
+    expanded.value = [];
+    tableKey.value++;
+  }
+  loadItems();
+};
+
+// Dipanggil AppDataTable saat user ganti halaman / jumlah baris
+const onOptionsUpdate = (opt: { page: number; itemsPerPage: number }) => {
+  options.value = { page: opt.page, itemsPerPage: opt.itemsPerPage };
+  loadItems();
 };
 
 let searchTimeout: ReturnType<typeof setTimeout>;
@@ -193,24 +217,13 @@ watch(
   () => filters.search,
   () => {
     clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      options.value.page = 1;
-      loadItems();
-    }, 500);
+    searchTimeout = setTimeout(reloadFromFirstPage, 500);
   }
 );
 
-watch([() => filters.status, () => filters.cabang], () => {
-  options.value.page = 1;
-  loadItems();
-});
-
 watch(
   [() => filters.status, () => filters.cabang, () => filters.startDate, () => filters.endDate],
-  () => {
-    options.value.page = 1;
-    loadItems();
-  }
+  reloadFromFirstPage
 );
 
 onMounted(async () => {
@@ -229,30 +242,31 @@ onMounted(async () => {
     <template #header-actions>
       <v-btn
         v-if="!isKDC && authStore.can(MENU_ID, 'insert')"
-        color="primary"
-        prepend-icon="mdi-plus"
         size="small"
-        class="mr-2"
+        variant="flat"
+        class="btn-primary-red"
+        prepend-icon="mdi-plus"
         @click="handleCreate"
       >
-        Buat Komplain Baru
+        Buat komplain baru
       </v-btn>
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit') || authStore.can(MENU_ID, 'view')"
-        color="warning"
-        prepend-icon="mdi-pencil"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
+        prepend-icon="mdi-pencil"
         :disabled="selected.length === 0"
         @click="handleEditSelected"
       >
-        Lihat / Proses
+        Lihat / proses
       </v-btn>
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
-        color="green-darken-2"
-        prepend-icon="mdi-printer"
         size="small"
-        class="mr-2"
+        variant="tonal"
+        class="btn-header-action"
+        prepend-icon="mdi-printer"
         :disabled="selected.length === 0"
         @click="printData"
       >
@@ -262,85 +276,89 @@ onMounted(async () => {
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-label class="text-caption font-weight-bold">Periode:</v-label>
+        <span class="filter-label">Periode:</span>
         <v-text-field
           v-model="filters.startDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 140px"
+          class="periode-field"
         />
-        <v-label class="mx-1 text-caption">s/d</v-label>
+        <span class="filter-sep">s/d</span>
         <v-text-field
           v-model="filters.endDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 140px"
+          class="periode-field"
         />
         <v-text-field
           v-model="filters.search"
-          label="Cari No. Komplain, Customer, atau Ref..."
+          label="Cari no. komplain, customer, atau ref..."
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
           density="compact"
           hide-details
           clearable
-          style="max-width: 250px"
+          class="search-field"
         />
-
         <v-select
           v-if="isKDC"
           v-model="filters.cabang"
           :items="cabangList"
           item-title="nama"
           item-value="kode"
-          label="Pilih Cabang"
+          label="Cabang"
           variant="outlined"
           density="compact"
           hide-details
-          style="max-width: 200px"
+          class="cabang-select"
+          :menu-props="{ class: 'komplain-filter-menu' }"
         />
-
         <v-select
           v-model="filters.status"
           :items="statusOptions"
-          label="Filter Status"
+          label="Status"
           variant="outlined"
           density="compact"
           hide-details
-          style="max-width: 150px"
+          class="status-select"
+          :menu-props="{ class: 'komplain-filter-menu' }"
         />
         <v-spacer />
         <v-btn
           icon="mdi-refresh"
           variant="text"
           size="small"
+          class="btn-refresh"
           :loading="loading"
+          title="Muat ulang data"
           @click="loadItems"
-          title="Refresh Data"
         />
       </div>
 
       <div class="table-container">
-        <v-data-table-server
+        <AppDataTable
+          :key="tableKey"
           v-model="selected"
           v-model:expanded="expanded"
-          v-model:page="options.page"
-          v-model:items-per-page="options.itemsPerPage"
+          server
+          :items-length="totalItems"
           :headers="headers"
           :items="items"
-          :items-length="totalItems"
           :loading="loading"
           item-value="cmp_nomor"
           select-strategy="single"
+          return-object
+          show-select
           show-expand
           hover
-          class="desktop-table header-browse-blue flex-grow-1"
+          class="desktop-table"
           density="compact"
           fixed-header
+          @update:options="onOptionsUpdate"
           @update:expanded="handleExpand"
           @click:row="handleRowClick"
         >
@@ -356,7 +374,7 @@ onMounted(async () => {
           <template #[`item.cmp_status`]="{ item }">
             <v-chip
               :color="getStatusColor(item.cmp_status)"
-              size="small"
+              size="x-small"
               variant="flat"
               class="font-weight-bold text-uppercase"
             >
@@ -367,49 +385,20 @@ onMounted(async () => {
           <template #expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns.length" class="pa-0">
-                <div class="detail-container bg-grey-lighten-5">
+                <div class="detail-container">
                   <div class="detail-table-wrapper">
                     <div v-if="loadingExpand[item.cmp_nomor]" class="text-center pa-4">
-                      <v-progress-circular
-                        indeterminate
-                        size="24"
-                        color="primary"
-                      ></v-progress-circular>
+                      <v-progress-circular indeterminate size="24" color="primary" />
                       <span class="ml-2 text-caption">Memuat detail barang...</span>
                     </div>
-                    <v-table v-else density="compact" class="bg-white">
+                    <v-table v-else density="compact" class="detail-table">
                       <thead>
                         <tr>
-                          <th
-                            class="text-left font-weight-bold text-white"
-                            style="background-color: #0d47a1"
-                          >
-                            KODE BARANG
-                          </th>
-                          <th
-                            class="text-left font-weight-bold text-white"
-                            style="background-color: #0d47a1"
-                          >
-                            NAMA BARANG
-                          </th>
-                          <th
-                            class="text-center font-weight-bold text-white"
-                            style="background-color: #0d47a1"
-                          >
-                            UKURAN
-                          </th>
-                          <th
-                            class="text-right font-weight-bold text-white"
-                            style="background-color: #0d47a1"
-                          >
-                            QTY MASALAH
-                          </th>
-                          <th
-                            class="text-left font-weight-bold text-white"
-                            style="background-color: #0d47a1"
-                          >
-                            KENDALA
-                          </th>
+                          <th class="text-left">Kode barang</th>
+                          <th class="text-left">Nama barang</th>
+                          <th class="text-center">Ukuran</th>
+                          <th class="text-right">Qty masalah</th>
+                          <th class="text-left">Kendala</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -417,7 +406,7 @@ onMounted(async () => {
                           <td>{{ dtl.kode_barang }}</td>
                           <td>{{ dtl.nama_barang }}</td>
                           <td class="text-center">{{ dtl.ukuran }}</td>
-                          <td class="text-right text-error font-weight-bold">{{ dtl.qty }}</td>
+                          <td class="text-right qty-masalah">{{ dtl.qty }}</td>
                           <td>{{ dtl.keterangan || "-" }}</td>
                         </tr>
                         <tr v-if="!expandedData[item.cmp_nomor]?.length">
@@ -432,7 +421,7 @@ onMounted(async () => {
               </td>
             </tr>
           </template>
-        </v-data-table-server>
+        </AppDataTable>
       </div>
     </div>
   </PageLayout>
@@ -444,18 +433,117 @@ onMounted(async () => {
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
+
+  /* Tema merah lokal (DESIGN.md 10.3) */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
+/* ══════════ TOMBOL HEADER ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════ FILTER ══════════ */
 .filter-section {
   flex-shrink: 0;
-  padding: 8px 12px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  gap: 8px;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
 }
 
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+.filter-sep {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+
+.filter-section .periode-field {
+  flex: none;
+  width: 150px;
+}
+.filter-section .search-field {
+  flex: none;
+  width: 270px;
+  margin-left: 8px;
+}
+.filter-section .cabang-select {
+  flex: none;
+  width: 190px;
+}
+.filter-section .status-select {
+  flex: none;
+  width: 160px;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .search-field :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .status-select :deep(.v-field) {
+  width: 100%;
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .search-field :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .status-select :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .search-field :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .status-select :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .search-field :deep(.v-field__prepend-inner .v-icon),
+.filter-section .cabang-select :deep(.v-select__menu-icon),
+.filter-section .status-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+.btn-refresh {
+  color: #b71c1c !important;
+}
+
+/* ══════════ TABEL ══════════ */
 .table-container {
   flex-grow: 1;
   min-height: 0;
@@ -478,24 +566,49 @@ onMounted(async () => {
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
+  background-color: #b71c1c !important;
   color: #ffffff !important;
-  font-weight: bold !important;
+  font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
   white-space: nowrap;
+  border-bottom: 2px solid #8e0000 !important;
+}
+
+.desktop-table :deep(thead tr th .v-icon),
+.desktop-table :deep(thead tr th .v-data-table-header__sort-icon) {
+  color: #ffffff !important;
 }
 
 .desktop-table :deep(td) {
-  font-size: 12px !important;
+  font-size: 11px !important;
   padding: 0 8px !important;
   height: 36px !important;
   white-space: nowrap;
   cursor: pointer; /* Memberi isyarat visual baris bisa diklik */
 }
 
-/* Detail Sticky & Wrapper */
+.desktop-table :deep(th.v-data-table__th--select-row),
+.desktop-table :deep(td.v-data-table__td--select-row) {
+  width: 44px;
+  padding: 0 4px !important;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+/* Baris terpilih */
+.desktop-table :deep(tr.v-data-table__selected > td),
+.desktop-table :deep(tr.v-data-table__tr--selected > td) {
+  background-color: rgba(183, 28, 28, 0.12) !important;
+}
+
+/* ══════════ DETAIL (EXPAND) ══════════ */
 .detail-container {
   position: sticky;
   left: 0;
@@ -505,6 +618,7 @@ onMounted(async () => {
   justify-content: flex-start;
   align-items: flex-start;
 
+  background-color: rgba(183, 28, 28, 0.02);
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 16px 16px 16px 64px;
   width: fit-content;
@@ -517,12 +631,74 @@ onMounted(async () => {
   max-width: 900px;
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
-/* Penyorotan Baris yang Terpilih */
-.desktop-table :deep(tr.v-data-table__selected) {
-  background-color: #e3f2fd !important;
+.detail-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+}
+.detail-table :deep(tbody td) {
+  font-size: 11px !important;
+}
+
+/* Qty masalah: amber, bukan merah, supaya tidak menyaingi warna tema */
+.qty-masalah {
+  color: #b26a00;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════ FOOTER PAGING (milik AppDataTable) ══════════ */
+.desktop-table :deep(.custom-pagination-footer) {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+
+.desktop-table :deep(.items-per-page-select .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.items-per-page-select .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.pagination-text) {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+  border: none !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next .v-btn) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active .v-btn) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+</style>
+
+<style>
+/* Menu dropdown di-teleport ke luar halaman, jadi tidak bisa memakai scoped */
+.komplain-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.komplain-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

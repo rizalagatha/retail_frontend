@@ -272,12 +272,14 @@ onMounted(() => {
   markAsSaved();
   if (!hasViewPermission.value) return;
 
-  const nomor = route.params.nomor as string;
-  if (isEditMode.value && nomor) {
-    loadDataForEdit(nomor);
-  } else {
-    isLoading.value = false;
+  // LHK Stok terkunci setelah disimpan: stok sudah diposting oleh trigger saat insert
+  if (isEditMode.value) {
+    toast.warning("LHK SO DTF Stok yang sudah disimpan tidak bisa diubah.");
+    router.replace("/transaksi/penjualan/dtf/lhk-so-dtf-stok");
+    return;
   }
+
+  isLoading.value = false;
 });
 </script>
 

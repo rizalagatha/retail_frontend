@@ -52,6 +52,14 @@ interface ColumnFilter {
 
 type ExportRow = Record<string, unknown>;
 
+interface SavedFilters {
+  startDate?: string;
+  endDate?: string;
+  cabang?: string;
+  search?: string;
+  filterField?: string;
+}
+
 // --- Inisialisasi & State ---
 const router = useRouter();
 const route = useRoute();
@@ -64,7 +72,8 @@ const details = ref<Record<string, ProformaDetailItem[]>>({});
 const loading = ref(true);
 const loadingDetails = ref(new Set<string>());
 const selected = ref<ProformaItem[]>([]);
-const expanded = ref<string[]>([]);
+const expanded = ref<ProformaItem[]>([]);
+const tableKey = ref(0);
 const branchOptions = ref<{ kode: string; nama: string }[]>([]);
 const isMounted = ref(false);
 
@@ -254,8 +263,12 @@ const onResizeEnd = () => {
   document.body.style.cursor = "";
 };
 
-const handleRowClick = (_event: Event, { item }: { item: ProformaItem }) => {
-  selected.value = [item];
+const handleRowClick = (event: Event, { item }: { item: ProformaItem }) => {
+  // Klik pada checkbox / tombol expand punya aksinya sendiri, jangan ikut mengubah seleksi
+  const target = event.target as HTMLElement | null;
+  if (target?.closest(".v-selection-control, .v-btn")) return;
+
+  selected.value = selectedRow.value?.nomor === item.nomor ? [] : [item];
 };
 
 // --- Header Definisi (Resize) ---
@@ -269,6 +282,10 @@ const headers = computed<DataTableHeader[]>(() => [
   { title: "Keterangan", key: "keterangan", width: 250 },
   { title: "Closing", key: "closing", align: "center", width: 90 },
 ]);
+
+const customFilterTitle = computed(
+  () => headers.value.find((h) => h.key === customFilter.key)?.title ?? customFilter.key
+);
 
 const detailHeaders = [
   { title: "Kode", key: "kode", width: "100px" },
@@ -429,16 +446,15 @@ onMounted(async () => {
 
     const savedFilters = sessionStorage.getItem(STORAGE_KEY);
     if (savedFilters) {
-      const parsedFilters = JSON.parse(savedFilters);
+      const parsed = JSON.parse(savedFilters) as SavedFilters;
 
-      if (authStore.user?.cabang !== "KDC") {
-        delete parsedFilters.cabang;
-      }
+      if (parsed.startDate) filters.startDate = parsed.startDate;
+      if (parsed.endDate) filters.endDate = parsed.endDate;
+      // Cabang hanya boleh dipulihkan untuk KDC; cabang lain terkunci ke cabangnya sendiri
+      if (authStore.user?.cabang === "KDC" && parsed.cabang) filters.cabang = parsed.cabang;
 
-      Object.assign(filters, parsedFilters);
-
-      if (parsedFilters.search) filterSearchValue.value = parsedFilters.search;
-      if (parsedFilters.filterField) selectedFilterField.value = parsedFilters.filterField;
+      if (parsed.search) filterSearchValue.value = parsed.search;
+      if (parsed.filterField) selectedFilterField.value = parsed.filterField;
     } else {
       const queryStartDate = route.query.startDate as string;
       const queryEndDate = route.query.endDate as string;
@@ -484,6 +500,17 @@ watch([filterSearchValue, selectedFilterField], () => {
   );
 });
 
+// AppDataTable (mode client) tidak mereset halaman saat jumlah data berubah.
+// Remount agar tidak tertinggal di halaman yang sudah tidak ada, dan kosongkan seleksi.
+watch(
+  () => filteredList.value.length,
+  () => {
+    selected.value = [];
+    expanded.value = [];
+    tableKey.value++;
+  }
+);
+
 onBeforeRouteLeave((to, from, next) => {
   const isRelatedPage = to.path.includes("/proforma");
   if (!isRelatedPage) {
@@ -499,14 +526,17 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-plus"
-        color="primary"
         @click="handleNew"
         >Baru</v-btn
       >
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-pencil"
         @click="handleEdit"
         :disabled="!canEdit"
@@ -515,15 +545,21 @@ onBeforeRouteLeave((to, from, next) => {
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-printer"
-        color="green"
         @click="handleCetak"
         :disabled="!canCetak"
         >Cetak</v-btn
       >
       <v-menu offset-y v-if="authStore.can(MENU_ID, 'view')">
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
             >Export</v-btn
           >
         </template>
@@ -550,69 +586,67 @@ onBeforeRouteLeave((to, from, next) => {
     </div>
 
     <div v-else class="browse-content">
-      <div class="filter-section px-2">
-        <div class="d-flex align-center ga-1" style="flex-wrap: nowrap">
-          <v-text-field
-            v-model="filters.startDate"
-            type="date"
-            label="Dari"
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="max-width: 130px"
-          />
-          <v-text-field
-            v-model="filters.endDate"
-            type="date"
-            label="S/D"
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="max-width: 130px"
-          />
-          <v-select
-            v-model="filters.cabang"
-            :items="branchOptions"
-            item-title="nama"
-            item-value="kode"
-            label="Cabang"
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="max-width: 150px"
-          />
-        </div>
+      <div class="filter-section">
+        <span class="filter-label">Periode:</span>
+        <v-text-field
+          v-model="filters.startDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="periode-field"
+        />
+        <span class="filter-sep">s/d</span>
+        <v-text-field
+          v-model="filters.endDate"
+          type="date"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="periode-field"
+        />
+        <v-select
+          v-model="filters.cabang"
+          :items="branchOptions"
+          item-title="nama"
+          item-value="kode"
+          label="Cabang"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="cabang-select"
+          :menu-props="{ class: 'proforma-filter-menu' }"
+        />
 
         <v-divider vertical class="mx-1" />
 
-        <div class="d-flex align-center ga-1">
-          <v-select
-            v-model="selectedFilterField"
-            :items="filterOptions"
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="max-width: 140px"
-          />
-          <v-text-field
-            v-model="filterSearchValue"
-            label="Cari..."
-            density="compact"
-            hide-details
-            variant="outlined"
-            style="max-width: 180px"
-            clearable
-            prepend-inner-icon="mdi-magnify"
-          />
-        </div>
+        <v-select
+          v-model="selectedFilterField"
+          :items="filterOptions"
+          label="Cari di"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="field-select"
+          :menu-props="{ class: 'proforma-filter-menu' }"
+        />
+        <v-text-field
+          v-model="filterSearchValue"
+          label="Cari..."
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="search-field"
+          clearable
+          prepend-inner-icon="mdi-magnify"
+        />
 
         <v-btn
-          color="error"
           variant="tonal"
           size="small"
           icon="mdi-filter-off"
-          class="ms-1"
-          title="Reset Filter"
+          class="btn-header-action ms-1"
+          title="Reset semua filter"
           @click="resetAllFilters"
         />
 
@@ -623,12 +657,15 @@ onBeforeRouteLeave((to, from, next) => {
           icon="mdi-refresh"
           variant="text"
           size="small"
+          class="btn-refresh"
+          title="Muat ulang data"
           :loading="loading"
         />
       </div>
 
       <div class="table-container">
         <AppDataTable
+          :key="tableKey"
           v-model="selected"
           v-model:expanded="expanded"
           :headers="headers"
@@ -637,7 +674,7 @@ onBeforeRouteLeave((to, from, next) => {
           :item-class="getRowTextColor"
           item-value="nomor"
           density="compact"
-          class="desktop-table header-browse-blue"
+          class="desktop-table"
           fixed-header
           show-select
           return-object
@@ -677,8 +714,8 @@ onBeforeRouteLeave((to, from, next) => {
                           v-bind="props"
                           size="16"
                           class="ms-1"
+                          :class="{ 'filter-active': isFilterActive(header.key) }"
                           @click.stop
-                          :color="isFilterActive(header.key) ? 'blue' : ''"
                           :icon="
                             filterType(header.key) === 'custom'
                               ? 'mdi-filter-cog'
@@ -691,7 +728,7 @@ onBeforeRouteLeave((to, from, next) => {
 
                       <v-list class="filter-menu">
                         <v-list-item @click.stop="clearColumnFilter(header.key)">
-                          <v-list-item-title>(Select All)</v-list-item-title>
+                          <v-list-item-title>(Semua)</v-list-item-title>
                         </v-list-item>
 
                         <v-divider />
@@ -704,6 +741,7 @@ onBeforeRouteLeave((to, from, next) => {
                           <template #prepend>
                             <v-checkbox
                               density="compact"
+                              color="red-darken-4"
                               :model-value="columnFilters[header.key]?.values?.includes(val)"
                             />
                           </template>
@@ -716,7 +754,7 @@ onBeforeRouteLeave((to, from, next) => {
 
                         <v-list-item @click.stop="openCustomFilter(header.key)">
                           <v-list-item-title class="custom-filter-item"
-                            >(Custom Filter…)</v-list-item-title
+                            >(Filter kustom…)</v-list-item-title
                           >
                         </v-list-item>
                       </v-list>
@@ -760,8 +798,9 @@ onBeforeRouteLeave((to, from, next) => {
               <template v-else-if="header.key === 'closing'">
                 <v-chip
                   size="x-small"
-                  :color="item.closing === 'Y' ? 'red' : 'green'"
+                  :color="item.closing === 'Y' ? 'grey-darken-1' : 'success'"
                   variant="tonal"
+                  class="font-weight-bold"
                 >
                   {{ item.closing === "Y" ? "TUTUP" : "BUKA" }}
                 </v-chip>
@@ -812,30 +851,41 @@ onBeforeRouteLeave((to, from, next) => {
     </div>
 
     <v-dialog v-model="customFilterDialog" max-width="350px">
-      <v-card>
-        <v-card-title class="text-h6"> Custom Filter — {{ customFilter.key }} </v-card-title>
-        <v-card-text>
+      <v-card class="dialog-card">
+        <v-card-title class="confirm-title">Filter kustom — {{ customFilterTitle }}</v-card-title>
+        <v-card-text class="pt-4">
           <v-select
             v-model="customFilter.operator"
             :items="[
               { title: '= (sama dengan)', value: '=' },
               { title: '≠ (tidak sama)', value: '!=' },
-              { title: '>', value: '>' },
-              { title: '≥', value: '>=' },
-              { title: '<', value: '<' },
-              { title: '≤', value: '<=' },
-              { title: 'contains', value: 'contains' },
-              { title: 'starts with', value: 'starts' },
-              { title: 'ends with', value: 'ends' },
+              { title: '> (lebih dari)', value: '>' },
+              { title: '≥ (lebih dari atau sama)', value: '>=' },
+              { title: '< (kurang dari)', value: '<' },
+              { title: '≤ (kurang dari atau sama)', value: '<=' },
+              { title: 'mengandung', value: 'contains' },
+              { title: 'diawali', value: 'starts' },
+              { title: 'diakhiri', value: 'ends' },
             ]"
             density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field mb-3"
           />
-          <v-text-field v-model="customFilter.value" density="compact" autofocus />
+          <v-text-field
+            v-model="customFilter.value"
+            label="Nilai"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="form-field"
+            autofocus
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="customFilterDialog = false">Cancel</v-btn>
-          <v-btn color="primary" @click="applyCustomFilter">OK</v-btn>
+          <v-btn variant="text" @click="customFilterDialog = false">Batal</v-btn>
+          <v-btn variant="flat" class="btn-primary-red" @click="applyCustomFilter">Terapkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -849,17 +899,102 @@ onBeforeRouteLeave((to, from, next) => {
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
+
+  /* Tema merah lokal (DESIGN.md 10.3) */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
+/* ══════════ TOMBOL ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+.btn-refresh {
+  color: #b71c1c !important;
+}
+
+/* ══════════ FILTER ══════════ */
 .filter-section {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+}
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+.filter-sep {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b71c1c;
+}
 
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+.filter-section .periode-field {
+  flex: none;
+  width: 150px;
+}
+.filter-section .cabang-select {
+  flex: none;
+  width: 170px;
+  margin-left: 8px;
+}
+.filter-section .field-select {
+  flex: none;
+  width: 140px;
+}
+.filter-section .search-field {
+  flex: none;
+  width: 220px;
+}
+
+.filter-section :deep(.v-field) {
+  --v-field-border-radius: 8px;
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  box-shadow: none !important;
+}
+.filter-section :deep(.v-field__outline) {
+  color: #b71c1c;
+  --v-field-border-opacity: 0.3;
+}
+.filter-section :deep(.v-field--focused) {
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.filter-section :deep(.v-field--focused .v-field__outline) {
+  --v-field-border-opacity: 1;
+}
+.filter-section .search-field :deep(.v-field__prepend-inner .v-icon),
+.filter-section .cabang-select :deep(.v-select__menu-icon),
+.filter-section .field-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
 }
 
 .table-container {
@@ -870,7 +1005,7 @@ onBeforeRouteLeave((to, from, next) => {
   overflow: hidden;
 }
 
-/* Table Style */
+/* ══════════ TABEL ══════════ */
 .desktop-table {
   height: 100%;
   display: flex;
@@ -889,21 +1024,29 @@ onBeforeRouteLeave((to, from, next) => {
   min-width: 100%;
 }
 
-/* Header Resize */
-.resizable-header {
+/* Header resize: selector berspesifisitas tinggi agar mengalahkan style global AppDataTable */
+.desktop-table :deep(thead tr th.resizable-header) {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+  border-bottom: 2px solid #8e0000 !important;
   padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.desktop-table :deep(thead tr th.resizable-header *),
+.desktop-table :deep(thead tr th.resizable-header .v-icon) {
+  color: #ffffff !important;
+}
+/* Kolom yang sedang difilter: ikon kuning supaya terbaca di atas header merah */
+.desktop-table :deep(thead tr th.resizable-header .v-icon.filter-active) {
+  color: #ffd54f !important;
 }
 
 .header-content {
@@ -912,11 +1055,9 @@ onBeforeRouteLeave((to, from, next) => {
   width: 100%;
   height: 100%;
 }
-
 .resizable-header.text-center .header-content {
   justify-content: center;
 }
-
 .resizable-header.text-end .header-content {
   justify-content: flex-end;
 }
@@ -930,13 +1071,25 @@ onBeforeRouteLeave((to, from, next) => {
   cursor: col-resize;
   z-index: 10;
 }
-
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
 }
 
-/* Detail Sticky */
+/* Tint baris memakai background-image (bukan background-color) karena kolom
+   Nomor dan expand bersifat sticky: latar opaque bawaan harus tetap ada. */
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-image: linear-gradient(rgba(183, 28, 28, 0.03), rgba(183, 28, 28, 0.03));
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-image: linear-gradient(rgba(183, 28, 28, 0.08), rgba(183, 28, 28, 0.08));
+}
+
+:deep(td.text-grey) {
+  color: grey !important;
+}
+
+/* ══════════ DETAIL (EXPAND) ══════════ */
 .detail-container {
   position: sticky;
   left: 0;
@@ -961,12 +1114,81 @@ onBeforeRouteLeave((to, from, next) => {
 
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
-:deep(td.text-grey) {
-  color: grey !important;
+.detail-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+}
+.detail-table :deep(tbody tr > td) {
+  background-image: none !important;
+  font-size: 11px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════ FOOTER PAGING (milik AppDataTable) ══════════ */
+.desktop-table :deep(.custom-pagination-footer) {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+.desktop-table :deep(.items-per-page-select .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.items-per-page-select .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+.desktop-table :deep(.pagination-text) {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+  border: none !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next .v-btn) {
+  color: #b71c1c !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active .v-btn) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════ DIALOG FILTER KUSTOM ══════════ */
+.dialog-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.confirm-title {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.form-field :deep(.v-field) {
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.form-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.form-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
 }
 
 .state-container {
@@ -980,5 +1202,22 @@ onBeforeRouteLeave((to, from, next) => {
 .rotate-180 {
   transform: rotate(180deg);
   transition: transform 0.2s;
+}
+</style>
+
+<style>
+/* Menu dropdown di-teleport ke luar halaman, jadi tidak bisa memakai scoped */
+.proforma-filter-menu .v-list-item--active,
+.filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.proforma-filter-menu .v-list-item:hover,
+.filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+.filter-menu .custom-filter-item {
+  color: #b71c1c;
+  font-weight: 600;
 }
 </style>

@@ -7,7 +7,7 @@ import api from "@/services/api";
 import PageLayout from "@/components/PageLayout.vue";
 import { formatRupiah } from "@/utils/formatRupiah";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import type { Alignment, Cell } from "exceljs";
 
 interface PelunasanHeader {
   sh_nomor: string;
@@ -52,16 +52,6 @@ interface PelunasanDetailBackend {
   nominal_bayar: number;
 }
 
-interface DetailExportRow {
-  "Nomor Bukti": string;
-  "Tanggal Pelunasan": string;
-  Customer: string;
-  "No Invoice": string;
-  Marketplace: string;
-  "No Pesanan": string;
-  "Nominal Dilunasi": number;
-}
-
 // --- Inisialisasi ---
 const router = useRouter();
 const toast = useToast();
@@ -73,6 +63,9 @@ const isLoading = ref(false);
 const items = ref<PelunasanHeader[]>([]);
 const totalItems = ref(0);
 const selected = ref<PelunasanHeader[]>([]);
+const selectedRow = computed<PelunasanHeader | null>(() =>
+  selected.value.length === 1 ? selected.value[0] : null
+);
 const expanded = ref<PelunasanHeader[]>([]);
 const details = ref<Record<string, PelunasanDetail[]>>({});
 const loadingDetails = ref(new Set<string>());
@@ -89,7 +82,12 @@ const filters = reactive({
 
 const cabangList = ref<{ kode: string; nama: string }[]>([]);
 const isKdc = computed(() => authStore.user?.cabang === "KDC");
-const isSingleSelected = computed(() => selected.value.length === 1);
+const isRowSelected = (item: PelunasanHeader) => selectedRow.value?.sh_nomor === item.sh_nomor;
+
+const toHeader = (item: PelunasanHeaderBackend): PelunasanHeader => ({
+  ...item,
+  jenis_bayar: item.sh_jenis === 1 ? "TRANSFER" : item.sh_jenis === 2 ? "GIRO" : "TUNAI",
+});
 
 // [BARU] Hitung Grand Total dari items yang tampil
 const grandTotal = computed(() => {
@@ -120,8 +118,9 @@ const detailHeaders = [
 const fetchCabangList = async () => {
   if (!isKdc.value) return;
   try {
-    const response = await api.get("/minta-barang/lookup/cabang"); // Re-use lookup cabang yang sudah ada
-    cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...response.data];
+    const response = await api.get<{ kode: string; nama: string }[]>("/minta-barang/lookup/cabang"); // Re-use lookup cabang yang sudah ada
+    const cabangLain = response.data.filter((c) => c.kode !== "ALL");
+    cabangList.value = [{ kode: "ALL", nama: "SEMUA CABANG" }, ...cabangLain];
   } catch {
     toast.error("Gagal memuat daftar cabang.");
   }
@@ -132,10 +131,7 @@ const fetchData = async () => {
   selected.value = [];
   try {
     const { data } = await api.get("/pelunasan-invoice/history", { params: filters });
-    items.value = (data.items as PelunasanHeaderBackend[]).map((item) => ({
-      ...item,
-      jenis_bayar: item.sh_jenis === 1 ? "TRANSFER" : item.sh_jenis === 2 ? "GIRO" : "TUNAI",
-    })) as PelunasanHeader[];
+    items.value = (data.items as PelunasanHeaderBackend[]).map(toHeader);
     totalItems.value = data.total;
   } catch (error) {
     console.error(error);
@@ -186,68 +182,282 @@ const handleCreate = () => {
 };
 
 const handleEdit = () => {
-  if (!isSingleSelected.value) return;
-  const item = selected.value[0];
-  router.push({ name: "PelunasanInvoiceForm", params: { nomor: item.sh_nomor } });
+  if (!selectedRow.value) return;
+  router.push({ name: "PelunasanInvoiceForm", params: { nomor: selectedRow.value.sh_nomor } });
+};
+
+const handleRowClick = (_event: Event, { item }: { item: PelunasanHeader }) => {
+  selected.value = [item];
+};
+
+// ── Export ─────────────────────────────────────────────────
+const EXPORT_LIMIT = 5000;
+const EXPORT_BATCH = 5; // jumlah request detail paralel
+const isExporting = ref(false);
+
+// Ambil SEMUA bukti sesuai filter aktif, bukan hanya halaman yang tampil
+const fetchAllHeaders = async (): Promise<PelunasanHeader[]> => {
+  const { data } = await api.get("/pelunasan-invoice/history", {
+    params: { ...filters, page: 1, itemsPerPage: EXPORT_LIMIT },
+  });
+  const rows = (data.items as PelunasanHeaderBackend[]).map(toHeader);
+  if (rows.length < Number(data.total)) {
+    toast.warning(
+      `Hanya ${rows.length} dari ${data.total} bukti yang terambil. Persempit periode lalu export lagi.`
+    );
+  }
+  return rows;
 };
 
 const exportData = async (type: "header" | "detail") => {
-  if (type === "header") {
-    if (items.value.length === 0) return toast.warning("Tidak ada data header.");
-    const dataToExport = items.value.map((i) => ({
-      "Nomor Bukti": i.sh_nomor,
-      Tanggal: format(new Date(i.sh_tanggal), "dd-MM-yyyy"),
-      Customer: i.cus_nama,
-      Keterangan: i.sh_ket,
-      Metode: i.jenis_bayar,
-      "Total Bayar": i.total_bayar,
-      User: i.user_create,
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Pelunasan Header");
-    XLSX.writeFile(workbook, "Pelunasan_Marketplace_Header.xlsx");
-  } else if (type === "detail") {
-    if (selected.value.length === 0)
-      return toast.warning("Pilih minimal satu data untuk export detail.");
-    try {
-      const detailExport: DetailExportRow[] = [];
-      for (const header of selected.value) {
-        let detailItems: PelunasanDetail[] = details.value[header.sh_nomor];
-        if (!detailItems) {
-          const res = await api.get(`/pelunasan-invoice/detail/${header.sh_nomor}`);
-          detailItems = res.data.details;
-          details.value[header.sh_nomor] = detailItems;
-        }
-        detailItems.forEach((d: PelunasanDetail) => {
-          detailExport.push({
-            "Nomor Bukti": header.sh_nomor,
-            "Tanggal Pelunasan": format(new Date(header.sh_tanggal), "dd-MM-yyyy"),
-            Customer: header.cus_nama,
-            "No Invoice": d.inv_nomor,
-            Marketplace: d.inv_mp_nama,
-            "No Pesanan": d.inv_mp_nomor_pesanan,
-            "Nominal Dilunasi": d.nominal_bayar,
-          });
+  if (isExporting.value) return;
+  isExporting.value = true;
+
+  try {
+    const headerRows = await fetchAllHeaders();
+    if (headerRows.length === 0) {
+      toast.warning("Tidak ada data untuk diekspor.");
+      return;
+    }
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    // ── Helper ─────────────────────────────────────────────
+    interface ExportCol {
+      header: string;
+      width: number;
+      align: Alignment["horizontal"];
+      fmt?: string;
+      wrap?: boolean;
+    }
+
+    const border = {
+      top: { style: "thin" as const },
+      left: { style: "thin" as const },
+      bottom: { style: "thin" as const },
+      right: { style: "thin" as const },
+    };
+
+    const fmtTgl = (v: string | null | undefined) => {
+      if (!v) return "-";
+      try {
+        return format(new Date(v), "dd-MM-yyyy");
+      } catch {
+        return String(v);
+      }
+    };
+
+    const applyHeader = (cell: Cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB71C1C" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = border;
+    };
+
+    const applyTotal = (cell: Cell) => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+      cell.border = {
+        top: { style: "medium" },
+        left: { style: "thin" },
+        bottom: { style: "medium" },
+        right: { style: "thin" },
+      };
+    };
+
+    // ══════════════════════════════════════════════════════
+    // EXPORT HEADER
+    // ══════════════════════════════════════════════════════
+    if (type === "header") {
+      const sheet = workbook.addWorksheet("Pelunasan Header");
+
+      const cols: ExportCol[] = [
+        { header: "Nomor Bukti", width: 22, align: "left" },
+        { header: "Tanggal", width: 13, align: "center" },
+        { header: "Customer", width: 30, align: "left" },
+        { header: "Keterangan", width: 40, align: "left", wrap: true },
+        { header: "Metode", width: 12, align: "center" },
+        { header: "Total Bayar", width: 18, align: "right", fmt: "#,##0" },
+        { header: "User", width: 14, align: "center" },
+      ];
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeader(cell));
+
+      let total = 0;
+      headerRows.forEach((h) => {
+        total += Number(h.total_bayar) || 0;
+        const row = sheet.addRow([
+          h.sh_nomor,
+          fmtTgl(h.sh_tanggal),
+          h.cus_nama || "",
+          h.sh_ket || "",
+          h.jenis_bayar,
+          Number(h.total_bayar) || 0,
+          h.user_create || "",
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+          const col = cols[i - 1];
+          cell.border = border;
+          cell.alignment = {
+            horizontal: col.align,
+            vertical: "middle",
+            wrapText: col.wrap ?? false,
+          };
+          if (col.fmt) cell.numFmt = col.fmt;
+        });
+      });
+
+      const totalRow = sheet.addRow([
+        `TOTAL (${headerRows.length} bukti)`,
+        "",
+        "",
+        "",
+        "",
+        total,
+        "",
+      ]);
+      sheet.mergeCells(`A${totalRow.number}:E${totalRow.number}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell);
+        cell.alignment = { horizontal: i <= 5 ? "left" : "right", vertical: "middle" };
+        if (cols[i - 1].fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+      sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+
+      // ══════════════════════════════════════════════════════
+      // EXPORT DETAIL (satu baris per invoice yang dilunasi)
+      // ══════════════════════════════════════════════════════
+    } else {
+      toast.info(`Mengambil detail ${headerRows.length} bukti...`);
+
+      // Ambil detail per batch; TIDAK menulis ke cache `details` (format cache beda)
+      const detailMap = new Map<string, PelunasanDetailBackend[]>();
+      for (let i = 0; i < headerRows.length; i += EXPORT_BATCH) {
+        const batch = headerRows.slice(i, i + EXPORT_BATCH);
+        const results = await Promise.all(
+          batch.map((h) => api.get(`/pelunasan-invoice/detail/${h.sh_nomor}`))
+        );
+        batch.forEach((h, idx) => {
+          detailMap.set(h.sh_nomor, results[idx].data.details as PelunasanDetailBackend[]);
         });
       }
-      const worksheet = XLSX.utils.json_to_sheet(detailExport);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Pelunasan Detail");
-      XLSX.writeFile(workbook, "Pelunasan_Marketplace_Detail.xlsx");
-    } catch {
-      toast.error("Gagal mengekspor data detail.");
+
+      const sheet = workbook.addWorksheet("Pelunasan Detail");
+
+      const cols: ExportCol[] = [
+        { header: "Nomor Bukti", width: 22, align: "left" },
+        { header: "Tgl Pelunasan", width: 14, align: "center" },
+        { header: "Customer", width: 28, align: "left" },
+        { header: "Metode", width: 12, align: "center" },
+        { header: "No. Invoice", width: 24, align: "left" },
+        { header: "Tgl Invoice", width: 13, align: "center" },
+        { header: "Marketplace", width: 18, align: "left" },
+        { header: "No. Pesanan", width: 26, align: "left" },
+        { header: "Nominal Dilunasi", width: 18, align: "right", fmt: "#,##0" },
+      ];
+      sheet.columns = cols.map((c) => ({ width: c.width }));
+
+      const headerRow = sheet.addRow(cols.map((c) => c.header));
+      headerRow.height = 22;
+      headerRow.eachCell({ includeEmpty: true }, (cell) => applyHeader(cell));
+
+      let total = 0;
+      let jumlahBaris = 0;
+      let toggle = false;
+
+      headerRows.forEach((h) => {
+        const list = detailMap.get(h.sh_nomor) ?? [];
+        if (list.length === 0) return;
+
+        // Warna selang-seling per bukti
+        const bg = toggle ? "FFFDF3F3" : "FFFFFFFF";
+        toggle = !toggle;
+
+        list.forEach((d, idx) => {
+          total += Number(d.nominal_bayar) || 0;
+          jumlahBaris++;
+
+          const row = sheet.addRow([
+            h.sh_nomor,
+            fmtTgl(h.sh_tanggal),
+            h.cus_nama || "",
+            h.jenis_bayar,
+            d.inv_nomor,
+            fmtTgl(d.inv_tanggal),
+            d.inv_mp_nama ?? "-",
+            d.inv_mp_nomor_pesanan ?? "-",
+            Number(d.nominal_bayar) || 0,
+          ]);
+
+          row.eachCell({ includeEmpty: true }, (cell, i) => {
+            const col = cols[i - 1];
+            cell.border = {
+              left: { style: "thin" },
+              right: { style: "thin" },
+              bottom: { style: "thin" },
+              top: idx === 0 ? { style: "medium" } : { style: "thin" },
+            };
+            cell.alignment = { horizontal: col.align, vertical: "middle" };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+            if (col.fmt) cell.numFmt = col.fmt;
+          });
+        });
+      });
+
+      if (jumlahBaris === 0) {
+        toast.warning("Tidak ada data detail untuk diekspor.");
+        return;
+      }
+
+      const totalRow = sheet.addRow([
+        `TOTAL (${headerRows.length} bukti, ${jumlahBaris} invoice)`,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        total,
+      ]);
+      sheet.mergeCells(`A${totalRow.number}:H${totalRow.number}`);
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, i) => {
+        applyTotal(cell);
+        cell.alignment = { horizontal: i <= 8 ? "left" : "right", vertical: "middle" };
+        if (cols[i - 1].fmt) cell.numFmt = cols[i - 1].fmt!;
+      });
+
+      sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+      sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
     }
-  }
-};
 
-const handleRowClick = (event: Event, { item }: { item: PelunasanHeader }) => {
-  const index = selected.value.findIndex((s: PelunasanHeader) => s.sh_nomor === item.sh_nomor);
-
-  if (index === -1) {
-    selected.value.push(item);
-  } else {
-    selected.value.splice(index, 1);
+    // ── Download ───────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Pelunasan_Marketplace_${type === "header" ? "Header" : "Detail"}_${
+      filters.startDate
+    }_${filters.endDate}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Export ${type} berhasil!`);
+  } catch (error) {
+    console.error("Error Export:", error);
+    toast.error("Gagal mengekspor data.");
+  } finally {
+    isExporting.value = false;
   }
 };
 
@@ -275,9 +485,10 @@ onMounted(() => {
     <template #header-actions>
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
-        color="primary"
         size="small"
         prepend-icon="mdi-plus"
+        class="btn-primary-red"
+        variant="flat"
         @click="handleCreate"
       >
         Buat Pelunasan Baru
@@ -286,7 +497,9 @@ onMounted(() => {
       <v-btn
         size="small"
         prepend-icon="mdi-pencil"
-        :disabled="!isSingleSelected"
+        variant="tonal"
+        class="btn-header-action"
+        :disabled="!selectedRow"
         @click="handleEdit"
       >
         Lihat / Ubah
@@ -294,23 +507,30 @@ onMounted(() => {
 
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+          <v-btn
+            size="small"
+            prepend-icon="mdi-file-excel"
+            variant="tonal"
+            class="btn-header-action"
+            :loading="isExporting"
+            v-bind="props"
+          >
             Export
           </v-btn>
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')">
-            <v-list-item-title>Export Header (Semua)</v-list-item-title>
+            <v-list-item-title>Export Header</v-list-item-title>
           </v-list-item>
-          <v-list-item @click="exportData('detail')" :disabled="selected.length === 0">
-            <v-list-item-title>Export Detail (Terpilih)</v-list-item-title>
+          <v-list-item @click="exportData('detail')">
+            <v-list-item-title>Export Detail</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
     </template>
 
     <div class="browse-content">
-      <div class="filter-section d-flex align-center flex-wrap ga-2 px-3 py-2 border-bottom">
+      <div class="filter-section">
         <v-text-field
           v-model="filters.startDate"
           type="date"
@@ -318,7 +538,7 @@ onMounted(() => {
           density="compact"
           variant="outlined"
           hide-details
-          style="max-width: 145px"
+          class="periode-field"
         />
         <v-text-field
           v-model="filters.endDate"
@@ -327,7 +547,7 @@ onMounted(() => {
           density="compact"
           variant="outlined"
           hide-details
-          style="max-width: 145px"
+          class="periode-field"
         />
 
         <v-divider vertical class="mx-1" style="height: 28px" />
@@ -342,18 +562,19 @@ onMounted(() => {
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 180px"
+          class="cabang-select"
+          :menu-props="{ class: 'pelunasan-filter-menu' }"
         />
 
         <v-text-field
           v-model="filters.term"
-          label="Cari Nomor Bukti / Customer..."
+          label="Cari nomor bukti atau customer"
           density="compact"
           variant="outlined"
           prepend-inner-icon="mdi-magnify"
           hide-details
           clearable
-          style="max-width: 300px"
+          class="search-field"
         />
 
         <v-spacer />
@@ -362,48 +583,50 @@ onMounted(() => {
           icon="mdi-refresh"
           variant="text"
           size="small"
-          color="grey-darken-1"
-          @click="fetchData"
+          color="primary"
           :loading="isLoading"
+          @click="fetchData"
         />
       </div>
 
       <div class="table-container">
         <AppDataTable
-          v-model="selected"
           v-model:expanded="expanded"
+          v-model="selected"
+          show-select
+          single-select
           v-model:page="filters.page"
           v-model:items-per-page="filters.itemsPerPage"
           :headers="headers"
           :items="items"
           :items-length="totalItems"
           :loading="isLoading"
-          show-select
           show-expand
           return-object
+          fixed-header
           item-value="sh_nomor"
-          class="desktop-table elevation-1 header-browse-blue"
+          class="desktop-table header-browse-blue"
           density="compact"
+          :item-props="(item: PelunasanHeader) => ({ class: isRowSelected(item) ? 'row-selected' : '' })"
           @update:expanded="loadDetails"
           @click:row="handleRowClick"
         >
           <template #[`body.append`]>
-            <tr class="sticky-footer bg-grey-lighten-4">
-              <td colspan="7" class="text-right font-weight-bold text-grey-darken-3 pr-4">
-                GRAND TOTAL :
+            <tr class="sticky-footer">
+              <td colspan="7" class="footer-label">
+                Total halaman ini ({{ items.length }} dari {{ totalItems }} bukti)
               </td>
-              <td class="text-right font-weight-black text-primary text-body-2">
-                {{ formatRupiah(grandTotal) }}
-              </td>
+              <td class="footer-amount">{{ formatRupiah(grandTotal) }}</td>
               <td></td>
             </tr>
           </template>
+
           <template #[`item.sh_tanggal`]="{ item }">
             {{ format(new Date(item.sh_tanggal), "dd-MM-yyyy") }}
           </template>
 
           <template #[`item.total_bayar`]="{ item }">
-            <span class="font-weight-bold text-primary">{{ formatRupiah(item.total_bayar) }}</span>
+            <span class="amount">{{ formatRupiah(item.total_bayar) }}</span>
           </template>
 
           <template #expanded-row="{ columns, item }">
@@ -421,7 +644,7 @@ onMounted(() => {
                       :items-per-page="-1"
                     >
                       <template #[`item.nominal_bayar`]="{ item: d }">
-                        {{ formatRupiah(d.nominal_bayar) }}
+                        <span class="amount">{{ formatRupiah(d.nominal_bayar) }}</span>
                       </template>
                     </v-data-table>
                   </div>
@@ -436,39 +659,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* ══════════════ LAYOUT ══════════════ */
 .browse-content {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
-}
 
-.filter-section {
-  flex-shrink: 0;
-  background-color: rgb(var(--v-theme-surface));
-  /* Kurangi padding agar lebih rapat secara vertikal */
-  padding: 6px 12px !important;
-}
-
-.filter-section :deep(.v-label) {
-  font-size: 11px !important;
-  opacity: 0.8;
-}
-
-.filter-section :deep(.v-field__input) {
-  padding-top: 4px !important;
-  padding-bottom: 4px !important;
-  min-height: 32px !important;
-}
-
-.filter-section :deep(.v-field),
-.filter-section :deep(.v-field--variant-outlined),
-.filter-section :deep(.v-field--variant-filled) {
-  background-color: rgb(var(--v-theme-surface)) !important;
-}
-
-.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
-  background-color: rgb(var(--v-theme-surface)) !important;
+  /* Tema merah lokal: komponen Vuetify di dalam halaman ini ikut merah */
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
 .table-container {
@@ -484,38 +684,188 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* ⭐ WAJIB */
 }
 
 .desktop-table :deep(.v-table__wrapper) {
   flex: 1 1 auto;
-  /* ⭐ BUKAN height */
   min-height: 0;
-  /* ⭐ WAJIB */
-  overflow-y: auto;
-  overflow-x: auto;
-  position: relative;
-  /* agar sticky footer tetap jalan */
+  overflow: auto;
+  position: relative; /* agar footer total tetap menempel */
   scrollbar-width: thin;
 }
 
-/* Header Tabel Utama */
-.desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
+/* ══════════════ TOMBOL HEADER ══════════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
   color: #ffffff !important;
-  font-weight: bold !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════════ FILTER ══════════════ */
+.filter-section {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+}
+
+.filter-section .periode-field {
+  flex: 0 0 150px;
+}
+.filter-section .cabang-select {
+  flex: 0 0 190px;
+}
+.filter-section .search-field {
+  flex: 0 1 340px;
+  min-width: 220px;
+}
+
+.filter-section :deep(.v-divider) {
+  border-color: rgba(183, 28, 28, 0.25);
+}
+
+.filter-section :deep(.v-label) {
+  font-size: 11px !important;
+  opacity: 0.8;
+}
+
+.filter-section :deep(.v-field__input) {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  min-height: 32px !important;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .cabang-select :deep(.v-field),
+.filter-section .search-field :deep(.v-field) {
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .cabang-select :deep(.v-field__outline),
+.filter-section .search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .cabang-select :deep(.v-field--focused),
+.filter-section .search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+
+.filter-section .search-field :deep(.v-field__prepend-inner .v-icon),
+.filter-section .cabang-select :deep(.v-select__menu-icon) {
+  color: #b71c1c !important;
+  opacity: 1 !important;
+}
+
+/* ══════════════ HEADER TABEL ══════════════ */
+.desktop-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
+  border-bottom: 2px solid #8e0000 !important;
 }
 
-/* Detail Row Styling (Rata Kiri) */
+/* Ikon sort, expand, dan checkbox "pilih semua" harus putih di atas merah */
+.desktop-table :deep(thead tr th .v-icon),
+.desktop-table :deep(thead tr th .v-data-table-header__sort-icon) {
+  color: #ffffff !important;
+}
+
+/* ══════════════ BARIS ══════════════ */
+.desktop-table :deep(tbody tr:not(.sticky-footer):nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+
+.desktop-table :deep(tbody tr:not(.sticky-footer):hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+/* Baris terpilih: wajib terlihat, karena Export Detail bergantung pada pilihan */
+.desktop-table :deep(tbody tr.row-selected > td) {
+  background-color: rgba(183, 28, 28, 0.12) !important;
+}
+.desktop-table :deep(tbody tr.row-selected > td:first-child) {
+  box-shadow: inset 3px 0 0 #b71c1c;
+}
+
+.amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-table :deep(tbody tr:not(.sticky-footer)) {
+  cursor: pointer;
+}
+
+/* ══════════════ BARIS TOTAL ══════════════ */
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  box-shadow: 0 -3px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+.sticky-footer td {
+  height: 48px !important;
+  vertical-align: middle;
+  background-color: rgb(var(--v-theme-surface)) !important;
+  border-top: 2px solid #b71c1c;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.sticky-footer .footer-label {
+  text-align: right;
+  padding-right: 16px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.sticky-footer .footer-amount {
+  text-align: right;
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════ DETAIL (expanded row) ══════════════ */
 .detail-container {
   display: flex;
   justify-content: flex-start;
   padding: 16px 16px 16px 64px;
   width: 100%;
-
   background-color: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
@@ -523,15 +873,15 @@ onMounted(() => {
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
-
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
   font-size: 10px !important;
   height: 32px !important;
   text-transform: uppercase;
@@ -541,20 +891,51 @@ onMounted(() => {
   font-size: 11px !important;
 }
 
-.sticky-footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-
-  background-color: rgb(var(--v-theme-surface)) !important;
-  border-top: 2px solid rgba(var(--v-theme-on-surface), 0.12);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.35);
+/* ══════════════ PAGINATION ══════════════ */
+.desktop-table :deep(.v-data-table-footer) {
+  padding: 8px 16px !important;
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
 }
 
-.sticky-footer td {
-  background-color: rgb(var(--v-theme-surface)) !important;
-  font-size: 12px !important;
-  height: 48px !important;
-  color: rgb(var(--v-theme-on-surface));
+.desktop-table :deep(.v-data-table-footer__items-per-page .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon) {
+  background-color: rgba(183, 28, 28, 0.06);
+  border-radius: 8px !important;
+  min-width: 32px !important;
+  width: 32px;
+  height: 32px;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon .v-icon) {
+  color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover) {
+  background-color: #b71c1c;
+}
+
+.desktop-table :deep(.v-data-table-footer .v-btn.v-btn--icon:not(.v-btn--disabled):hover .v-icon) {
+  color: #ffffff !important;
+}
+
+.desktop-table :deep(.v-pagination .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+</style>
+
+<style>
+/* Menu dropdown di-teleport ke luar halaman, jadi tidak bisa memakai scoped */
+.pelunasan-filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
+}
+.pelunasan-filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
 </style>

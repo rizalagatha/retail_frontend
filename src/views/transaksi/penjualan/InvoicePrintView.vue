@@ -69,15 +69,12 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
-const dynamicLogo = computed(() => {
+const dynamicLogo = computed<string | null>(() => {
   const nomor = printData.value?.header?.inv_nomor?.toUpperCase() || "";
 
-  if (nomor.startsWith("K04")) {
-    return LogoReszo;
-  }
-  if (nomor.startsWith("KF1")) {
-    return LogoKiddify;
-  }
+  if (nomor.startsWith("SL1")) return null; // Store Sale: tanpa logo sama sekali
+  if (nomor.startsWith("K04")) return LogoReszo;
+  if (nomor.startsWith("KF1")) return LogoKiddify;
   return Logo;
 });
 const igLogo = InstagramLogo;
@@ -129,7 +126,7 @@ onMounted(() => {
     <div v-if="printData" class="page">
       <div class="header">
         <div class="header-left">
-          <img :src="dynamicLogo" alt="Logo" class="logo" />
+          <img v-if="dynamicLogo" :src="dynamicLogo" alt="Logo" class="logo" />
           <div class="company-info">
             <strong>{{ printData.header.perush_nama }}</strong>
             <div>{{ printData.header.perush_alamat }}</div>

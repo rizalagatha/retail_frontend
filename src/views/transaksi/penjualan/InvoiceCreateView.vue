@@ -3360,12 +3360,13 @@ const isItemPromoEligible = (item: Item) => {
   return isBukanPengajuan && isBukanBordir && !isJasaMurni;
 };
 
-// Hitung tanggal tempo otomatis
+// Hitung tanggal tempo otomatis (TOP 0 = jatuh tempo di hari transaksi)
 watch(
   header,
   () => {
-    if (header.top > 0 && header.tanggal) {
-      header.tanggalTempo = format(addDays(new Date(header.tanggal), header.top), "yyyy-MM-dd");
+    if (header.tanggal) {
+      const top = Number(header.top) || 0;
+      header.tanggalTempo = format(addDays(new Date(header.tanggal), top), "yyyy-MM-dd");
     }
   },
   { deep: true }
@@ -3538,10 +3539,12 @@ watch(
 watch(
   () => header.customer.kode,
   (newVal) => {
-    if (newVal) {
-      // Berikan default awal di UI agar user tidak kaget
-      header.top = authStore.user?.cabang === "KPR" ? 30 : 14;
-    }
+    // Mode ubah: TOP harus tetap nilai yang tersimpan (inv_top), jangan ditimpa default
+    if (!newVal || isEditMode.value) return;
+
+    const cabang = authStore.user?.cabang;
+    // Default awal di UI: SL1 (Store Sale) tunai = 0, KPR = 30, lainnya = 14
+    header.top = cabang === "SL1" ? 0 : cabang === "KPR" ? 30 : 14;
   }
 );
 </script>

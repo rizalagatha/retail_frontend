@@ -36,8 +36,9 @@ interface NavItem {
 // Stores and composables
 const authStore = useAuthStore();
 const router = useRouter();
-const logoSrc = computed(() => {
+const logoSrc = computed<string | null>(() => {
   const kode = authStore.userCabang;
+  if (kode === "SL1") return null; // Store Sale: tanpa logo sama sekali
   if (kode === "K04") return logoRezso;
   if (kode === "KF1") return logoKiddify;
   return logo;
@@ -731,7 +732,7 @@ onUnmounted(() => {
       class="mr-2"
     ></v-app-bar-nav-icon>
     <RouterLink to="/" class="logo-section">
-      <v-avatar size="32" class="logo-avatar">
+      <v-avatar v-if="logoSrc" size="32" class="logo-avatar">
         <v-img :src="logoSrc" alt="Logo Cabang" cover />
       </v-avatar>
       <div class="brand-info">

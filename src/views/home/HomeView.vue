@@ -1047,8 +1047,9 @@ const userPlaceId = ref("");
 const userLat = ref("");
 const userLong = ref("");
 
-const dashboardLogo = computed(() => {
+const dashboardLogo = computed<string | null>(() => {
   const kode = authStore.user?.cabang;
+  if (kode === "SL1") return null; // Store Sale: tanpa logo sama sekali
   if (kode === "K04") return LogoRezso;
   if (kode === "KF1") return LogoKiddify;
   return logoUrl;
@@ -2836,7 +2837,12 @@ onUnmounted(() => {
             <div class="d-flex align-center justify-space-between mb-2">
               <!-- Kiri: logo + teks -->
               <div class="d-flex align-center">
-                <v-avatar size="64" color="white" class="mr-4 elevation-4 pa-1">
+                <v-avatar
+                  v-if="dashboardLogo"
+                  size="64"
+                  color="white"
+                  class="mr-4 elevation-4 pa-1"
+                >
                   <v-img :src="dashboardLogo" alt="Logo Cabang" />
                 </v-avatar>
                 <div>

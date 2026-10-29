@@ -68,10 +68,11 @@ const emit = defineEmits(["update:modelValue"]);
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(false);
 const maxPundi = 500;
-const dynamicLogo = computed(() => {
+const dynamicLogo = computed<string | null>(() => {
   const nomor = printData.value?.header?.inv_nomor?.toUpperCase() || "";
   const namaPerush = printData.value?.header?.perush_nama?.toUpperCase() || "";
 
+  if (nomor.startsWith("SL1")) return null; // Store Sale: tanpa logo sama sekali
   if (nomor.startsWith("K04") || namaPerush.includes("RESZO")) {
     return LogoReszo;
   }
@@ -359,7 +360,7 @@ const hitungPundiAmal = (details: PrintDetail[]) => {
           <div class="receipt">
             <!-- Header -->
             <div class="header text-center">
-              <img :src="dynamicLogo" class="logo" />
+              <img v-if="dynamicLogo" :src="dynamicLogo" class="logo" />
               <strong>{{ printData.header.perush_nama }}</strong>
               <div>{{ printData.header.perush_alamat }}</div>
               <div>{{ printData.header.perush_telp }}</div>

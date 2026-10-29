@@ -285,8 +285,12 @@ const BRANCH_LOGO_MAP: Record<string, string> = {
   KF1: LogoKiddify,
 };
 
-const appLogo = computed(() => {
+// Cabang yang struknya tanpa logo sama sekali
+const BRANCH_NO_LOGO = ["SL1"];
+
+const appLogo = computed<string | null>(() => {
   const cabang = props.invoiceHeader.gudang?.kode || "";
+  if (BRANCH_NO_LOGO.includes(cabang)) return null;
   return BRANCH_LOGO_MAP[cabang] || Logo;
 });
 
@@ -1904,7 +1908,7 @@ watch(
         <div id="kasir-print-area">
           <div v-if="printKasirData" class="receipt">
             <div class="header text-center">
-              <img :src="appLogo" alt="Logo" class="logo" />
+              <img v-if="appLogo" :src="appLogo" alt="Logo" class="logo" />
               <strong>{{ printKasirData.header.perush_nama }}</strong>
               <div>{{ printKasirData.header.perush_alamat }}</div>
               <div>{{ printKasirData.header.perush_telp }}</div>

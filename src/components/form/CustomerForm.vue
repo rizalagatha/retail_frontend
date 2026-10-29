@@ -2,14 +2,21 @@
 import { ref, onMounted, computed } from "vue";
 import api from "@/services/api";
 import { useToast } from "vue-toastification";
+import { useAuthStore } from "@/stores/authStore";
 import { kotaIndonesia } from "@/data/kotaIndonesia";
 
 const toast = useToast();
+const authStore = useAuthStore();
 const emit = defineEmits(["close", "customer-saved"]);
 
 interface KotaItem {
   nama: string;
   provinsi: string;
+}
+
+interface LevelItem {
+  kode: string;
+  nama: string;
 }
 
 const defaultItem = {
@@ -22,7 +29,7 @@ const defaultItem = {
   tglLahir: null,
   top: 0,
   status: "AKTIF",
-  level: null,
+  level: null as string | null,
   limitTrans: 0,
   npwp: "",
   namaNpwp: "",
@@ -30,8 +37,11 @@ const defaultItem = {
   kotaNpwp: "",
 };
 
+const NAMA_LEVEL_SL1 = "RETAILER";
+const isSL1 = computed(() => authStore.user?.cabang === "SL1");
+
 const editedItem = ref({ ...defaultItem });
-const availableLevels = ref([]);
+const availableLevels = ref<LevelItem[]>([]);
 const isSaving = ref(false);
 
 // --- State Kota ---
@@ -69,6 +79,9 @@ const phoneError = computed(() =>
 const save = async () => {
   if (!editedItem.value.nama) {
     return toast.error("Nama Customer harus diisi.");
+  }
+  if (isSL1.value && !editedItem.value.level) {
+    return toast.error("Level Retailer belum termuat. Tutup form lalu buka lagi.");
   }
 
   // Validasi HP
@@ -117,10 +130,22 @@ const save = async () => {
 onMounted(async () => {
   allKotaList.value = kotaIndonesia;
   try {
-    const levelsResponse = await api.get("/customers/levels");
+    const levelsResponse = await api.get<LevelItem[]>("/customers/levels");
     availableLevels.value = levelsResponse.data;
   } catch {
     toast.error("Gagal memuat data level customer.");
+  }
+
+  // Store Sale: level otomatis Retailer dan dikunci
+  if (isSL1.value) {
+    const retailer = availableLevels.value.find(
+      (l) => l.nama.trim().toUpperCase() === NAMA_LEVEL_SL1
+    );
+    if (retailer) {
+      editedItem.value.level = retailer.kode;
+    } else {
+      toast.error('Level "Retailer" tidak ditemukan. Hubungi admin.');
+    }
   }
 });
 </script>
@@ -239,6 +264,8 @@ onMounted(async () => {
                 density="compact"
                 hide-details
                 class="mb-2"
+                :readonly="isSL1"
+                :prepend-inner-icon="isSL1 ? 'mdi-lock-outline' : undefined"
               ></v-select>
               <v-radio-group
                 v-model="editedItem.status"

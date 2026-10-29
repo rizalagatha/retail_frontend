@@ -91,6 +91,8 @@ interface SoItem {
   _oldJumlah?: number;
   phStatus?: string;
   dbLineId?: string; // id baris dari database (kosong untuk baris baru yang belum tersimpan)
+  qtyDb?: number; // qty baris di database saat dimuat
+  qtyDitagih?: number; // qty baris yang sudah masuk invoice aktif
 }
 
 // Interface baru untuk Record Adjustment
@@ -373,11 +375,40 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 const isInitialLoad = ref(false);
 const isSavingDisabled = ref(false);
+// SO yang sudah punya invoice / readonly: customer, PPN, dan penawaran dikunci
+const isHeaderLocked = computed(() => isReadonly.value || isAppendOnly.value);
 // SO sudah punya invoice: hanya boleh menambah baris baru
 const isAppendOnly = ref(false);
+
+// Baris custom / SO DTF tetap terkunci (terhubung ke produksi)
+const isTerhubungProduksi = (item: SoItem): boolean =>
+  !!item.isCustomOrder || !!item.noSoDtf || item.kode === "CUSTOM";
+const isRowTertagih = (item: SoItem): boolean =>
+  isAppendOnly.value && !!item.dbLineId && Number(item.qtyDitagih || 0) > 0;
 const isRowLocked = (item: SoItem): boolean =>
-  !!item.isMutated || (isAppendOnly.value && !!item.dbLineId);
+  !!item.isMutated ||
+  (isAppendOnly.value && !!item.dbLineId && (isTerhubungProduksi(item) || isRowTertagih(item)));
+// Baris yang baru ditagih sebagian: hanya qty yang boleh diubah (min. qty ditagih)
+const isQtyEditable = (item: SoItem): boolean =>
+  isRowTertagih(item) &&
+  !item.isMutated &&
+  !isTerhubungProduksi(item) &&
+  Number(item.qtyDitagih || 0) < Number(item.qtyDb || 0);
+
 const adaBarisBaru = computed(() => items.value.some((i) => i.kode && !i.dbLineId));
+
+// Deteksi perubahan/hapus pada baris lama (untuk tombol "Simpan dan Jadikan Invoice")
+const barisSig = (i: SoItem): string =>
+  `${i.kode}|${i.ukuran || ""}|${Number(i.jumlah || 0)}|${Number(i.harga || 0)}|${Number(
+    i.diskonRp || 0
+  )}`;
+const sigBarisAwal = ref<Record<string, string>>({});
+const adaPerubahanBaris = computed(() =>
+  Object.entries(sigBarisAwal.value).some(([id, sig]) => {
+    const it = items.value.find((i) => i.dbLineId === id);
+    return !it || barisSig(it) !== sig;
+  })
+);
 const masihAdaSisaTagih = ref(true);
 const bisaJadikanInvoice = computed(() =>
   isSavingDisabled.value || isAppendOnly.value ? !!header.value.nomor : adaBarangSiapTagih.value
@@ -975,6 +1006,12 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
     });
 
     items.value = processedSoItems;
+    sigBarisAwal.value = {};
+    for (const it of items.value) {
+      if (it.dbLineId && !(it.dbLineId in sigBarisAwal.value)) {
+        sigBarisAwal.value[it.dbLineId] = barisSig(it);
+      }
+    }
     // ========================================================
 
     //  Cek status PH untuk validasi hapus item
@@ -1009,7 +1046,7 @@ const loadDataForEdit = async (nomor: string, silent = false) => {
       if (headerData.hanyaTambah) {
         isAppendOnly.value = true;
         toast.info(
-          "SO ini sudah punya invoice. Baris yang ada tidak bisa diubah, tetapi Anda masih bisa menambah barang atau sablon."
+          "SO ini sudah punya invoice. Baris yang sudah ditagih terkunci (qty hanya bisa diubah di atas qty ditagih). Customer, PPN, dan penawaran juga dikunci. Baris yang belum ditagih masih bisa diubah atau dihapus, dan Anda bisa menambah barang atau sablon."
         );
       } else {
         isSavingDisabled.value = true;
@@ -1298,6 +1335,7 @@ const openSalesCounterSearch = () => {
 };
 
 const openPenawaranSearch = () => {
+  if (isHeaderLocked.value) return;
   if (header.value.isMarketplace) {
     // skip penawaran logic completely
     return;
@@ -1718,7 +1756,7 @@ const saveAndConvertToInvoice = async () => {
   }
 
   // Mode tambah-baris tanpa baris baru: langsung ke invoice berikutnya
-  if (isAppendOnly.value && !adaBarisBaru.value) {
+  if (isAppendOnly.value && !adaBarisBaru.value && !adaPerubahanBaris.value) {
     router.push({
       path: "/transaksi/penjualan/invoice/new",
       query: { refSo: header.value.nomor },
@@ -1925,8 +1963,14 @@ const removeRow = (id: number | string) => {
   if (!item) return;
 
   if (isAppendOnly.value && item.dbLineId) {
-    toast.warning("Baris ini sudah ada di SO yang punya invoice, tidak bisa dihapus.");
-    return;
+    if (isTerhubungProduksi(item)) {
+      toast.warning("Baris custom/SO DTF tidak bisa dihapus karena SO sudah punya invoice.");
+      return;
+    }
+    if (Number(item.qtyDitagih || 0) > 0) {
+      toast.warning(`Baris ini sudah ditagih ${item.qtyDitagih} pcs, tidak bisa dihapus.`);
+      return;
+    }
   }
 
   // Blok hapus jika PH terkait sudah ACC_DC ke atas
@@ -4015,7 +4059,7 @@ const stopAndOpenPriceProposal = (index: number) => {
             <v-col cols="5">
               <v-text-field
                 label="Gudang"
-                :disabled="!!header.penawaran"
+                :disabled="!!header.penawaran || isHeaderLocked"
                 :model-value="header.gudang.kode"
                 readonly
                 @click="openGudangSearch"
@@ -4108,7 +4152,7 @@ const stopAndOpenPriceProposal = (index: number) => {
               >
                 <template #prepend-inner>
                   <v-btn
-                    :disabled="!!header.penawaran"
+                    :disabled="!!header.penawaran || isHeaderLocked"
                     icon="mdi-account-plus"
                     size="x-small"
                     variant="tonal"
@@ -4170,13 +4214,14 @@ const stopAndOpenPriceProposal = (index: number) => {
                 label="No. Penawaran"
                 v-model="header.penawaran"
                 readonly
+                :disabled="isHeaderLocked"
                 @click="openPenawaranSearch"
                 variant="outlined"
                 density="compact"
                 hide-details
                 append-inner-icon="mdi-magnify"
                 class="search-field"
-                clearable
+                :clearable="!isHeaderLocked"
                 @click:clear="header.penawaran = ''"
               />
             </v-col>
@@ -4449,8 +4494,15 @@ const stopAndOpenPriceProposal = (index: number) => {
                   density="compact"
                   hide-details
                   class="text-end font-weight-bold"
-                  :disabled="isRowLocked(item)"
-                  :hint="isRowLocked(item) ? 'Terkunci' : ''"
+                  :disabled="isRowLocked(item) && !isQtyEditable(item)"
+                  :min="isQtyEditable(item) ? Number(item.qtyDitagih || 0) : 0"
+                  :title="
+                    isQtyEditable(item)
+                      ? `Min. ${item.qtyDitagih} pcs (sudah ditagih)`
+                      : isRowLocked(item)
+                      ? 'Terkunci'
+                      : ''
+                  "
                   @focus="item._oldJumlah = item.jumlah"
                   @blur="handleQtyChange(item)"
                   @update:model-value="calculateTotals"

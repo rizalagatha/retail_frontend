@@ -4395,6 +4395,7 @@ watch(
       :biaya-kirim="header.biayaKirim"
       :biaya-platform="header.mpBiayaPlatform"
       :is-marketplace="header.isMarketplace"
+      :cabang="header.gudang.kode"
       @close="dialogs.diskonForm = false"
       @save="onDiskonSaved"
     />

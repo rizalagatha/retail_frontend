@@ -13,6 +13,7 @@ const props = defineProps({
   // Invoice dari SO: diskon & ongkir dihitung server, dialog hanya menampilkan
   dariSo: { type: Boolean, default: false },
   potonganInvoice: { type: Number, default: 0 },
+  cabang: { type: String, default: "" },
 });
 
 const emit = defineEmits(["close", "save"]);
@@ -46,16 +47,27 @@ watch(
 
 const onlyDigits = (v: unknown) => Number(String(v).replace(/[^0-9]/g, "")) || 0;
 
+// --- Minimal belanja promo Maps per cabang ---
+const MIN_BELANJA_MAPS_DEFAULT = 200000;
+const MIN_BELANJA_MAPS_CABANG: Record<string, number> = {
+  KF1: 100000,
+};
+
+const minBelanjaMaps = computed(
+  () => MIN_BELANJA_MAPS_CABANG[props.cabang.trim().toUpperCase()] ?? MIN_BELANJA_MAPS_DEFAULT
+);
+
 // --- Kelayakan promo Maps ---
 const isEligibleForMaps = computed(() => {
-  if (props.subTotal < 200000) return false; // Rule 1: min 200rb
+  if (props.subTotal < minBelanjaMaps.value) return false; // Rule 1: min belanja (per cabang)
   // Rule 2: diskon ≥ 10% (Distributor) dan belanja ≥ 1 juta → hangus
   if (Number(formData.diskonPersen1) >= 10 && props.subTotal >= 1000000) return false;
   return true;
 });
 
 const mapsIneligibleReason = computed(() => {
-  if (props.subTotal < 200000) return "Minimal belanja Rp 200.000 untuk promo ini.";
+  if (props.subTotal < minBelanjaMaps.value)
+    return `Minimal belanja Rp ${formatRupiah(minBelanjaMaps.value)} untuk promo ini.`;
   if (Number(formData.diskonPersen1) >= 10 && props.subTotal >= 1000000)
     return "Distributor (Diskon ≥ 10%) tidak dapat digabung dengan promo ini.";
   return "";

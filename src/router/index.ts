@@ -319,7 +319,11 @@ const BiayaKirimView = () => import("@/views/transaksi/penjualan/BiayaKirimView.
 const BiayaKirimCreateView = () => import("@/views/transaksi/penjualan/BiayaKirimCreateView.vue");
 const BiayaKirimPrintView = () => import("@/views/transaksi/penjualan/BiayaKirimPrintView.vue");
 
-const isTrackingMode = import.meta.env.VITE_APP_MODE === "TRACKING";
+const appMode = import.meta.env.VITE_APP_MODE;
+const isTrackingMode = appMode === "TRACKING";
+const isKatalogMode = appMode === "KATALOG";
+// Build publik tanpa login (tracking.* dan katalog.*)
+const isPublicBuild = isTrackingMode || isKatalogMode;
 
 const routes = [
   {
@@ -334,10 +338,10 @@ const routes = [
   {
     path: "/",
     name: "Home",
-    component: isTrackingMode ? TrackingHomeView : HomeView,
+    component: isKatalogMode ? KatalogView : isTrackingMode ? TrackingHomeView : HomeView,
     meta: {
-      title: isTrackingMode ? "Lacak Pesanan" : "Beranda",
-      layout: "DefaultLayout",
+      title: isKatalogMode ? "Katalog Produk" : isTrackingMode ? "Lacak Pesanan" : "Beranda",
+      layout: isKatalogMode ? "PrintLayout" : "DefaultLayout",
       requiresAuth: false,
       public: true,
     },
@@ -2962,8 +2966,16 @@ const routes = [
   },
 ];
 
-// 1. Filter rute: Jika Mode Tracking, buang rute yang bukan untuk umum
+// 1. Filter rute per mode build: KATALOG, TRACKING, atau penuh (Retail)
 const filteredRoutes = routes.filter((r) => {
+  if (isKatalogMode) {
+    return (
+      ["/", "/:pathMatch(.*)*"].includes(r.path) ||
+      r.path.startsWith("/katalog") ||
+      r.path.startsWith("/cek-stok-store")
+    );
+  }
+
   if (isTrackingMode) {
     const allowedPaths = [
       "/",
@@ -3046,7 +3058,9 @@ router.beforeEach((to, from, next) => {
   const title = to.meta?.title || to.name || "Aplikasi";
 
   // [PERBAIKAN] Pisahkan judul untuk mode Tracking dan mode Retail
-  if (isTrackingMode) {
+  if (isKatalogMode) {
+    document.title = `${title} | Kaosan`;
+  } else if (isTrackingMode) {
     document.title = `${title} Kaosan`; // Misal: "Lacak Pesanan Kaosan"
   } else {
     document.title = `${title} - Retail Kaosan`; // Misal: "Invoice - Retail Kaosan"
@@ -3063,9 +3077,9 @@ router.beforeEach((to, from, next) => {
   }
 
   // [TAMBAHKAN INI]
-  // Jika di mode tracking tapi mencoba akses halaman yang butuh login
-  if (isTrackingMode && to.meta?.requiresAuth) {
-    return next("/"); // Lempar balik ke home tracking
+  // Build publik tidak boleh membuka halaman yang butuh login
+  if (isPublicBuild && to.meta?.requiresAuth) {
+    return next("/");
   }
 
   // Belum login, redirect ke login

@@ -57,6 +57,7 @@ const { mdAndUp } = useDisplay();
 
 const ROUTE_NAME = "Katalog";
 const homePath = computed(() => (isKiosk.value ? "/kiosk" : "/"));
+const isKatalogMode = import.meta.env.VITE_APP_MODE === "KATALOG";
 const fromPremium = computed(() => route.query.from === "premium");
 
 watch(fromPremium, (v) => document.documentElement.classList.toggle("theme-premium", v), {
@@ -748,7 +749,11 @@ onUnmounted(() => {
               </button>
             </div>
 
-            <router-link :to="{ path: '/tracking', query: { bantuan: '1' } }" class="k-side-help">
+            <router-link
+              v-if="!isKatalogMode"
+              :to="{ path: '/tracking', query: { bantuan: '1' } }"
+              class="k-side-help"
+            >
               <v-icon size="16">mdi-headset</v-icon>
               Butuh bantuan? Hubungi store
             </router-link>

@@ -10,6 +10,9 @@ const authStore = useAuthStore();
 const uiStore = useUiStore(); // Panggil UI Store
 const route = useRoute();
 const router = useRouter();
+const isKatalogMode = import.meta.env.VITE_APP_MODE === "KATALOG";
+// Dimuat hanya di build katalog
+const CartDock = defineAsyncComponent(() => import("@/components/CartDock.vue"));
 
 onMounted(() => {
   authStore.checkAuthStatus();
@@ -28,7 +31,7 @@ const layoutComponent = computed(() => {
 
 const updateTitle = () => {
   const title = route.meta?.title || route.name || "Retail";
-  document.title = `${title} - Retail Kaosan`;
+  document.title = isKatalogMode ? `${title} | Kaosan` : `${title} - Retail Kaosan`;
 };
 
 watch(
@@ -42,6 +45,7 @@ watch(
   <v-app class="desktop-app-container bg-background" :theme="uiStore.isDark ? 'dark' : 'light'">
     <component :is="layoutComponent" />
     <KioskOverlay />
+    <CartDock v-if="isKatalogMode" />
   </v-app>
 </template>
 

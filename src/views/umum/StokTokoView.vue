@@ -6,6 +6,7 @@ import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
+import { useCartStore, type CartLineInput } from "@/stores/cartStore";
 
 interface StoreItem {
   kode: string;
@@ -56,6 +57,10 @@ const router = useRouter();
 const ROUTE_NAME = "Stok Toko";
 const LOW_TOTAL = 5;
 const LOW_SIZE = 3;
+// Keranjang hanya aktif di build katalog (subdomain), bukan di tracking/kiosk
+const cartAktif = import.meta.env.VITE_APP_MODE === "KATALOG";
+const cart = useCartStore();
+const homePath = cartAktif ? "/" : "/tracking";
 
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 const formatHarga = (min: number, max: number) => {
@@ -287,7 +292,7 @@ const goBack = () => {
   if (phase.value === "products")
     router.push({ name: ROUTE_NAME, params: { toko: tokoParam.value } });
   else if (phase.value === "category") router.push({ name: ROUTE_NAME });
-  else router.push("/tracking");
+  else router.push(homePath);
 };
 
 const headerTitle = computed(() =>
@@ -328,6 +333,36 @@ const selectedPromoHarga = computed(() =>
 watch(detailVisible, (v) => (document.documentElement.style.overflow = v ? "hidden" : ""));
 const onKey = (e: KeyboardEvent) => {
   if (e.key === "Escape" && detailVisible.value) detailVisible.value = false;
+};
+
+// --- Keranjang ---
+// Satu keranjang = satu store. Bila user menambah dari store lain, tanyakan dulu.
+const bentrok = ref<{ toko: StoreItem; line: CartLineInput } | null>(null);
+
+const bisaTambah = (kode: string, s: SizeStock) =>
+  s.harga > 0 && s.stok > 0 && cart.qtyOf(kode, s.ukuran) < s.stok;
+
+const tambahKeranjang = (p: Product, s: SizeStock) => {
+  const toko = currentStore.value;
+  if (!toko) return;
+  const line: CartLineInput = {
+    kode: p.kode,
+    ukuran: s.ukuran,
+    nama: p.nama,
+    gambar: p.gambar,
+    harga: s.harga,
+    hargaPromo: s.hargaPromo,
+    stok: s.stok,
+  };
+  if (cart.add(toko, line) === "beda-toko") bentrok.value = { toko, line };
+};
+
+const kosongkanLaluTambah = () => {
+  const b = bentrok.value;
+  if (!b) return;
+  cart.kosongkan();
+  cart.add(b.toko, b.line);
+  bentrok.value = null;
 };
 
 // --- Sinkron dengan route ---
@@ -375,7 +410,7 @@ onUnmounted(() => {
         <div class="k-sub">{{ headerSub }}</div>
       </div>
       <v-spacer />
-      <router-link to="/tracking" class="k-home-link">
+      <router-link :to="homePath" class="k-home-link">
         <img :src="LogoKaosan" height="28" alt="Kaosan" />
       </router-link>
     </header>
@@ -638,7 +673,7 @@ onUnmounted(() => {
                       v-for="s in selected.sizes"
                       :key="s.ukuran"
                       class="k-price-row st-srow"
-                      :class="{ 'st-srow--out': s.stok <= 0 }"
+                      :class="{ 'st-srow--out': s.stok <= 0, 'st-srow--cart': cartAktif }"
                     >
                       <span class="k-size">{{ s.ukuran }}</span>
                       <span class="k-price-val" :class="{ 'k-price-val--na': !s.harga }">
@@ -651,6 +686,19 @@ onUnmounted(() => {
                       <span class="st-pill" :class="`st-pill--${sizeState(s.stok)}`">
                         {{ sizeLabel(s.stok) }}
                       </span>
+                      <button
+                        v-if="cartAktif"
+                        type="button"
+                        class="st-add"
+                        :disabled="!bisaTambah(selected.kode, s)"
+                        :aria-label="`Tambah ukuran ${s.ukuran} ke keranjang`"
+                        @click="tambahKeranjang(selected, s)"
+                      >
+                        <v-icon size="18">mdi-cart-plus</v-icon>
+                        <span v-if="cart.qtyOf(selected.kode, s.ukuran)" class="st-add-n">
+                          {{ cart.qtyOf(selected.kode, s.ukuran) }}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
@@ -665,6 +713,27 @@ onUnmounted(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <v-dialog :model-value="!!bentrok" max-width="380" @update:model-value="bentrok = null">
+      <v-card v-if="bentrok">
+        <v-card-title class="text-subtitle-1 font-weight-bold" style="color: #b71c1c">
+          Ganti store?
+        </v-card-title>
+        <v-card-text>
+          Keranjangmu berisi barang dari <b>{{ cart.tokoNama }}</b
+          >. Satu keranjang hanya untuk satu store. Kosongkan lalu mulai dari
+          <b>{{ bentrok.toko.nama }}</b
+          >?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="bentrok = null">Batal</v-btn>
+          <v-btn variant="flat" color="#b71c1c" class="text-white" @click="kosongkanLaluTambah">
+            Kosongkan dan tambah
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -834,5 +903,45 @@ onUnmounted(() => {
 .st-pill--out {
   color: #8a8a8a;
   background: #f0f0f0;
+}
+.st-srow--cart {
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+}
+.st-add {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e9dfdb;
+  border-radius: 50%;
+  color: #b71c1c;
+  background: #fff;
+  cursor: pointer;
+}
+.st-add:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.st-add:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.st-add-n {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: #b71c1c;
 }
 </style>

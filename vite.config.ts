@@ -10,7 +10,7 @@ import pkg from "./package.json" with { type: "json" };
 const appBase = process.env.VITE_APP_BASE || "/";
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     vueDevTools(),
@@ -26,15 +26,16 @@ export default defineConfig({
       ],
       manifest: {
         id: appBase,
-        name: "Kaosan Retail",
-        short_name: "Retail",
-        description: "Kaosan Retail Management System",
+        name: mode === "katalog" ? "Kaosan" : "Kaosan Retail",
+        short_name: mode === "katalog" ? "Kaosan" : "Retail",
+        description:
+          mode === "katalog" ? "Katalog dan stok store Kaosan" : "Kaosan Retail Management System",
         start_url: appBase,
         scope: appBase,
         display: "standalone",
         display_override: ["window-controls-overlay", "standalone"],
         background_color: "#f5f7fa",
-        theme_color: "#1976D2",
+        theme_color: mode === "katalog" ? "#b71c1c" : "#1976D2",
         orientation: "any",
         icons: [
           {
@@ -173,4 +174,4 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
-});
+}));

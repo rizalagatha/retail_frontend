@@ -103,7 +103,8 @@ const updateSW = registerSW({
 });
 
 // [PERBAIKAN 2]: Setup GA4 khusus untuk subdomain tracking
-if (window.location.hostname === "tracking.kaosanofficial.com") {
+const GA_HOSTS = ["tracking.kaosanofficial.com", "katalog.kaosanofficial.com"];
+if (GA_HOSTS.includes(window.location.hostname)) {
   app.use(VueGtag, {
     property: {
       // Perhatikan: di vue-gtag-next menggunakan key 'property', bukan 'config'

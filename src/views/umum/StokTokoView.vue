@@ -97,27 +97,55 @@ const fetchStores = async () => {
   }
 };
 
+const storeQuery = ref("");
+const storesShown = computed(() => {
+  const q = storeQuery.value.trim().toLowerCase();
+  return q ? stores.value.filter((s) => s.nama.toLowerCase().includes(q)) : stores.value;
+});
+
 // --- Data stok (cache per toko, 5 menit) ---
 const cache = new Map<string, { rows: StokRow[]; at: number }>();
+const inflight = new Map<string, Promise<StokRow[]>>();
+const CACHE_MS = 5 * 60_000;
 const rows = ref<StokRow[]>([]);
 const isLoading = ref(false);
 const hasError = ref(false);
 
+// Satu request per toko, dibagi bersama antara prefetch dan loadStok
+const fetchRows = (kode: string): Promise<StokRow[]> => {
+  const pending = inflight.get(kode);
+  if (pending) return pending;
+  const p = api
+    .get<StokRow[]>("/so/public/cek-stok", { params: { cabang: kode, q: "" } })
+    .then(({ data }) => {
+      cache.set(kode, { rows: data, at: Date.now() });
+      return data;
+    })
+    .finally(() => inflight.delete(kode));
+  inflight.set(kode, p);
+  return p;
+};
+
+// Dipanggil saat kursor/jari menyentuh baris store, supaya data sudah jalan sebelum diklik
+const prefetchStok = (kode: string) => {
+  const c = cache.get(kode);
+  if (c && Date.now() - c.at < CACHE_MS) return;
+  fetchRows(kode).catch(() => undefined);
+};
+
 const loadStok = async (kode: string, force = false) => {
   const c = cache.get(kode);
-  if (c && !force && Date.now() - c.at < 5 * 60_000) {
+  if (c && !force && Date.now() - c.at < CACHE_MS) {
     rows.value = c.rows;
     hasError.value = false;
+    isLoading.value = false;
     return;
   }
   isLoading.value = true;
   hasError.value = false;
   rows.value = [];
   try {
-    const { data } = await api.get<StokRow[]>("/so/public/cek-stok", {
-      params: { cabang: kode, q: "" },
-    });
-    cache.set(kode, { rows: data, at: Date.now() });
+    const data = await fetchRows(kode);
     if (tokoParam.value === kode) rows.value = data;
   } catch {
     if (tokoParam.value === kode) hasError.value = true;
@@ -416,34 +444,69 @@ onUnmounted(() => {
     </header>
 
     <!-- ============ PILIH TOKO ============ -->
-    <main v-if="phase === 'store'" class="k-container">
-      <p class="k-hint">Pilih store untuk melihat ketersediaan barang siap jual.</p>
+    <template v-if="phase === 'store'">
+      <section class="sx-hero" aria-labelledby="sx-judul">
+        <div class="sx-hero-in">
+          <h1 id="sx-judul" class="sx-judul">Mau cek stok di store mana?</h1>
+          <p class="sx-lead">Pilih store untuk melihat model, ukuran, dan sisa stoknya.</p>
+        </div>
+      </section>
 
-      <div v-if="isLoadingStores" class="st-store-grid">
-        <div v-for="n in 8" :key="n" class="k-skel" style="height: 68px"></div>
-      </div>
-      <div v-else-if="storeError" class="k-state">
-        <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
-        <div class="k-state-title">Gagal memuat daftar store</div>
-        <v-btn color="#D32F2F" class="text-white text-none" @click="fetchStores">Coba Lagi</v-btn>
-      </div>
-      <div v-else class="st-store-grid">
-        <button
-          v-for="(s, i) in stores"
-          :key="s.kode"
-          class="st-store k-enter"
-          :style="{ '--i': i % 12 }"
-          @click="pilihStore(s.kode)"
-        >
-          <span class="st-store-ico"><v-icon size="22" color="#D32F2F">mdi-store</v-icon></span>
-          <span class="st-store-text">
-            <b>{{ s.nama }}</b>
-            <small>Store Kaosan</small>
-          </span>
-          <v-icon size="20" color="#D32F2F">mdi-chevron-right</v-icon>
-        </button>
-      </div>
-    </main>
+      <main class="k-container sx-main">
+        <div v-if="isLoadingStores" class="sx-list" aria-hidden="true">
+          <div v-for="n in 9" :key="n" class="k-skel sx-skel"></div>
+        </div>
+
+        <div v-else-if="storeError" class="k-state">
+          <div class="k-state-title">Daftar store belum bisa dimuat</div>
+          <p class="sx-state-note">Periksa koneksi internetmu, lalu coba lagi.</p>
+          <v-btn color="#D32F2F" class="text-white text-none" @click="fetchStores">
+            Coba lagi
+          </v-btn>
+        </div>
+
+        <template v-else>
+          <label v-if="stores.length > 8" class="sx-find">
+            <span class="sx-sr">Cari store</span>
+            <input
+              v-model="storeQuery"
+              type="search"
+              placeholder="Cari nama store"
+              autocomplete="off"
+              enterkeyhint="search"
+            />
+          </label>
+
+          <ul v-if="storesShown.length" class="sx-list">
+            <li
+              v-for="(s, i) in storesShown"
+              :key="s.kode"
+              class="sx-item k-enter"
+              :style="{ '--i': i % 12 }"
+            >
+              <button
+                type="button"
+                class="sx-row"
+                @click="pilihStore(s.kode)"
+                @pointerenter="prefetchStok(s.kode)"
+                @focus="prefetchStok(s.kode)"
+              >
+                <span class="sx-name">{{ s.nama }}</span>
+                <span class="sx-go" aria-hidden="true"></span>
+              </button>
+            </li>
+          </ul>
+
+          <div v-else-if="storeQuery.trim()" class="k-state">
+            <div class="k-state-title">Tidak ada store “{{ storeQuery.trim() }}”</div>
+            <button type="button" class="sx-clear" @click="storeQuery = ''">Hapus pencarian</button>
+          </div>
+          <div v-else class="k-state">
+            <div class="k-state-title">Belum ada store yang ditampilkan</div>
+          </div>
+        </template>
+      </main>
+    </template>
 
     <!-- ============ PILIH KAIN ============ -->
     <main v-else-if="phase === 'category'" class="k-container">
@@ -453,14 +516,12 @@ onUnmounted(() => {
         <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
       </div>
       <div v-else-if="hasError" class="k-state">
-        <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
         <div class="k-state-title">Gagal memuat data stok</div>
         <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok(tokoParam, true)">
           Coba Lagi
         </v-btn>
       </div>
       <div v-else-if="!products.length" class="k-state">
-        <v-icon size="48" color="grey">mdi-package-variant-closed</v-icon>
         <div class="k-state-title">Stok di store ini sedang kosong</div>
       </div>
       <div v-else class="k-cat-grid">
@@ -540,14 +601,12 @@ onUnmounted(() => {
         <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
       </div>
       <div v-else-if="hasError" class="k-state">
-        <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
         <div class="k-state-title">Gagal memuat data stok</div>
         <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok(tokoParam, true)">
           Coba Lagi
         </v-btn>
       </div>
       <div v-else-if="!filtered.length" class="k-state">
-        <v-icon size="48" color="grey">mdi-magnify-close</v-icon>
         <div class="k-state-title">Barang tidak ditemukan</div>
       </div>
       <template v-else>
@@ -740,75 +799,200 @@ onUnmounted(() => {
 <style scoped src="../../styles/katalog.css"></style>
 
 <style scoped>
-.st-store-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
+/* ===== Pilih store ===== */
+.sx-hero {
+  background: #b71c1c;
+  color: #faf6f4;
+  padding: 28px 0 10px;
+}
+.sx-hero-in {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.sx-hero-in::after {
+  content: "";
+  display: block;
+  margin-top: 24px;
+  border-top: 2px dashed rgba(250, 246, 244, 0.5);
+}
+.sx-judul {
+  max-width: 16ch;
+  margin: 0;
+  font-family: "Playfair Display Variable", "Playfair Display", Georgia, serif;
+  font-size: clamp(30px, 6.4vw, 52px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+.sx-lead {
+  max-width: 42ch;
+  margin: 12px 0 0;
+  font-family: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: rgba(250, 246, 244, 0.86);
 }
 @media (min-width: 600px) {
-  .st-store-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .sx-hero {
+    padding: 44px 0 12px;
+  }
+  .sx-hero-in {
+    padding: 0 24px;
   }
 }
-@media (min-width: 960px) {
-  .st-store-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+
+.sx-main {
+  padding-top: 20px;
 }
-.st-store {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid #f1e9e6;
-  border-radius: 14px;
-  font: inherit;
-  text-align: left;
+.sx-find {
+  display: block;
+  max-width: 420px;
+  margin: 0 0 8px;
+}
+.sx-find input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid #e9dfdb;
+  border-radius: 12px;
   background: #fff;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-}
-.st-store:hover,
-.st-store:focus-visible {
-  transform: translateY(-3px);
-  border-color: var(--k-red);
-  box-shadow: 0 10px 22px rgba(183, 28, 28, 0.16);
-  outline: none;
-}
-.st-store:active {
-  transform: scale(0.985);
-}
-@media (hover: none) {
-  .st-store:hover {
-    transform: none;
-    box-shadow: none;
-    border-color: #f1e9e6;
-  }
-}
-.st-store-ico {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #ffebee;
-}
-.st-store-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.st-store-text b {
-  font-size: 14px;
-  font-weight: 700;
+  font: inherit;
+  font-size: 16px; /* 16px: mencegah iOS memperbesar layar saat fokus */
   color: #1f1a19;
 }
-.st-store-text small {
-  font-size: 11px;
-  color: #8a7f7b;
+.sx-find input:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 1px;
+}
+.sx-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.sx-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 1;
+  column-gap: 40px;
+}
+@media (min-width: 720px) {
+  .sx-list {
+    columns: 2;
+  }
+}
+@media (min-width: 1100px) {
+  .sx-list {
+    columns: 3;
+  }
+}
+.sx-item {
+  break-inside: avoid;
+}
+.sx-skel {
+  height: 44px;
+  margin-bottom: 14px;
+  break-inside: avoid;
+}
+
+.sx-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 4px;
+  border: 0;
+  border-bottom: 1px solid #e9dfdb;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: #1f1a19;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sx-row::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 2px;
+  background: #b71c1c;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s ease;
+}
+.sx-name {
+  font-family: "Playfair Display Variable", "Playfair Display", Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  transition: color 0.2s ease;
+}
+.sx-go {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-top: 2px solid #b9aca7;
+  border-right: 2px solid #b9aca7;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.sx-row:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+.sx-row:focus-visible::after {
+  transform: scaleX(1);
+}
+.sx-row:active {
+  background: rgba(183, 28, 28, 0.06);
+}
+@media (hover: hover) {
+  .sx-row:hover::after {
+    transform: scaleX(1);
+  }
+  .sx-row:hover .sx-name {
+    color: #b71c1c;
+  }
+  .sx-row:hover .sx-go {
+    transform: translateX(4px) rotate(45deg);
+    border-color: #b71c1c;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sx-row::after,
+  .sx-name,
+  .sx-go {
+    transition: none;
+  }
+}
+
+.sx-state-note {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #6f6663;
+}
+.sx-clear {
+  border: 0;
+  background: none;
+  padding: 6px 2px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b71c1c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .st-filters {

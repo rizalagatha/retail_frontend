@@ -356,6 +356,8 @@ const isReadonly = computed(() => isViewMode.value || isSavingDisabled.value);
 //   return "DP Belum Cukup";
 // });
 const requiredPermission = computed(() => (isEditMode.value ? "edit" : "insert"));
+// Kode SAMPLE-xxxx (biaya sample): bukan barang stok, tidak lewat verifikasi scan
+const isKodeSample = (kode?: string): boolean => (kode || "").toUpperCase().startsWith("SAMPLE");
 const allVerified = computed(() => {
   const validItems = items.value.filter((i) => i.kode && !i.isJasa);
   if (validItems.length === 0) return false;
@@ -2305,13 +2307,14 @@ const onProductsSelected = (selectedProducts: SoItemApi[]) => {
     const isJasa =
       kodeUp.startsWith("JASA") ||
       kodeUp.startsWith("JS") ||
+      isKodeSample(product.kode) ||
       kodeUp.includes("FILE") ||
       namaUp.includes("JASA") ||
       namaUp.includes("DESAIN") ||
       namaUp.includes("FILE");
 
     if (isJasa) {
-      product.ukuran = "";
+      if (!isKodeSample(product.kode)) product.ukuran = "";
       items.value.push({
         id: Date.now() + Math.random(),
         kode: product.kode,
@@ -2387,6 +2390,7 @@ const onPanelProductsAdded = (selections: ProductPanelSelection[]) => {
     const isJasa =
       kodeUp.startsWith("JASA") ||
       kodeUp.startsWith("JS") ||
+      isKodeSample(sel.kode) ||
       kodeUp.includes("FILE") ||
       namaUp.includes("JASA") ||
       namaUp.includes("DESAIN") ||
@@ -2404,7 +2408,7 @@ const onPanelProductsAdded = (selections: ProductPanelSelection[]) => {
       kode: sel.kode,
       nama: sel.nama,
       kategori: sel.kategori || "",
-      ukuran: isJasa ? "" : sel.ukuran || "-",
+      ukuran: isJasa && !isKodeSample(sel.kode) ? "" : sel.ukuran || "-",
       stok: sel.stok || 0,
       harga: initHarga,
       jumlah: sel.jumlah,
@@ -3573,6 +3577,7 @@ const autoReadyJasa = () => {
     // 1. Deteksi apakah ini item Jasa/Ongkir
     const isJasaMurni =
       item.isJasa ||
+      isKodeSample(item.kode) ||
       kodeUp.startsWith("JASA") ||
       kodeUp.startsWith("JS") ||
       namaUp.includes("JASA") ||

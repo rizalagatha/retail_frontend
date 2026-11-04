@@ -59,6 +59,7 @@ const KatalogStokView = () => import("@/views/umum/KatalogStokView.vue");
 const StokTokoView = () => import("@/views/umum/StokTokoView.vue");
 const KioskHomeView = () => import("@/views/umum/KioskHomeView.vue");
 const KatalogView = () => import("@/views/umum/KatalogView.vue");
+const KatalogHomeView = () => import("@/views/umum/KatalogHomeView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
 const KioskStudioView = () => import("@/views/umum/KioskStudioView.vue");
 const KioskPremiumView = () => import("@/views/umum/KioskPremiumView.vue");
@@ -338,9 +339,9 @@ const routes = [
   {
     path: "/",
     name: "Home",
-    component: isKatalogMode ? KatalogView : isTrackingMode ? TrackingHomeView : HomeView,
+    component: isKatalogMode ? KatalogHomeView : isTrackingMode ? TrackingHomeView : HomeView,
     meta: {
-      title: isKatalogMode ? "Katalog Produk" : isTrackingMode ? "Lacak Pesanan" : "Beranda",
+      title: isKatalogMode ? "Kaos Polos" : isTrackingMode ? "Lacak Pesanan" : "Beranda",
       layout: isKatalogMode ? "PrintLayout" : "DefaultLayout",
       requiresAuth: false,
       public: true,

@@ -551,7 +551,7 @@ onUnmounted(() => {
     <Transition name="k-page" mode="out-in" appear @before-enter="scrollTop">
       <!-- ============ KATEGORI ============ -->
       <div v-if="phase === 'category'" key="category">
-        <section v-if="!isLoading && heroImages.length" class="k-hero">
+        <section v-if="!isLoading && heroImages.length && !isKatalogMode" class="k-hero">
           <div class="k-hero-grid">
             <div
               v-for="(src, i) in heroImages"

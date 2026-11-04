@@ -8,6 +8,7 @@ import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import EmptyShelf from "@/components/EmptyShelf.vue";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
 import { useCartStore, type CartLineInput } from "@/stores/cartStore";
+import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
 
 interface StoreItem {
   kode: string;
@@ -62,6 +63,32 @@ const LOW_SIZE = 3;
 const cartAktif = import.meta.env.VITE_APP_MODE === "KATALOG";
 const cart = useCartStore();
 const homePath = cartAktif ? "/" : "/tracking";
+
+// --- Mode Premium: datang dari halaman Premium Collection ---
+const fromPremium = computed(() => route.query.from === "premium");
+watch(fromPremium, (v) => document.documentElement.classList.toggle("theme-premium", v), {
+  immediate: true,
+});
+// Kain yang dipilih di halaman Premium (bisa kosong bila id tidak dikenal)
+const premiumKain = computed(
+  () => (fromPremium.value && PREMIUM_FABRICS.find((f) => f.id === route.query.kain)) || null
+);
+// Cocokkan nama produk ke kain premium (kata kunci terpanjang menang), sama dengan KatalogView
+const premiumFabricOf = (namaUp: string): string | null => {
+  let best: string | null = null;
+  let bestLen = 0;
+  for (const f of PREMIUM_FABRICS) {
+    for (const k of f.kata) {
+      const key = k.toUpperCase();
+      if (namaUp.includes(key) && key.length > bestLen) {
+        best = f.nama;
+        bestLen = key.length;
+      }
+    }
+  }
+  return best;
+};
+const premiumOrder = (nama: string) => PREMIUM_FABRICS.findIndex((f) => f.nama === nama);
 
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
 const formatHarga = (min: number, max: number) => {
@@ -193,6 +220,7 @@ const products = computed<Product[]>(() => {
       else if (namaUp.includes("ANAK") || kaosUp.includes("ANAK") || namaUp.includes("KIDS"))
         kategori = "KAOS ANAK";
       else if (namaUp.includes("TUNIK") || kaosUp.includes("TUNIK")) kategori = "TUNIK";
+      if (fromPremium.value) kategori = premiumFabricOf(namaUp) ?? "";
 
       p = {
         kode: r.kode,
@@ -236,7 +264,7 @@ const products = computed<Product[]>(() => {
     p.promoMin = akhir.length ? Math.min(...akhir) : 0;
     p.promoMax = akhir.length ? Math.max(...akhir) : 0;
   });
-  return [...map.values()];
+  return [...map.values()].filter((p) => !fromPremium.value || p.kategori);
 });
 
 const kategoriList = computed(() => {
@@ -248,6 +276,7 @@ const kategoriList = computed(() => {
   });
   return Object.keys(count)
     .sort((a, b) => {
+      if (fromPremium.value) return premiumOrder(a) - premiumOrder(b);
       if (a === "LAIN-LAIN") return 1;
       if (b === "LAIN-LAIN") return -1;
       return count[b] - count[a];
@@ -281,6 +310,11 @@ const filtered = computed(() => {
   );
 });
 
+// Premium: kain yang dipilih tidak ada di store ini (bukan karena pencarian/filter)
+const kosongPremium = computed(
+  () => fromPremium.value && !search.value.trim() && lengan.value === "SEMUA"
+);
+
 // --- Load more ---
 const displayCount = ref(20);
 const visible = computed(() => filtered.value.slice(0, displayCount.value));
@@ -311,29 +345,49 @@ const imgFailed = reactive<Record<string, boolean>>({});
 const onImgLoad = (e: Event) => (e.target as HTMLImageElement).classList.add("is-loaded");
 
 // --- Navigasi ---
-const pilihStore = (kode: string) => router.push({ name: ROUTE_NAME, params: { toko: kode } });
-const pilihKategori = (nama: string) =>
+const pilihStore = (kode: string) => {
+  const kain = premiumKain.value;
+  router.push({
+    name: ROUTE_NAME,
+    params: kain ? { toko: kode, kategori: kain.nama } : { toko: kode },
+    query: route.query,
+  });
+};
+const pilihKategori = (nama: string) => {
+  const kain = PREMIUM_FABRICS.find((f) => f.nama === nama);
   router.push({
     name: ROUTE_NAME,
     params: { toko: tokoParam.value, kategori: nama === "ALL" ? "semua" : nama },
+    query: fromPremium.value && kain ? { ...route.query, kain: kain.id } : route.query,
   });
+};
 const goBack = () => {
   if (phase.value === "products")
-    router.push({ name: ROUTE_NAME, params: { toko: tokoParam.value } });
-  else if (phase.value === "category") router.push({ name: ROUTE_NAME });
+    router.push({ name: ROUTE_NAME, params: { toko: tokoParam.value }, query: route.query });
+  else if (phase.value === "category") router.push({ name: ROUTE_NAME, query: route.query });
+  else if (fromPremium.value)
+    router.push({ path: "/kiosk/premium", query: { kain: route.query.kain } });
   else router.push(homePath);
 };
 
 const headerTitle = computed(() =>
-  phase.value === "store" ? "Cek Stok Store" : currentStore.value?.nama || tokoParam.value
+  phase.value === "store"
+    ? fromPremium.value
+      ? "Premium Collection"
+      : "Cek Stok Store"
+    : currentStore.value?.nama || tokoParam.value
 );
 const headerSub = computed(() =>
   phase.value === "store"
     ? "Pilih store"
     : phase.value === "category"
-    ? "Pilih jenis kain"
+    ? fromPremium.value
+      ? "Pilih kain premium"
+      : "Pilih jenis kain"
     : selectedKategori.value === "ALL"
-    ? "Semua kategori"
+    ? fromPremium.value
+      ? "Semua kain premium"
+      : "Semua kategori"
     : selectedKategori.value
 );
 
@@ -413,7 +467,8 @@ watch([phase, kategoriParam], () => {
 // Toko tidak dikenal -> kembali ke daftar toko
 watch([stores, tokoParam], () => {
   if (isLoadingStores.value || !tokoParam.value) return;
-  if (!stores.value.some((s) => s.kode === tokoParam.value)) router.replace({ name: ROUTE_NAME });
+  if (!stores.value.some((s) => s.kode === tokoParam.value))
+    router.replace({ name: ROUTE_NAME, query: route.query });
 });
 
 onMounted(() => {
@@ -425,11 +480,12 @@ onUnmounted(() => {
   observer?.disconnect();
   window.removeEventListener("keydown", onKey);
   document.documentElement.style.overflow = "";
+  document.documentElement.classList.remove("theme-premium");
 });
 </script>
 
 <template>
-  <div class="k-page">
+  <div class="k-page" :class="{ 'k-page--premium': fromPremium }">
     <header class="k-header">
       <v-btn icon variant="text" size="small" aria-label="Kembali" @click="goBack">
         <v-icon>mdi-arrow-left</v-icon>
@@ -448,8 +504,16 @@ onUnmounted(() => {
     <template v-if="phase === 'store'">
       <section class="sx-hero" aria-labelledby="sx-judul">
         <div class="sx-hero-in">
-          <h1 id="sx-judul" class="sx-judul">Mau cek stok di store mana?</h1>
-          <p class="sx-lead">Pilih store untuk melihat model, ukuran, dan sisa stoknya.</p>
+          <h1 id="sx-judul" class="sx-judul">
+            {{ fromPremium ? "Pilih store untuk koleksi premium" : "Mau cek stok di store mana?" }}
+          </h1>
+          <p class="sx-lead">
+            {{
+              fromPremium
+                ? "Yang tampil hanya kain premium yang tersedia di store itu."
+                : "Pilih store untuk melihat model, ukuran, dan sisa stoknya."
+            }}
+          </p>
         </div>
       </section>
 
@@ -460,6 +524,7 @@ onUnmounted(() => {
 
         <EmptyShelf
           v-else-if="storeError"
+          :dark="fromPremium"
           eyebrow="Koneksi terputus"
           title="Daftar store belum bisa dimuat"
           text="Periksa koneksi internetmu, lalu coba lagi."
@@ -512,7 +577,13 @@ onUnmounted(() => {
 
     <!-- ============ PILIH KAIN ============ -->
     <main v-else-if="phase === 'category'" class="k-container">
-      <p class="k-hint">Pilih jenis kain yang ingin dilihat.</p>
+      <p class="k-hint">
+        {{
+          fromPremium
+            ? "Pilih kain premium yang ingin dilihat."
+            : "Pilih jenis kain yang ingin dilihat."
+        }}
+      </p>
 
       <div v-if="isLoading" class="k-cat-grid" aria-busy="true" aria-label="Memuat jenis kain">
         <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
@@ -520,6 +591,7 @@ onUnmounted(() => {
 
       <EmptyShelf
         v-else-if="hasError"
+        :dark="fromPremium"
         eyebrow="Koneksi terputus"
         title="Stok belum bisa dimuat"
         text="Periksa koneksi internetmu, lalu coba lagi."
@@ -529,11 +601,19 @@ onUnmounted(() => {
 
       <EmptyShelf
         v-else-if="!products.length"
-        eyebrow="Rak kosong"
-        title="Belum ada stok di store ini"
-        text="Coba store lain, atau lihat katalog untuk koleksi lengkapnya."
+        :dark="fromPremium"
+        :eyebrow="fromPremium ? 'Belum tersedia' : 'Rak kosong'"
+        :title="fromPremium ? 'Belum ada kain premium di store ini' : 'Belum ada stok di store ini'"
+        :text="
+          fromPremium
+            ? 'Coba store lain untuk koleksi premiumnya.'
+            : 'Coba store lain, atau lihat katalog untuk koleksi lengkapnya.'
+        "
       >
-        <router-link to="/katalog" class="es-btn">Lihat katalog</router-link>
+        <button v-if="fromPremium" type="button" class="es-btn" @click="goBack">
+          Pilih store lain
+        </button>
+        <router-link v-else to="/katalog" class="es-btn">Lihat katalog</router-link>
       </EmptyShelf>
 
       <div v-else class="k-cat-grid">
@@ -550,7 +630,7 @@ onUnmounted(() => {
             />
           </div>
           <div class="k-cat-body">
-            <div class="k-cat-name">SEMUA</div>
+            <div class="k-cat-name">{{ fromPremium ? "SEMUA PREMIUM" : "SEMUA" }}</div>
             <div class="k-cat-count">{{ products.length }} model</div>
           </div>
         </button>
@@ -603,7 +683,7 @@ onUnmounted(() => {
           density="compact"
           hide-details
           clearable
-          bg-color="white"
+          :bg-color="fromPremium ? '#170e0b' : 'white'"
           prepend-inner-icon="mdi-magnify"
           class="k-search"
         />
@@ -614,6 +694,7 @@ onUnmounted(() => {
       </div>
       <EmptyShelf
         v-else-if="hasError"
+        :dark="fromPremium"
         eyebrow="Koneksi terputus"
         title="Stok belum bisa dimuat"
         text="Periksa koneksi internetmu, lalu coba lagi."
@@ -622,11 +703,19 @@ onUnmounted(() => {
       </EmptyShelf>
       <EmptyShelf
         v-else-if="!filtered.length"
-        eyebrow="Tidak ada hasil"
-        title="Barang tidak ketemu"
-        text="Coba kata kunci lain, atau ubah filter lengan."
+        :dark="fromPremium"
+        :eyebrow="kosongPremium ? 'Belum tersedia' : 'Tidak ada hasil'"
+        :title="kosongPremium ? 'Kain ini belum ada di store ini' : 'Barang tidak ketemu'"
+        :text="
+          kosongPremium
+            ? 'Pilih kain premium lain, atau coba store lain.'
+            : 'Coba kata kunci lain, atau ubah filter lengan.'
+        "
       >
-        <button v-if="search" type="button" class="es-btn" @click="search = ''">
+        <button v-if="kosongPremium" type="button" class="es-btn" @click="goBack">
+          Pilih kain lain
+        </button>
+        <button v-else-if="search" type="button" class="es-btn" @click="search = ''">
           Hapus pencarian
         </button>
       </EmptyShelf>
@@ -683,7 +772,7 @@ onUnmounted(() => {
       </template>
     </main>
 
-    <SiteFooter max-width="1360px" />
+    <SiteFooter max-width="1360px" :dark="fromPremium" />
 
     <!-- ============ PANEL DETAIL ============ -->
     <Teleport to="body">
@@ -693,7 +782,12 @@ onUnmounted(() => {
           class="k-drawer-wrap"
           @click.self="detailVisible = false"
         >
-          <aside class="k-detail k-drawer" role="dialog" aria-modal="true">
+          <aside
+            class="k-detail k-drawer"
+            :class="{ 'k-detail--premium': fromPremium }"
+            role="dialog"
+            aria-modal="true"
+          >
             <div
               class="k-detail-bar"
               style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)"
@@ -1143,5 +1237,115 @@ onUnmounted(() => {
   font-weight: 800;
   color: #fff;
   background: #b71c1c;
+}
+
+/* ===== Tema Premium (datang dari halaman Premium) ===== */
+.k-page--premium .sx-hero {
+  background: #120a08;
+  border-bottom: 1px solid rgba(216, 189, 132, 0.28);
+}
+.k-page--premium .sx-hero-in::after {
+  border-top-color: rgba(216, 189, 132, 0.4);
+}
+.k-page--premium .sx-judul {
+  max-width: 20ch;
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-weight: 600;
+  color: #e6cf98;
+}
+.k-page--premium .sx-lead {
+  font-family: "Jost Variable", system-ui, sans-serif;
+  color: rgba(243, 232, 210, 0.72);
+}
+.k-page--premium .sx-find input {
+  background: #170e0b;
+  border-color: rgba(216, 189, 132, 0.3);
+  color: #f3e8d2;
+}
+.k-page--premium .sx-find input:focus-visible,
+.k-page--premium .sx-row:focus-visible {
+  outline-color: #d8bd84;
+}
+.k-page--premium .sx-row {
+  color: #f3e8d2;
+  border-bottom-color: rgba(216, 189, 132, 0.18);
+}
+.k-page--premium .sx-row::after {
+  background: #d8bd84;
+}
+.k-page--premium .sx-row:active {
+  background: rgba(216, 189, 132, 0.08);
+}
+.k-page--premium .sx-name {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 23px;
+}
+.k-page--premium .sx-go {
+  border-color: rgba(216, 189, 132, 0.5);
+}
+.k-page--premium .sx-clear {
+  color: #d8bd84;
+}
+@media (hover: hover) {
+  .k-page--premium .sx-row:hover .sx-name {
+    color: #e6cf98;
+  }
+  .k-page--premium .sx-row:hover .sx-go {
+    border-color: #d8bd84;
+  }
+}
+
+/* Pencarian produk (Vuetify) */
+.k-page--premium .k-search :deep(.v-field) {
+  color: #f3e8d2;
+}
+.k-page--premium .k-search :deep(.v-field__outline) {
+  color: #d8bd84;
+  --v-field-border-opacity: 0.35;
+}
+.k-page--premium .k-search :deep(.v-field--focused .v-field__outline) {
+  --v-field-border-opacity: 1;
+}
+.k-page--premium .k-search :deep(.v-icon),
+.k-page--premium .k-search :deep(input::placeholder) {
+  color: rgba(243, 232, 210, 0.5);
+  opacity: 1;
+}
+
+/* Status stok: hijau/oranye gelap terlalu redup di latar hitam */
+.k-page--premium .st-stock {
+  color: #8fd19e;
+}
+.k-page--premium .st-stock--low {
+  color: #f0b062;
+}
+.k-page--premium .st-stock--out {
+  color: rgba(243, 232, 210, 0.45);
+}
+
+/* Drawer detail (ter-teleport ke body, jadi selektornya lewat .k-detail--premium) */
+.k-detail--premium .st-code {
+  color: rgba(243, 232, 210, 0.5);
+}
+.k-detail--premium .st-pill--ok {
+  color: #8fd19e;
+  background: rgba(46, 158, 91, 0.16);
+}
+.k-detail--premium .st-pill--low {
+  color: #f0b062;
+  background: rgba(239, 108, 0, 0.16);
+}
+.k-detail--premium .st-pill--out {
+  color: rgba(243, 232, 210, 0.5);
+  background: rgba(243, 232, 210, 0.08);
+}
+.k-detail--premium .st-add {
+  color: #d8bd84;
+  background: transparent;
+  border-color: rgba(216, 189, 132, 0.4);
+}
+.k-detail--premium .st-add-n {
+  color: #1a0d0b;
+  background: #d8bd84;
 }
 </style>

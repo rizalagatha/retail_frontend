@@ -465,56 +465,6 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <!-- ============ PREMIUM ============ -->
-    <section v-if="premiumList.length" class="lp-prem" aria-labelledby="lp-prem-h">
-      <div class="lp-wrap lp-prem-in">
-        <div>
-          <h2 id="lp-prem-h" v-reveal class="lp-prem-h">Premium <em>Collection</em></h2>
-          <p v-reveal="1" class="lp-prem-lead">
-            {{ PREMIUM_FABRICS.length }} kain pilihan, masing-masing dengan karakter dan
-            perawatannya sendiri.
-          </p>
-          <ul class="lp-prem-list">
-            <li v-for="(f, i) in premiumList" :key="f.id" v-reveal="2 + Math.min(i, 4)">
-              <router-link :to="{ path: '/kiosk/premium', query: { kain: f.id } }">{{
-                f.nama
-              }}</router-link>
-            </li>
-          </ul>
-          <p v-if="premiumSisa" v-reveal="4" class="lp-prem-more">
-            dan {{ premiumSisa }} kain lainnya.
-          </p>
-          <router-link v-reveal="4" to="/kiosk/premium" class="lp-btn lp-btn--gold"
-            >Jelajahi Premium Collection</router-link
-          >
-        </div>
-
-        <div
-          v-if="isLoading || premiumFotos.length"
-          class="lp-arches"
-          :data-n="isLoading ? 3 : premiumFotos.length"
-          aria-hidden="true"
-        >
-          <template v-if="isLoading">
-            <span v-for="n in 3" :key="n" class="lp-arch lp-arch--skel"></span>
-          </template>
-          <template v-else>
-            <span v-for="(src, k) in premiumFotos" :key="src" v-reveal="k + 1" class="lp-arch">
-              <img
-                :ref="tandaiCache"
-                :src="src"
-                alt=""
-                loading="lazy"
-                decoding="async"
-                @load="onImgLoad"
-                @error="tandaiRusak(src)"
-              />
-            </span>
-          </template>
-        </div>
-      </div>
-    </section>
-
     <div class="lp-wrap">
       <!-- ============ CARA PESAN ============ -->
       <section id="cara-pesan" class="lp-sec lp-how" aria-labelledby="lp-how-h">
@@ -564,9 +514,59 @@ onUnmounted(() => {
           </li>
         </ol>
       </section>
+
+      <!-- ============ PREMIUM ============ -->
+      <section v-if="premiumList.length" class="lp-prem" aria-labelledby="lp-prem-h">
+        <div class="lp-wrap lp-prem-in">
+          <div>
+            <h2 id="lp-prem-h" v-reveal class="lp-prem-h">Premium <em>Collection</em></h2>
+            <p v-reveal="1" class="lp-prem-lead">
+              {{ PREMIUM_FABRICS.length }} kain pilihan, masing-masing dengan karakter dan
+              perawatannya sendiri.
+            </p>
+            <ul class="lp-prem-list">
+              <li v-for="(f, i) in premiumList" :key="f.id" v-reveal="2 + Math.min(i, 4)">
+                <router-link :to="{ path: '/kiosk/premium', query: { kain: f.id } }">{{
+                  f.nama
+                }}</router-link>
+              </li>
+            </ul>
+            <p v-if="premiumSisa" v-reveal="4" class="lp-prem-more">
+              dan {{ premiumSisa }} kain lainnya.
+            </p>
+            <router-link v-reveal="4" to="/kiosk/premium" class="lp-btn lp-btn--gold"
+              >Jelajahi Premium Collection</router-link
+            >
+          </div>
+
+          <div
+            v-if="isLoading || premiumFotos.length"
+            class="lp-arches"
+            :data-n="isLoading ? 3 : premiumFotos.length"
+            aria-hidden="true"
+          >
+            <template v-if="isLoading">
+              <span v-for="n in 3" :key="n" class="lp-arch lp-arch--skel"></span>
+            </template>
+            <template v-else>
+              <span v-for="(src, k) in premiumFotos" :key="src" v-reveal="k + 1" class="lp-arch">
+                <img
+                  :ref="tandaiCache"
+                  :src="src"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  @load="onImgLoad"
+                  @error="tandaiRusak(src)"
+                />
+              </span>
+            </template>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <SiteFooter class="lp-foot" max-width="1320px" />
+    <SiteFooter class="lp-foot" max-width="1320px" dark />
   </div>
 </template>
 
@@ -1064,7 +1064,7 @@ onUnmounted(() => {
   transition: color 0.25s var(--ease), border-color 0.25s var(--ease);
 }
 .lp-foot {
-  margin-top: 88px;
+  margin-top: 0;
 }
 
 /* ===== Premium Collection (band gelap-emas) ===== */
@@ -1078,7 +1078,7 @@ onUnmounted(() => {
   --pm-serif: "Cormorant Variable", "Cormorant Garamond", Georgia, serif;
   --pm-sans: "Jost Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   position: relative;
-  margin-top: 72px;
+  margin-top: 88px;
   padding: 72px 0 64px;
   color: var(--pm-cream);
   font-family: var(--pm-sans);

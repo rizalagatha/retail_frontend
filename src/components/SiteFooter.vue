@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RouteLocationRaw } from "vue-router";
 import LogoKaosan from "@/assets/logo.png";
 import ShopeeLogo from "@/assets/shopee.png";
 import TokpedLogo from "@/assets/tokped.png";
@@ -11,11 +12,30 @@ withDefaults(defineProps<{ maxWidth?: string; dark?: boolean }>(), {
 
 const year = new Date().getFullYear();
 
-const links = [
-  { label: "Lacak Pesanan", to: "/tracking" },
+interface FooterLink {
+  label: string;
+  to?: RouteLocationRaw;
+  href?: string;
+}
+
+// Build katalog tidak punya halaman tracking: arahkan ke subdomain tracking.
+// Ganti lewat VITE_TRACKING_URL bila domainnya berbeda.
+const isKatalogMode = import.meta.env.VITE_APP_MODE === "KATALOG";
+const trackingBase = String(
+  import.meta.env.VITE_TRACKING_URL || "https://tracking.kaosanofficial.com"
+).replace(/\/$/, "");
+
+const brandTo = isKatalogMode ? "/" : "/tracking";
+
+const links: FooterLink[] = [
+  isKatalogMode
+    ? { label: "Lacak Pesanan", href: `${trackingBase}/tracking` }
+    : { label: "Lacak Pesanan", to: "/tracking" },
   { label: "Katalog", to: "/katalog" },
   { label: "Cek Stok Store", to: "/cek-stok-store" },
-  { label: "Pusat Bantuan", to: { path: "/tracking", query: { bantuan: "1" } } },
+  isKatalogMode
+    ? { label: "Pusat Bantuan", href: `${trackingBase}/tracking?bantuan=1` }
+    : { label: "Pusat Bantuan", to: { path: "/tracking", query: { bantuan: "1" } } },
 ];
 
 const socials = [
@@ -34,11 +54,14 @@ const socials = [
       <slot />
 
       <div class="sf-top">
-        <router-link to="/tracking" class="sf-brand" aria-label="Kaosan">
+        <router-link :to="brandTo" class="sf-brand" aria-label="Kaosan">
           <img :src="LogoKaosan" height="28" alt="Kaosan" />
         </router-link>
         <nav class="sf-links" aria-label="Tautan footer">
-          <router-link v-for="l in links" :key="l.label" :to="l.to">{{ l.label }}</router-link>
+          <template v-for="l in links" :key="l.label">
+            <a v-if="l.href" :href="l.href">{{ l.label }}</a>
+            <router-link v-else-if="l.to" :to="l.to">{{ l.label }}</router-link>
+          </template>
         </nav>
       </div>
 

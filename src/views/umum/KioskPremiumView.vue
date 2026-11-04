@@ -105,7 +105,16 @@ watch(idx, async () => {
     ?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
 });
 
+const isKatalogMode = import.meta.env.VITE_APP_MODE === "KATALOG";
+
 const openCollection = () => {
+  if (isKatalogMode) {
+    router.push({
+      path: "/cek-stok-store",
+      query: { from: "premium", kain: current.value.id },
+    });
+    return;
+  }
   router.push({
     path: `/katalog/${encodeURIComponent(current.value.nama)}`,
     query: { from: "premium", kain: current.value.id },
@@ -192,7 +201,7 @@ onUnmounted(() => {
               </dl>
 
               <button class="pm-cta" @click="openCollection">
-                Lihat koleksi
+                {{ isKatalogMode ? "Cek stok di store" : "Lihat koleksi" }}
                 <v-icon size="20">mdi-arrow-right</v-icon>
               </button>
             </div>

@@ -24,6 +24,8 @@ interface Header {
 }
 interface SummaryItem {
   spk: string;
+  packing: string; // nomor packing (bisa lebih dari satu, dipisah koma)
+  gudang: string; // gdg_nama tujuan
   nama: string;
   ukuran: string;
   jumlah: number;
@@ -89,6 +91,8 @@ const dialogConfirm = reactive({
 
 const summaryHeaders = [
   { title: "SPK", key: "spk" },
+  { title: "No. Packing", key: "packing" },
+  { title: "Gudang", key: "gudang" },
   { title: "Nama", key: "nama" },
   { title: "Ukuran", key: "ukuran" },
   { title: "Jumlah", key: "jumlah", align: "end" },
@@ -451,7 +455,7 @@ watch(
           >
             <template #[`body.append`]>
               <tr class="sticky-footer-row">
-                <td colspan="3" class="text-end font-weight-bold bg-blue-lighten-5">TOTAL :</td>
+                <td colspan="5" class="text-end font-weight-bold bg-blue-lighten-5">TOTAL :</td>
                 <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
                   {{ totalSummary.jumlah.toLocaleString("id-ID") }}
                 </td>

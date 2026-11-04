@@ -2971,7 +2971,7 @@ const routes = [
 const filteredRoutes = routes.filter((r) => {
   if (isKatalogMode) {
     return (
-      ["/", "/:pathMatch(.*)*"].includes(r.path) ||
+      ["/", "/:pathMatch(.*)*", "/kiosk/premium"].includes(r.path) ||
       r.path.startsWith("/katalog") ||
       r.path.startsWith("/cek-stok-store")
     );

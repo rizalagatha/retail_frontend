@@ -75,6 +75,7 @@
   background: rgba(255, 255, 255, 0.92);
 }
 .k-container {
+  width: 100%;
   max-width: 1360px;
   margin: 0 auto;
   padding: 16px 16px 40px;

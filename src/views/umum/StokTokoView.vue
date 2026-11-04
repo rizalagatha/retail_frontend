@@ -5,6 +5,7 @@ import api from "@/services/api";
 import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
+import EmptyShelf from "@/components/EmptyShelf.vue";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
 import { useCartStore, type CartLineInput } from "@/stores/cartStore";
 
@@ -457,13 +458,14 @@ onUnmounted(() => {
           <div v-for="n in 9" :key="n" class="k-skel sx-skel"></div>
         </div>
 
-        <div v-else-if="storeError" class="k-state">
-          <div class="k-state-title">Daftar store belum bisa dimuat</div>
-          <p class="sx-state-note">Periksa koneksi internetmu, lalu coba lagi.</p>
-          <v-btn color="#D32F2F" class="text-white text-none" @click="fetchStores">
-            Coba lagi
-          </v-btn>
-        </div>
+        <EmptyShelf
+          v-else-if="storeError"
+          eyebrow="Koneksi terputus"
+          title="Daftar store belum bisa dimuat"
+          text="Periksa koneksi internetmu, lalu coba lagi."
+        >
+          <button type="button" class="es-btn" @click="fetchStores">Coba lagi</button>
+        </EmptyShelf>
 
         <template v-else>
           <label v-if="stores.length > 8" class="sx-find">
@@ -512,18 +514,28 @@ onUnmounted(() => {
     <main v-else-if="phase === 'category'" class="k-container">
       <p class="k-hint">Pilih jenis kain yang ingin dilihat.</p>
 
-      <div v-if="isLoading" class="k-cat-grid">
+      <div v-if="isLoading" class="k-cat-grid" aria-busy="true" aria-label="Memuat jenis kain">
         <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
       </div>
-      <div v-else-if="hasError" class="k-state">
-        <div class="k-state-title">Gagal memuat data stok</div>
-        <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok(tokoParam, true)">
-          Coba Lagi
-        </v-btn>
-      </div>
-      <div v-else-if="!products.length" class="k-state">
-        <div class="k-state-title">Stok di store ini sedang kosong</div>
-      </div>
+
+      <EmptyShelf
+        v-else-if="hasError"
+        eyebrow="Koneksi terputus"
+        title="Stok belum bisa dimuat"
+        text="Periksa koneksi internetmu, lalu coba lagi."
+      >
+        <button type="button" class="es-btn" @click="loadStok(tokoParam, true)">Coba lagi</button>
+      </EmptyShelf>
+
+      <EmptyShelf
+        v-else-if="!products.length"
+        eyebrow="Rak kosong"
+        title="Belum ada stok di store ini"
+        text="Coba store lain, atau lihat katalog untuk koleksi lengkapnya."
+      >
+        <router-link to="/katalog" class="es-btn">Lihat katalog</router-link>
+      </EmptyShelf>
+
       <div v-else class="k-cat-grid">
         <button class="k-cat-card k-enter" style="--i: 0" @click="pilihKategori('ALL')">
           <div class="k-cat-cover k-cat-cover--mosaic">
@@ -600,15 +612,24 @@ onUnmounted(() => {
       <div v-if="isLoading" class="k-grid">
         <div v-for="n in 8" :key="n" class="k-skel k-skel-card"></div>
       </div>
-      <div v-else-if="hasError" class="k-state">
-        <div class="k-state-title">Gagal memuat data stok</div>
-        <v-btn color="#D32F2F" class="text-white text-none" @click="loadStok(tokoParam, true)">
-          Coba Lagi
-        </v-btn>
-      </div>
-      <div v-else-if="!filtered.length" class="k-state">
-        <div class="k-state-title">Barang tidak ditemukan</div>
-      </div>
+      <EmptyShelf
+        v-else-if="hasError"
+        eyebrow="Koneksi terputus"
+        title="Stok belum bisa dimuat"
+        text="Periksa koneksi internetmu, lalu coba lagi."
+      >
+        <button type="button" class="es-btn" @click="loadStok(tokoParam, true)">Coba lagi</button>
+      </EmptyShelf>
+      <EmptyShelf
+        v-else-if="!filtered.length"
+        eyebrow="Tidak ada hasil"
+        title="Barang tidak ketemu"
+        text="Coba kata kunci lain, atau ubah filter lengan."
+      >
+        <button v-if="search" type="button" class="es-btn" @click="search = ''">
+          Hapus pencarian
+        </button>
+      </EmptyShelf>
       <template v-else>
         <div class="k-count">{{ filtered.length }} model</div>
         <div class="k-grid">
@@ -977,11 +998,6 @@ onUnmounted(() => {
   }
 }
 
-.sx-state-note {
-  margin: 0 0 14px;
-  font-size: 13px;
-  color: #6f6663;
-}
 .sx-clear {
   border: 0;
   background: none;

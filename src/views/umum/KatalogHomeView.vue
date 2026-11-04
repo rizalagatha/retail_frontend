@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, type Directive } from "vue";
 import api from "@/services/api";
 import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
+import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
+import "@fontsource-variable/cormorant";
+import "@fontsource-variable/cormorant/wght-italic.css";
+import "@fontsource-variable/jost";
 
 interface Galeri {
   url: string;
@@ -167,6 +171,23 @@ const tandaiCache = (el: unknown) => {
   if (img?.complete && img.naturalWidth) img.classList.add("is-loaded");
 };
 
+// --- Premium: daftar kain + satu foto per kain (maks 3) untuk bingkai lengkung ---
+const PREM_LIST_MAX = 8;
+const premiumList = computed(() => PREMIUM_FABRICS.slice(0, PREM_LIST_MAX));
+const premiumSisa = computed(() => Math.max(0, PREMIUM_FABRICS.length - PREM_LIST_MAX));
+const premiumFotos = computed<string[]>(() => {
+  const out: string[] = [];
+  for (const f of PREMIUM_FABRICS) {
+    if (out.length >= 3) break;
+    const keys = f.kata.map((k) => k.toUpperCase());
+    const hit = produk.value.find(
+      ({ r, foto }) => foto && keys.some((k) => (r.nama || "").toUpperCase().includes(k))
+    );
+    if (hit?.foto && !out.includes(hit.foto) && !rusak[hit.foto]) out.push(hit.foto);
+  }
+  return out;
+});
+
 // --- Rak: panah geser (desktop) ---
 const scroller = ref<HTMLElement | null>(null);
 const canPrev = ref(false);
@@ -190,12 +211,59 @@ const keCaraPesan = () =>
     .getElementById("cara-pesan")
     ?.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "start" });
 
+// --- Muncul saat di-scroll: v-reveal (opsional: v-reveal="n" = urutan jeda 80ms x n) ---
+let revealIO: IntersectionObserver | null = null;
+
+const settle = (e: TransitionEvent) => {
+  const el = e.currentTarget as HTMLElement;
+  if (e.target !== el) return;
+  el.removeEventListener("transitionend", settle);
+  // lepas atribut agar transisi bawaan elemen (mis. hover kartu) kembali berlaku
+  delete el.dataset.rv;
+  el.style.removeProperty("--rv-i");
+};
+
+const getRevealIO = (): IntersectionObserver | null => {
+  if (revealIO) return revealIO;
+  if (typeof IntersectionObserver === "undefined") return null;
+  revealIO = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        const el = en.target as HTMLElement;
+        el.addEventListener("transitionend", settle);
+        el.dataset.rv = "1";
+        revealIO?.unobserve(el);
+      });
+    },
+    { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+  );
+  return revealIO;
+};
+
+const vReveal: Directive<HTMLElement, number | undefined> = {
+  mounted(el, binding) {
+    const io = getRevealIO();
+    if (!io || reduceMotion()) return; // tanpa observer / reduced-motion: tampil biasa
+    el.style.setProperty("--rv-i", String(binding.value ?? 0));
+    el.dataset.rv = "0";
+    io.observe(el);
+  },
+  unmounted(el) {
+    revealIO?.unobserve(el);
+  },
+};
+
 onMounted(() => {
   loadCatalog();
   loadStores();
   window.addEventListener("resize", syncArrows);
 });
-onUnmounted(() => window.removeEventListener("resize", syncArrows));
+onUnmounted(() => {
+  window.removeEventListener("resize", syncArrows);
+  revealIO?.disconnect();
+  revealIO = null;
+});
 </script>
 
 <template>
@@ -209,6 +277,7 @@ onUnmounted(() => window.removeEventListener("resize", syncArrows));
           </router-link>
           <nav class="lp-nav" aria-label="Menu utama">
             <router-link to="/katalog" class="lp-nav-hide">Katalog</router-link>
+            <router-link to="/kiosk/premium" class="lp-nav-hide">Premium</router-link>
             <router-link to="/cek-stok-store" class="lp-nav-hide">Cek stok store</router-link>
             <a href="#cara-pesan" class="lp-nav-hide" @click.prevent="keCaraPesan">Cara pesan</a>
             <router-link to="/cek-stok-store" class="lp-nav-pill">Cek stok store</router-link>
@@ -361,11 +430,12 @@ onUnmounted(() => window.removeEventListener("resize", syncArrows));
     <div class="lp-wrap">
       <!-- ============ PROMO ============ -->
       <section v-if="promo.length" class="lp-sec" aria-labelledby="lp-promo-h">
-        <h2 id="lp-promo-h" class="lp-h2">Sedang promo</h2>
+        <h2 id="lp-promo-h" v-reveal class="lp-h2">Sedang promo</h2>
         <div class="lp-promo-grid">
           <router-link
-            v-for="p in promo"
+            v-for="(p, i) in promo"
             :key="p.kode"
+            v-reveal="i"
             :to="{ name: 'Katalog', params: { kategori: 'semua' }, query: { q: p.kode } }"
             class="lp-pcard"
           >
@@ -393,21 +463,73 @@ onUnmounted(() => window.removeEventListener("resize", syncArrows));
           </router-link>
         </div>
       </section>
+    </div>
 
+    <!-- ============ PREMIUM ============ -->
+    <section v-if="premiumList.length" class="lp-prem" aria-labelledby="lp-prem-h">
+      <div class="lp-wrap lp-prem-in">
+        <div>
+          <h2 id="lp-prem-h" v-reveal class="lp-prem-h">Premium <em>Collection</em></h2>
+          <p v-reveal="1" class="lp-prem-lead">
+            {{ PREMIUM_FABRICS.length }} kain pilihan, masing-masing dengan karakter dan
+            perawatannya sendiri.
+          </p>
+          <ul class="lp-prem-list">
+            <li v-for="(f, i) in premiumList" :key="f.id" v-reveal="2 + Math.min(i, 4)">
+              <router-link :to="{ path: '/kiosk/premium', query: { kain: f.id } }">{{
+                f.nama
+              }}</router-link>
+            </li>
+          </ul>
+          <p v-if="premiumSisa" v-reveal="4" class="lp-prem-more">
+            dan {{ premiumSisa }} kain lainnya.
+          </p>
+          <router-link v-reveal="4" to="/kiosk/premium" class="lp-btn lp-btn--gold"
+            >Jelajahi Premium Collection</router-link
+          >
+        </div>
+
+        <div
+          v-if="isLoading || premiumFotos.length"
+          class="lp-arches"
+          :data-n="isLoading ? 3 : premiumFotos.length"
+          aria-hidden="true"
+        >
+          <template v-if="isLoading">
+            <span v-for="n in 3" :key="n" class="lp-arch lp-arch--skel"></span>
+          </template>
+          <template v-else>
+            <span v-for="(src, k) in premiumFotos" :key="src" v-reveal="k + 1" class="lp-arch">
+              <img
+                :ref="tandaiCache"
+                :src="src"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                @load="onImgLoad"
+                @error="tandaiRusak(src)"
+              />
+            </span>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <div class="lp-wrap">
       <!-- ============ CARA PESAN ============ -->
       <section id="cara-pesan" class="lp-sec lp-how" aria-labelledby="lp-how-h">
         <div>
-          <h2 id="lp-how-h" class="lp-h2">Belanja dari store terdekat</h2>
-          <p class="lp-lead">
+          <h2 id="lp-how-h" v-reveal class="lp-h2">Belanja dari store terdekat</h2>
+          <p v-reveal="1" class="lp-lead">
             Susun daftar belanja dari stok yang benar-benar ada di store pilihanmu.
           </p>
-          <router-link to="/cek-stok-store" class="lp-btn lp-btn--red lp-how-cta"
+          <router-link v-reveal="2" to="/cek-stok-store" class="lp-btn lp-btn--red lp-how-cta"
             >Pilih store</router-link
           >
         </div>
 
         <ol class="lp-steps">
-          <li class="lp-step">
+          <li v-reveal="0" class="lp-step">
             <span class="lp-num" aria-hidden="true">1</span>
             <div>
               <h3>Pilih store</h3>
@@ -423,14 +545,14 @@ onUnmounted(() => window.removeEventListener("resize", syncArrows));
               </div>
             </div>
           </li>
-          <li class="lp-step">
+          <li v-reveal="1" class="lp-step">
             <span class="lp-num" aria-hidden="true">2</span>
             <div>
               <h3>Pilih kain dan ukuran</h3>
               <p>Lihat harga dan stok per ukuran, lalu tambahkan ke keranjang.</p>
             </div>
           </li>
-          <li class="lp-step">
+          <li v-reveal="2" class="lp-step">
             <span class="lp-num" aria-hidden="true">3</span>
             <div>
               <h3>Kirim ke WhatsApp store</h3>
@@ -943,6 +1065,208 @@ onUnmounted(() => window.removeEventListener("resize", syncArrows));
 }
 .lp-foot {
   margin-top: 88px;
+}
+
+/* ===== Premium Collection (band gelap-emas) ===== */
+.lp-prem {
+  --pm-gold: #d8bd84;
+  --pm-gold-hi: #e6cf98;
+  --pm-gold-lo: #c9a95e;
+  --pm-line: rgba(216, 189, 132, 0.2);
+  --pm-cream: #f3e8d2;
+  --pm-bg: #0e0605;
+  --pm-serif: "Cormorant Variable", "Cormorant Garamond", Georgia, serif;
+  --pm-sans: "Jost Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  position: relative;
+  margin-top: 72px;
+  padding: 72px 0 64px;
+  color: var(--pm-cream);
+  font-family: var(--pm-sans);
+  background: radial-gradient(800px 520px at 82% 40%, rgba(160, 110, 40, 0.18), transparent 70%),
+    radial-gradient(620px 420px at 0% 100%, rgba(120, 18, 18, 0.3), transparent 70%), var(--pm-bg);
+}
+/* garis jahitan emas di tepi atas, gema dari garis jahitan merah di hero */
+.lp-prem::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: var(--gutter);
+  right: var(--gutter);
+  border-top: 2px dashed rgba(216, 189, 132, 0.28);
+  pointer-events: none;
+}
+.lp-prem-in {
+  display: grid;
+  gap: 40px;
+}
+.lp-prem-h {
+  margin: 0;
+  font-family: var(--pm-serif);
+  font-size: clamp(2.5rem, 8vw, 4.25rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+}
+.lp-prem-h em {
+  font-style: italic;
+  color: var(--pm-gold);
+}
+.lp-prem-lead {
+  max-width: 40ch;
+  margin: 16px 0 0;
+  font-size: 1rem;
+  font-weight: 300;
+  line-height: 1.7;
+  color: rgba(243, 232, 210, 0.8);
+}
+.lp-prem-list {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  columns: 1;
+  column-gap: 36px;
+}
+.lp-prem-list li {
+  break-inside: avoid;
+}
+.lp-prem-list a {
+  position: relative;
+  display: block;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--pm-line);
+  font-family: var(--pm-serif);
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(243, 232, 210, 0.92);
+  transition: color 0.25s var(--ease);
+}
+.lp-prem-list a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 2px;
+  background: var(--pm-gold);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease);
+}
+.lp-prem-more {
+  margin: 14px 0 0;
+  font-size: 0.8125rem;
+  color: rgba(243, 232, 210, 0.6);
+}
+.lp-btn--gold {
+  margin-top: 30px;
+  color: #1a0d0b;
+  background: var(--pm-gold);
+}
+
+/* foto berbingkai lengkung */
+.lp-arches {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  gap: 22px; /* lebih lebar dari 2 x ring (10px) agar bingkai tidak bertabrakan */
+  height: min(46vh, 320px);
+  padding: 12px 12px 0;
+  order: -1;
+}
+.lp-arches::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -10% -14% 0;
+  background: radial-gradient(closest-side, rgba(216, 189, 132, 0.2), transparent 72%);
+}
+.lp-arch {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px 999px 14px 14px;
+  background: #1d1411;
+  box-shadow: 0 0 0 3px var(--pm-bg), 0 0 0 4px var(--pm-gold-lo), 0 0 0 9px var(--pm-bg),
+    0 0 0 10px rgba(216, 189, 132, 0.3), 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+.lp-arches:not([data-n="1"]) .lp-arch:nth-child(1) {
+  height: 76%;
+}
+.lp-arches:not([data-n="1"]) .lp-arch:nth-child(3) {
+  height: 64%;
+}
+.lp-arch img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.lp-arch img.is-loaded {
+  opacity: 1;
+}
+.lp-arch--skel {
+  background: linear-gradient(90deg, #1d1411 25%, #2a1c17 50%, #1d1411 75%);
+  background-size: 200% 100%;
+  animation: lp-pshim 1.6s linear infinite;
+}
+@keyframes lp-pshim {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.lp .lp-prem a:focus-visible {
+  outline: 2px solid var(--pm-gold);
+  outline-offset: 3px;
+}
+.lp-prem-list a:active {
+  color: var(--pm-gold);
+}
+@media (hover: hover) {
+  .lp-btn--gold:hover {
+    background: var(--pm-gold-hi);
+  }
+  .lp-prem-list a:hover {
+    color: var(--pm-gold);
+  }
+  .lp-prem-list a:hover::after {
+    transform: scaleX(1);
+  }
+}
+@media (min-width: 640px) {
+  .lp-prem-list {
+    columns: 2;
+  }
+}
+@media (min-width: 960px) {
+  .lp-prem {
+    padding: 96px 0 88px;
+  }
+  .lp-prem-in {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    align-items: center;
+    gap: 64px;
+  }
+  .lp-arches {
+    order: 0;
+    height: min(58vh, 460px);
+  }
+}
+
+/* ===== Muncul saat di-scroll (diatur oleh v-reveal) ===== */
+.lp [data-rv] {
+  transition: opacity 0.9s var(--ease), translate 0.9s var(--ease);
+  transition-delay: calc(var(--rv-i, 0) * 80ms);
+}
+.lp [data-rv="0"] {
+  opacity: 0;
+  translate: 0 28px;
 }
 
 /* ===== Fokus ===== */

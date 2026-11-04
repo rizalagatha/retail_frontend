@@ -421,4 +421,98 @@ onUnmounted(() => {
     transition: none;
   }
 }
+
+/* ===== Tema Premium (aktif bila html.theme-premium) ===== */
+:global(html.theme-premium) .cd-fab {
+  color: #1a0d0b;
+  background: #d8bd84;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(216, 189, 132, 0.5);
+}
+:global(html.theme-premium) .cd-fab-n {
+  color: #e6cf98;
+  background: #0e0605;
+  box-shadow: 0 0 0 1px rgba(216, 189, 132, 0.6);
+}
+:global(html.theme-premium) .cd-wrap {
+  background: rgba(14, 6, 5, 0.62);
+}
+:global(html.theme-premium) .cd-panel {
+  color: #f3e8d2;
+  background: #120a08;
+  border-left: 1px solid rgba(216, 189, 132, 0.35);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.55);
+  font-family: "Jost Variable", system-ui, sans-serif;
+}
+:global(html.theme-premium) .cd-bar {
+  background: linear-gradient(135deg, #1d0f0c, #0e0605);
+  border-bottom: 1px solid rgba(216, 189, 132, 0.35);
+}
+:global(html.theme-premium) .cd-bar-title {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #e6cf98;
+}
+:global(html.theme-premium) .cd-bar-sub {
+  color: rgba(243, 232, 210, 0.65);
+  opacity: 1;
+}
+:global(html.theme-premium) .cd-bar :deep(.v-btn) {
+  color: #e6cf98 !important;
+}
+:global(html.theme-premium) .cd-empty {
+  color: rgba(243, 232, 210, 0.6);
+}
+:global(html.theme-premium) .cd-warn {
+  color: #e8a860;
+  background: rgba(216, 189, 132, 0.1);
+}
+:global(html.theme-premium) .cd-item {
+  border-bottom-color: rgba(216, 189, 132, 0.18);
+}
+:global(html.theme-premium) .cd-item--warn {
+  background: rgba(216, 189, 132, 0.06);
+}
+:global(html.theme-premium) .cd-img {
+  background: #241714;
+}
+:global(html.theme-premium) .cd-name {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f3e8d2;
+}
+:global(html.theme-premium) .cd-meta,
+:global(html.theme-premium) .cd-del,
+:global(html.theme-premium) .cd-note,
+:global(html.theme-premium) .cd-total {
+  color: rgba(243, 232, 210, 0.65);
+}
+:global(html.theme-premium) .cd-price,
+:global(html.theme-premium) .cd-total b {
+  font-weight: 500;
+  color: #e6cf98;
+}
+:global(html.theme-premium) .cd-old {
+  color: rgba(243, 232, 210, 0.45);
+}
+:global(html.theme-premium) .cd-stok {
+  color: #e8a860;
+}
+:global(html.theme-premium) .cd-step {
+  border-color: rgba(216, 189, 132, 0.35);
+}
+:global(html.theme-premium) .cd-step button,
+:global(html.theme-premium) .cd-clear {
+  color: #d8bd84;
+}
+:global(html.theme-premium) .cd-step span {
+  color: #f3e8d2;
+}
+:global(html.theme-premium) .cd-foot {
+  background: #0e0605;
+  border-top-color: rgba(216, 189, 132, 0.28);
+}
 </style>

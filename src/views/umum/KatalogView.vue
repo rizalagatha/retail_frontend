@@ -587,13 +587,16 @@ onUnmounted(() => {
               <div v-for="n in 8" :key="n" class="k-skel k-skel-cat"></div>
             </div>
 
-            <div v-else-if="hasError" key="error" class="k-state">
-              <v-icon size="48" color="grey">mdi-wifi-off</v-icon>
-              <div class="k-state-title">Gagal memuat katalog</div>
-              <v-btn color="#D32F2F" class="text-white text-none" @click="loadCatalog"
-                >Coba Lagi</v-btn
-              >
-            </div>
+            <EmptyShelf
+              v-else-if="hasError"
+              key="error"
+              :dark="fromPremium"
+              eyebrow="Koneksi terputus"
+              title="Katalog belum bisa dimuat"
+              text="Periksa koneksi internetmu, lalu coba lagi."
+            >
+              <button type="button" class="es-btn" @click="loadCatalog">Coba lagi</button>
+            </EmptyShelf>
 
             <EmptyShelf
               v-else-if="!products.length"

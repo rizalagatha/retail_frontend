@@ -39,6 +39,8 @@ interface MasterItem {
 
 interface DetailItem {
   spk: string;
+  packing: string;
+  gudang: string;
   kode: string;
   nama: string;
   ukuran: string;
@@ -123,6 +125,8 @@ const headers = ref<DataTableHeader[]>([
 
 const detailHeaders = [
   { title: "SPK", key: "spk", width: "150px" },
+  { title: "No. Packing", key: "packing", width: "170px" },
+  { title: "Gudang", key: "gudang", width: "140px" },
   { title: "Kode", key: "kode", width: "120px" },
   { title: "Nama Barang", key: "nama", width: "250px" },
   { title: "Ukuran", key: "ukuran", width: "80px" },
@@ -954,7 +958,7 @@ watch(filters, fetchMasterData, { deep: true });
 
 .detail-table-wrapper {
   width: 100%;
-  max-width: 900px;
+  max-width: 1150px;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 4px;
   overflow: hidden;

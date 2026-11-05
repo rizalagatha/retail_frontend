@@ -13,6 +13,8 @@ import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
 interface StoreItem {
   kode: string;
   nama: string;
+  lat: number | null;
+  lng: number | null;
 }
 interface StokRow {
   kode: string;
@@ -160,6 +162,104 @@ const prefetchStok = (kode: string) => {
   if (c && Date.now() - c.at < CACHE_MS) return;
   fetchRows(kode).catch(() => undefined);
 };
+
+// --- Store terdekat (lokasi dibaca di perangkat, tidak dikirim ke server) ---
+const NEAR_MAX_KM = 5;
+const NEAR_SHOW = 3;
+
+type GeoState = "idle" | "locating" | "ready" | "coarse" | "denied" | "failed" | "unsupported";
+interface NearStore extends StoreItem {
+  km: number;
+}
+
+const geo = ref<GeoState>("idle");
+const myPos = ref<{ lat: number; lng: number } | null>(null);
+
+const toRad = (d: number) => (d * Math.PI) / 180;
+const distanceKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+const formatJarak = (km: number) =>
+  km < 1
+    ? `${Math.max(50, Math.round((km * 1000) / 50) * 50)} m`
+    : `${km.toFixed(1).replace(".", ",")} km`;
+
+// Fitur hanya tampil bila minimal satu store punya koordinat
+const adaKoordinat = computed(() => stores.value.some((s) => s.lat !== null && s.lng !== null));
+
+const nearby = computed<NearStore[]>(() => {
+  const me = myPos.value;
+  if (!me) return [];
+  return stores.value
+    .filter((s): s is StoreItem & { lat: number; lng: number } => s.lat !== null && s.lng !== null)
+    .map((s) => ({ ...s, km: distanceKm(me, { lat: s.lat, lng: s.lng }) }))
+    .filter((s) => s.km <= NEAR_MAX_KM)
+    .sort((a, b) => a.km - b.km)
+    .slice(0, NEAR_SHOW);
+});
+
+const pesanGeo = computed(() => {
+  if (geo.value === "coarse")
+    return "Lokasimu terbaca kurang akurat, jadi store terdekat belum bisa ditentukan. Pilih dari daftar di bawah.";
+  if (geo.value === "denied")
+    return "Akses lokasi tidak diizinkan. Pilih store dari daftar di bawah.";
+  return "Lokasi belum bisa dibaca. Pilih store dari daftar di bawah, atau coba lagi.";
+});
+
+const locate = () => {
+  if (!("geolocation" in navigator)) {
+    geo.value = "unsupported";
+    return;
+  }
+  geo.value = "locating";
+  navigator.geolocation.getCurrentPosition(
+    (p) => {
+      // Radius ketidakpastian lebih besar dari radius pencarian: hasilnya tidak bermakna
+      if (p.coords.accuracy > NEAR_MAX_KM * 1000) {
+        geo.value = "coarse";
+        return;
+      }
+      myPos.value = { lat: p.coords.latitude, lng: p.coords.longitude };
+      geo.value = "ready";
+    },
+    (err) => {
+      geo.value = err.code === err.PERMISSION_DENIED ? "denied" : "failed";
+    },
+    { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 }
+  );
+};
+
+// Izin sudah pernah diberikan: langsung hitung tanpa menunggu klik. Jangan pernah memunculkan dialog sendiri.
+const initGeo = async () => {
+  if (!("geolocation" in navigator)) {
+    geo.value = "unsupported";
+    return;
+  }
+  try {
+    const st = await navigator.permissions.query({ name: "geolocation" });
+    if (st.state === "granted") locate();
+    else if (st.state === "denied") geo.value = "denied";
+  } catch {
+    // Permissions API tidak tersedia: tunggu tombol
+  }
+};
+
+watch(
+  phase,
+  (v) => {
+    if (v === "store" && geo.value === "idle") initGeo();
+  },
+  { immediate: true }
+);
+// Store terdekat paling mungkin dipilih: panaskan datanya
+watch(nearby, (n) => {
+  if (n[0]) prefetchStok(n[0].kode);
+});
 
 const loadStok = async (kode: string, force = false) => {
   const c = cache.get(kode);
@@ -533,6 +633,53 @@ onUnmounted(() => {
         </EmptyShelf>
 
         <template v-else>
+          <section
+            v-if="adaKoordinat && geo !== 'unsupported' && !storeQuery.trim()"
+            class="sx-near"
+            aria-live="polite"
+          >
+            <template v-if="geo === 'idle'">
+              <button type="button" class="sx-near-btn" @click="locate">Cari store terdekat</button>
+              <p class="sx-near-note">
+                Lokasimu hanya dipakai di perangkat ini, tidak dikirim ke server.
+              </p>
+            </template>
+
+            <p v-else-if="geo === 'locating'" class="sx-near-note">Mencari lokasimu...</p>
+
+            <template v-else-if="geo === 'ready' && nearby.length">
+              <h2 class="sx-near-title">Terdekat darimu</h2>
+              <ul class="sx-near-list">
+                <li v-for="s in nearby" :key="s.kode">
+                  <button
+                    type="button"
+                    class="sx-row"
+                    @click="pilihStore(s.kode)"
+                    @pointerenter="prefetchStok(s.kode)"
+                    @focus="prefetchStok(s.kode)"
+                  >
+                    <span class="sx-name">{{ s.nama }}</span>
+                    <span class="sx-tail">
+                      <span class="sx-km">{{ formatJarak(s.km) }}</span>
+                      <span class="sx-go" aria-hidden="true"></span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </template>
+
+            <p v-else-if="geo === 'ready'" class="sx-near-note">
+              Tidak ada store dalam {{ NEAR_MAX_KM }} km dari lokasimu. Pilih dari daftar di bawah.
+            </p>
+
+            <template v-else>
+              <p class="sx-near-note">{{ pesanGeo }}</p>
+              <button v-if="geo !== 'denied'" type="button" class="sx-near-btn" @click="locate">
+                Coba lagi
+              </button>
+            </template>
+          </section>
+
           <label v-if="stores.length > 8" class="sx-find">
             <span class="sx-sr">Cari store</span>
             <input
@@ -1239,6 +1386,67 @@ onUnmounted(() => {
   background: #b71c1c;
 }
 
+/* ===== Store terdekat ===== */
+.sx-near {
+  margin: 0 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px dashed #d9cbc5;
+}
+.sx-near-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6f6663;
+}
+.sx-near-list {
+  max-width: 460px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sx-near-note {
+  margin: 8px 0 0;
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6f6663;
+}
+.sx-near-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 2px;
+  padding: 0 18px;
+  border: 1px solid #b71c1c;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #b71c1c;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.sx-near-btn:hover {
+  color: #fff;
+  background: #b71c1c;
+}
+.sx-near-btn:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+.sx-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.sx-km {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #b71c1c;
+}
+
 /* ===== Tema Premium (datang dari halaman Premium) ===== */
 .k-page--premium .sx-hero {
   background: #120a08;
@@ -1293,6 +1501,27 @@ onUnmounted(() => {
   .k-page--premium .sx-row:hover .sx-go {
     border-color: #d8bd84;
   }
+}
+.k-page--premium .sx-near {
+  border-bottom-color: rgba(216, 189, 132, 0.25);
+}
+.k-page--premium .sx-near-title,
+.k-page--premium .sx-near-note {
+  color: rgba(243, 232, 210, 0.6);
+}
+.k-page--premium .sx-near-btn {
+  color: #d8bd84;
+  border-color: #d8bd84;
+}
+.k-page--premium .sx-near-btn:hover {
+  color: #1a0d0b;
+  background: #d8bd84;
+}
+.k-page--premium .sx-near-btn:focus-visible {
+  outline-color: #d8bd84;
+}
+.k-page--premium .sx-km {
+  color: #d8bd84;
 }
 
 /* Pencarian produk (Vuetify) */

@@ -1,11 +1,26 @@
 import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
 import api from "@/services/api";
+import {
+  JASA_CUSTOM,
+  UKURAN_CETAK,
+  WARNA_KAOS,
+  hitungEstimasi,
+  type HasilEstimasi,
+  type JasaCustom,
+  type TitikCetak,
+  type UkuranCetak,
+  type WarnaKaos,
+} from "@/data/jasaCustom";
 
 const STORAGE_KEY = "kaosan-cart-v1";
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_LINES = 50;
 const MAX_QTY = 99;
+const MAX_CUSTOM = 10;
+const MAX_CUSTOM_QTY = 999;
+const MAX_TITIK = 10;
+const MAX_DIM_CM = 500;
 const REFRESH_GAP_MS = 60_000;
 
 export interface CartLine {
@@ -19,11 +34,24 @@ export interface CartLine {
   qty: number;
 }
 export type CartLineInput = Omit<CartLine, "qty">;
+
+// Jasa custom: yang disimpan hanya spesifikasi, harga selalu dihitung ulang dari tarif terbaru
+export interface CustomLine {
+  id: string;
+  jenis: string;
+  qty: number;
+  ukuran: UkuranCetak;
+  warna: WarnaKaos;
+  titiks: TitikCetak[];
+}
+export type CustomLineInput = Omit<CustomLine, "id">;
+
 export interface CartToko {
   kode: string;
   nama: string;
 }
 export type AddResult = "ok" | "beda-toko" | "penuh";
+export type AddCustomResult = AddResult | "tidak-valid";
 
 interface StokRow {
   kode: string;
@@ -39,6 +67,7 @@ const num = (v: unknown): number => {
 };
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const keyOf = (kode: string, ukuran: string) => `${kode}||${ukuran}`;
+const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 // Isi localStorage bisa diubah user: validasi tiap field, jangan percaya bentuknya
 const parseLine = (raw: unknown): CartLine | null => {
@@ -60,7 +89,40 @@ const parseLine = (raw: unknown): CartLine | null => {
   };
 };
 
-const hydrate = (): { toko: string; tokoNama: string; lines: CartLine[] } | null => {
+const parseTitik = (raw: unknown): TitikCetak | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  return {
+    nama: str(r.nama).trim().slice(0, 40),
+    panjang: Math.min(Math.max(0, num(r.panjang)), MAX_DIM_CM),
+    lebar: Math.min(Math.max(0, num(r.lebar)), MAX_DIM_CM),
+  };
+};
+
+// Dipakai juga saat menambah: hasilnya salinan baru, tidak berbagi referensi dengan form
+const parseCustom = (raw: unknown): CustomLine | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = str(r.id).trim();
+  const jenis = str(r.jenis).trim();
+  const ukuran = UKURAN_CETAK.find((u) => u === r.ukuran);
+  const warna = WARNA_KAOS.find((w) => w.value === r.warna)?.value;
+  const qty = Math.floor(num(r.qty));
+  const titiks = (Array.isArray(r.titiks) ? r.titiks : [])
+    .slice(0, MAX_TITIK)
+    .map((t: unknown) => parseTitik(t))
+    .filter((t): t is TitikCetak => t !== null);
+  if (!id || !ukuran || !warna || qty < 1 || !titiks.length) return null;
+  if (!JASA_CUSTOM.some((j) => j.kode === jenis)) return null;
+  return { id, jenis, qty: Math.min(qty, MAX_CUSTOM_QTY), ukuran, warna, titiks };
+};
+
+const hydrate = (): {
+  toko: string;
+  tokoNama: string;
+  lines: CartLine[];
+  custom: CustomLine[];
+} | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -71,9 +133,20 @@ const hydrate = (): { toko: string; tokoNama: string; lines: CartLine[] } | null
       const l = parseLine(x);
       if (l && unik.size < MAX_LINES) unik.set(keyOf(l.kode, l.ukuran), l);
     });
+    // Keranjang lama belum punya field "custom": dianggap kosong
+    const customs = new Map<string, CustomLine>();
+    (Array.isArray(p.custom) ? p.custom : []).forEach((x: unknown) => {
+      const c = parseCustom(x);
+      if (c && customs.size < MAX_CUSTOM) customs.set(c.id, c);
+    });
     const toko = str(p.toko).trim();
-    if (!toko || !unik.size) return null;
-    return { toko, tokoNama: str(p.tokoNama), lines: [...unik.values()] };
+    if (!toko || (!unik.size && !customs.size)) return null;
+    return {
+      toko,
+      tokoNama: str(p.tokoNama),
+      lines: [...unik.values()],
+      custom: [...customs.values()],
+    };
   } catch {
     return null;
   }
@@ -84,6 +157,7 @@ export const useCartStore = defineStore("cart", () => {
   const toko = ref(saved?.toko ?? "");
   const tokoNama = ref(saved?.tokoNama ?? "");
   const lines = ref<CartLine[]>(saved?.lines ?? []);
+  const custom = ref<CustomLine[]>(saved?.custom ?? []);
   const open = ref(false);
   const refreshing = ref(false);
   const refreshError = ref(false);
@@ -93,8 +167,22 @@ export const useCartStore = defineStore("cart", () => {
   const bermasalah = (l: CartLine) => l.stok <= 0 || l.qty > l.stok;
   const bisaNaik = (l: CartLine) => l.qty < Math.min(l.stok, MAX_QTY);
 
-  const count = computed(() => lines.value.reduce((s, l) => s + l.qty, 0));
+  const jasaOf = (c: CustomLine): JasaCustom | undefined =>
+    JASA_CUSTOM.find((j) => j.kode === c.jenis);
+  const estimasiCustom = (c: CustomLine): HasilEstimasi | null => {
+    const j = jasaOf(c);
+    return j ? hitungEstimasi(j, c.qty, c.ukuran, c.warna, c.titiks) : null;
+  };
+  const bisaNaikCustom = (c: CustomLine) => c.qty < MAX_CUSTOM_QTY;
+
+  const terisi = computed(() => lines.value.length > 0 || custom.value.length > 0);
+  // Badge: tiap baris jasa custom dihitung 1 (qty-nya adalah jumlah kaos yang dicetak, bukan barang)
+  const count = computed(() => lines.value.reduce((s, l) => s + l.qty, 0) + custom.value.length);
+  // Total barang dan total jasa sengaja TIDAK digabung: yang satu pasti, yang satu estimasi
   const subtotal = computed(() => lines.value.reduce((s, l) => s + unitPrice(l) * l.qty, 0));
+  const subtotalJasa = computed(() =>
+    custom.value.reduce((s, c) => s + (estimasiCustom(c)?.total ?? 0), 0)
+  );
   const adaMasalah = computed(() => lines.value.some(bermasalah));
 
   const find = (kode: string, ukuran: string) =>
@@ -102,14 +190,14 @@ export const useCartStore = defineStore("cart", () => {
   const qtyOf = (kode: string, ukuran: string) => find(kode, ukuran)?.qty ?? 0;
 
   const resetBilaKosong = () => {
-    if (!lines.value.length) {
+    if (!terisi.value) {
       toko.value = "";
       tokoNama.value = "";
     }
   };
 
   const add = (t: CartToko, input: CartLineInput): AddResult => {
-    if (lines.value.length && toko.value !== t.kode) return "beda-toko";
+    if (terisi.value && toko.value !== t.kode) return "beda-toko";
     const ada = find(input.kode, input.ukuran);
     if (ada) {
       ada.stok = input.stok;
@@ -126,6 +214,17 @@ export const useCartStore = defineStore("cart", () => {
     return "ok";
   };
 
+  const addCustom = (t: CartToko, input: CustomLineInput): AddCustomResult => {
+    if (terisi.value && toko.value !== t.kode) return "beda-toko";
+    if (custom.value.length >= MAX_CUSTOM) return "penuh";
+    const baris = parseCustom({ ...input, id: newId() });
+    if (!baris) return "tidak-valid";
+    custom.value.push(baris);
+    toko.value = t.kode;
+    tokoNama.value = t.nama;
+    return "ok";
+  };
+
   const ubahQty = (kode: string, ukuran: string, delta: 1 | -1) => {
     const l = find(kode, ukuran);
     if (!l) return;
@@ -134,17 +233,31 @@ export const useCartStore = defineStore("cart", () => {
     if (l.qty < 1) hapus(kode, ukuran);
   };
 
+  const ubahQtyCustom = (id: string, delta: 1 | -1) => {
+    const c = custom.value.find((x) => x.id === id);
+    if (!c) return;
+    if (delta > 0 && !bisaNaikCustom(c)) return;
+    c.qty += delta;
+    if (c.qty < 1) hapusCustom(id);
+  };
+
   const hapus = (kode: string, ukuran: string) => {
     lines.value = lines.value.filter((l) => !(l.kode === kode && l.ukuran === ukuran));
     resetBilaKosong();
   };
 
-  const kosongkan = () => {
-    lines.value = [];
+  const hapusCustom = (id: string) => {
+    custom.value = custom.value.filter((c) => c.id !== id);
     resetBilaKosong();
   };
 
-  // Buang barang yang habis, turunkan qty yang melebihi stok
+  const kosongkan = () => {
+    lines.value = [];
+    custom.value = [];
+    resetBilaKosong();
+  };
+
+  // Buang barang yang habis, turunkan qty yang melebihi stok (jasa custom tidak punya stok)
   const sesuaikan = () => {
     lines.value = lines.value
       .filter((l) => l.stok > 0)
@@ -181,10 +294,10 @@ export const useCartStore = defineStore("cart", () => {
   };
 
   watch(
-    [toko, tokoNama, lines],
+    [toko, tokoNama, lines, custom],
     () => {
       try {
-        if (!lines.value.length) {
+        if (!terisi.value) {
           localStorage.removeItem(STORAGE_KEY);
           return;
         }
@@ -196,6 +309,7 @@ export const useCartStore = defineStore("cart", () => {
             tokoNama: tokoNama.value,
             updatedAt: Date.now(),
             lines: lines.value,
+            custom: custom.value,
           })
         );
       } catch {
@@ -209,19 +323,28 @@ export const useCartStore = defineStore("cart", () => {
     toko,
     tokoNama,
     lines,
+    custom,
     open,
     refreshing,
     refreshError,
+    terisi,
     count,
     subtotal,
+    subtotalJasa,
     adaMasalah,
     unitPrice,
     bermasalah,
     bisaNaik,
     qtyOf,
+    jasaOf,
+    estimasiCustom,
+    bisaNaikCustom,
     add,
+    addCustom,
     ubahQty,
+    ubahQtyCustom,
     hapus,
+    hapusCustom,
     kosongkan,
     sesuaikan,
     refresh,

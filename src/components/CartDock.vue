@@ -3,7 +3,8 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute } from "vue-router";
 import api from "@/services/api";
-import { useCartStore } from "@/stores/cartStore";
+import { useCartStore, type CustomLine } from "@/stores/cartStore";
+import { WARNA_KAOS, type WarnaKaos } from "@/data/jasaCustom";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 
 interface StoreContact {
@@ -19,11 +20,46 @@ const cart = useCartStore();
 const route = useRoute();
 // Tema premium dipicu dari URL, bukan dari kelas di <html> (kelas itu dipasang/dicabut halaman lain)
 const premium = computed(() => route.query.from === "premium" || route.path === "/kiosk/premium");
-const { lines, open, count, subtotal, adaMasalah, refreshing, refreshError, toko, tokoNama } =
-  storeToRefs(cart);
+const {
+  lines,
+  custom,
+  open,
+  count,
+  subtotal,
+  subtotalJasa,
+  terisi,
+  adaMasalah,
+  refreshing,
+  refreshError,
+  toko,
+  tokoNama,
+} = storeToRefs(cart);
 
-const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Number(n) || 0)}`;
+const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(Number(n)) || 0)}`;
 const imgFailed = reactive<Record<string, boolean>>({});
+
+// --- Rincian jasa custom (dipakai tampilan keranjang dan pesan WhatsApp) ---
+const labelWarna = (w: WarnaKaos) => WARNA_KAOS.find((x) => x.value === w)?.label ?? w;
+
+const ukuranTeks = (c: CustomLine): string => {
+  const j = cart.jasaOf(c);
+  if (j?.mode !== "ukuran") return "";
+  return j.bedaWarnaKaos
+    ? `Ukuran ${c.ukuran}, kaos ${labelWarna(c.warna).toLowerCase()}`
+    : `Ukuran ${c.ukuran}`;
+};
+
+const titikTeks = (c: CustomLine): string => {
+  const luas = cart.jasaOf(c)?.mode === "luas";
+  return c.titiks
+    .map((t, i) => {
+      const nama = t.nama || `Titik ${i + 1}`;
+      return luas ? `${nama} ${t.panjang}x${t.lebar} cm` : nama;
+    })
+    .join("; ");
+};
+
+const namaJasa = (c: CustomLine) => cart.jasaOf(c)?.nama ?? c.jenis;
 
 // --- Pesan WhatsApp ke store ---
 const contacts = ref<StoreContact[] | null>(null);
@@ -54,18 +90,36 @@ const waStatus = computed<"loading" | "ok" | "none">(() =>
 );
 
 const pesan = computed(() => {
-  const baris = lines.value.map(
-    (l, i) => `${i + 1}. ${l.nama} (${l.kode}) - ${l.ukuran} x${l.qty} @ ${rp(cart.unitPrice(l))}`
+  const out: string[] = [`Halo, saya mau pesan di store ${tokoNama.value}:`];
+
+  if (lines.value.length) {
+    out.push("", "Barang:");
+    lines.value.forEach((l, i) =>
+      out.push(`${i + 1}. ${l.nama} (${l.kode}) - ${l.ukuran} x${l.qty} @ ${rp(cart.unitPrice(l))}`)
+    );
+    out.push("", `Estimasi total barang: ${rp(subtotal.value)}`);
+  }
+
+  if (custom.value.length) {
+    out.push("", "Jasa custom (estimasi, harga final dikonfirmasi CS):");
+    custom.value.forEach((c, i) => {
+      out.push(`${i + 1}. ${namaJasa(c)} - ${c.qty} pcs`);
+      const u = ukuranTeks(c);
+      if (u) out.push(`   ${u}`);
+      out.push(`   Titik: ${titikTeks(c)}`);
+      out.push(`   Estimasi jasa: ${rp(cart.estimasiCustom(c)?.total ?? 0)}`);
+    });
+    if (custom.value.length > 1) out.push("", `Total estimasi jasa: ${rp(subtotalJasa.value)}`);
+    out.push("", "Desain saya kirim di chat ini.");
+  }
+
+  out.push(
+    "",
+    lines.value.length
+      ? "Mohon dicek ketersediaan dan total pembayarannya. Terima kasih."
+      : "Mohon dikonfirmasi harga dan prosesnya. Terima kasih."
   );
-  return [
-    `Halo, saya mau pesan di store ${tokoNama.value}:`,
-    "",
-    ...baris,
-    "",
-    `Estimasi total: ${rp(subtotal.value)}`,
-    "",
-    "Mohon dicek ketersediaan dan total pembayarannya. Terima kasih.",
-  ].join("\n");
+  return out.join("\n");
 });
 const waFull = computed(() =>
   waBase.value ? `${waBase.value}?text=${encodeURIComponent(pesan.value)}` : null
@@ -73,7 +127,7 @@ const waFull = computed(() =>
 const pesanPanjang = computed(() => !!waFull.value && waFull.value.length > WA_MAX_URL);
 const waHref = computed(() => (pesanPanjang.value ? waBase.value : waFull.value));
 // Jangan kirim saat stok bermasalah atau sedang dimuat ulang
-const bisaKirim = computed(() => lines.value.length > 0 && !adaMasalah.value && !refreshing.value);
+const bisaKirim = computed(() => terisi.value && !adaMasalah.value && !refreshing.value);
 
 const disalin = ref(false);
 const salinGagal = ref(false);
@@ -146,7 +200,7 @@ onUnmounted(() => {
               />
             </header>
 
-            <div v-if="!lines.length" class="cd-empty">Keranjang masih kosong.</div>
+            <div v-if="!terisi" class="cd-empty">Keranjang masih kosong.</div>
 
             <template v-else>
               <div v-if="refreshError" class="cd-warn">
@@ -157,74 +211,129 @@ onUnmounted(() => {
                 <button type="button" @click="cart.sesuaikan()">Sesuaikan keranjang</button>
               </div>
 
-              <ul class="cd-list">
-                <li
-                  v-for="l in lines"
-                  :key="`${l.kode}||${l.ukuran}`"
-                  class="cd-item"
-                  :class="{ 'cd-item--warn': cart.bermasalah(l) }"
-                >
-                  <div class="cd-img">
-                    <img
-                      v-if="l.gambar && !imgFailed[l.kode]"
-                      :src="l.gambar"
-                      :alt="l.nama"
-                      loading="lazy"
-                      decoding="async"
-                      @error="imgFailed[l.kode] = true"
-                    />
-                    <ProductPlaceholder v-else />
-                  </div>
+              <div class="cd-scroll">
+                <ul v-if="lines.length" class="cd-list">
+                  <li
+                    v-for="l in lines"
+                    :key="`${l.kode}||${l.ukuran}`"
+                    class="cd-item"
+                    :class="{ 'cd-item--warn': cart.bermasalah(l) }"
+                  >
+                    <div class="cd-img">
+                      <img
+                        v-if="l.gambar && !imgFailed[l.kode]"
+                        :src="l.gambar"
+                        :alt="l.nama"
+                        loading="lazy"
+                        decoding="async"
+                        @error="imgFailed[l.kode] = true"
+                      />
+                      <ProductPlaceholder v-else />
+                    </div>
 
-                  <div class="cd-info">
-                    <div class="cd-name">{{ l.nama }}</div>
-                    <div class="cd-meta">
-                      Ukuran <b>{{ l.ukuran }}</b>
+                    <div class="cd-info">
+                      <div class="cd-name">{{ l.nama }}</div>
+                      <div class="cd-meta">
+                        Ukuran <b>{{ l.ukuran }}</b>
+                      </div>
+                      <div class="cd-price">
+                        {{ rp(cart.unitPrice(l)) }}
+                        <s v-if="l.hargaPromo && l.harga > l.hargaPromo" class="cd-old">
+                          {{ rp(l.harga) }}
+                        </s>
+                      </div>
+                      <div v-if="l.stok <= 0" class="cd-stok">Stok habis</div>
+                      <div v-else-if="l.qty > l.stok" class="cd-stok">Sisa {{ l.stok }} pcs</div>
                     </div>
-                    <div class="cd-price">
-                      {{ rp(cart.unitPrice(l)) }}
-                      <s v-if="l.hargaPromo && l.harga > l.hargaPromo" class="cd-old">
-                        {{ rp(l.harga) }}
-                      </s>
-                    </div>
-                    <div v-if="l.stok <= 0" class="cd-stok">Stok habis</div>
-                    <div v-else-if="l.qty > l.stok" class="cd-stok">Sisa {{ l.stok }} pcs</div>
-                  </div>
 
-                  <div class="cd-side">
-                    <div class="cd-step">
-                      <button
-                        type="button"
-                        aria-label="Kurangi"
-                        @click="cart.ubahQty(l.kode, l.ukuran, -1)"
-                      >
-                        <v-icon size="16">mdi-minus</v-icon>
-                      </button>
-                      <span>{{ l.qty }}</span>
-                      <button
-                        type="button"
-                        aria-label="Tambah"
-                        :disabled="!cart.bisaNaik(l)"
-                        @click="cart.ubahQty(l.kode, l.ukuran, 1)"
-                      >
-                        <v-icon size="16">mdi-plus</v-icon>
+                    <div class="cd-side">
+                      <div class="cd-step">
+                        <button
+                          type="button"
+                          aria-label="Kurangi"
+                          @click="cart.ubahQty(l.kode, l.ukuran, -1)"
+                        >
+                          <v-icon size="16">mdi-minus</v-icon>
+                        </button>
+                        <span>{{ l.qty }}</span>
+                        <button
+                          type="button"
+                          aria-label="Tambah"
+                          :disabled="!cart.bisaNaik(l)"
+                          @click="cart.ubahQty(l.kode, l.ukuran, 1)"
+                        >
+                          <v-icon size="16">mdi-plus</v-icon>
+                        </button>
+                      </div>
+                      <button class="cd-del" type="button" @click="cart.hapus(l.kode, l.ukuran)">
+                        Hapus
                       </button>
                     </div>
-                    <button class="cd-del" type="button" @click="cart.hapus(l.kode, l.ukuran)">
-                      Hapus
-                    </button>
-                  </div>
-                </li>
-              </ul>
+                  </li>
+                </ul>
+
+                <section v-if="custom.length" class="cd-cust" aria-labelledby="cd-cust-h">
+                  <h3 id="cd-cust-h" class="cd-cust-h">Jasa custom</h3>
+                  <ul class="cd-list">
+                    <li v-for="c in custom" :key="c.id" class="cd-item">
+                      <div class="cd-img cd-img--cust" aria-hidden="true">
+                        <v-icon size="28">mdi-palette-outline</v-icon>
+                      </div>
+
+                      <div class="cd-info">
+                        <div class="cd-name">{{ namaJasa(c) }}</div>
+                        <div v-if="ukuranTeks(c)" class="cd-meta">{{ ukuranTeks(c) }}</div>
+                        <div class="cd-meta">{{ titikTeks(c) }}</div>
+                        <div class="cd-price">≈ {{ rp(cart.estimasiCustom(c)?.total ?? 0) }}</div>
+                        <div class="cd-meta">
+                          {{ rp(cart.estimasiCustom(c)?.satuan ?? 0) }} / pcs
+                        </div>
+                      </div>
+
+                      <div class="cd-side">
+                        <div class="cd-step">
+                          <button
+                            type="button"
+                            aria-label="Kurangi jumlah"
+                            @click="cart.ubahQtyCustom(c.id, -1)"
+                          >
+                            <v-icon size="16">mdi-minus</v-icon>
+                          </button>
+                          <span>{{ c.qty }}</span>
+                          <button
+                            type="button"
+                            aria-label="Tambah jumlah"
+                            :disabled="!cart.bisaNaikCustom(c)"
+                            @click="cart.ubahQtyCustom(c.id, 1)"
+                          >
+                            <v-icon size="16">mdi-plus</v-icon>
+                          </button>
+                        </div>
+                        <button class="cd-del" type="button" @click="cart.hapusCustom(c.id)">
+                          Hapus
+                        </button>
+                      </div>
+                    </li>
+                  </ul>
+                </section>
+              </div>
 
               <footer class="cd-foot">
-                <div class="cd-total">
-                  <span>Estimasi total</span>
+                <div v-if="lines.length" class="cd-total">
+                  <span>Barang</span>
                   <b>{{ rp(subtotal) }}</b>
                 </div>
-                <p class="cd-note">
+                <div v-if="custom.length" class="cd-total cd-total--jasa">
+                  <span>Estimasi jasa</span>
+                  <b>{{ rp(subtotalJasa) }}</b>
+                </div>
+                <p v-if="lines.length" class="cd-note">
                   Keranjang tidak menahan stok. Pesanan baru sah setelah store mengonfirmasi
                   ketersediaan dan harga lewat WhatsApp.
+                </p>
+                <p v-if="custom.length" class="cd-note">
+                  Harga jasa custom masih estimasi dan dikonfirmasi CS. Kirim file desain di chat
+                  WhatsApp setelah pesan terkirim.
                 </p>
 
                 <a
@@ -375,14 +484,32 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.cd-list {
+.cd-scroll {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.cd-list {
   margin: 0;
   padding: 0;
   list-style: none;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+}
+.cd-cust-h {
+  margin: 0;
+  padding: 10px 18px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f6663;
+  background: #faf6f4;
+  border-top: 1px solid #e9dfdb;
+  border-bottom: 1px solid #e9dfdb;
+}
+.cd-img--cust {
+  display: grid;
+  place-items: center;
+  color: #b71c1c;
+  background: #fdecea;
 }
 .cd-item {
   display: grid;
@@ -502,6 +629,12 @@ onUnmounted(() => {
   font-size: 18px;
   font-variant-numeric: tabular-nums;
   color: #1f1a19;
+}
+.cd-total + .cd-total {
+  margin-top: 6px;
+}
+.cd-total--jasa b {
+  font-size: 15px;
 }
 .cd-note {
   margin: 8px 0 10px;
@@ -645,6 +778,14 @@ onUnmounted(() => {
 }
 .cd--premium .cd-img {
   background: #241714;
+}
+.cd--premium .cd-cust-h {
+  color: rgba(243, 232, 210, 0.6);
+  background: #0e0605;
+  border-color: rgba(216, 189, 132, 0.16);
+}
+.cd--premium .cd-img--cust {
+  color: #d8bd84;
 }
 .cd--premium .cd-name {
   font-family: "Cormorant Variable", Georgia, serif;

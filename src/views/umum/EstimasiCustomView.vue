@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { reactive, computed } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
+import api from "@/services/api";
+import { useCartStore, type CustomLineInput } from "@/stores/cartStore";
 import {
   JASA_CUSTOM,
   UKURAN_CETAK,
@@ -58,6 +60,94 @@ const hapusTitik = (i: number) => {
 
 // Kembali ke halaman asal bila ada, kalau halaman ini dibuka langsung (mis. dari link WhatsApp) ke beranda
 const goBack = () => (window.history.state?.back ? router.back() : router.push("/"));
+
+// --- Keranjang: hanya build katalog (tracking tidak punya keranjang) ---
+interface StoreOpt {
+  kode: string;
+  nama: string;
+}
+
+const cart = useCartStore();
+const cartAktif = import.meta.env.VITE_APP_MODE === "KATALOG";
+
+const stores = ref<StoreOpt[]>([]);
+const storesState = ref<"idle" | "loading" | "ok" | "error">("idle");
+const pilihToko = ref("");
+const status = ref<{ ok: boolean; teks: string } | null>(null);
+let statusTimer: ReturnType<typeof setTimeout> | undefined;
+
+const loadStores = async () => {
+  if (storesState.value === "loading") return;
+  storesState.value = "loading";
+  try {
+    const { data } = await api.get<StoreOpt[]>("/so/public/stores");
+    stores.value = data.map((s) => ({ kode: s.kode, nama: s.nama }));
+    storesState.value = "ok";
+  } catch {
+    storesState.value = "error";
+  }
+};
+
+// Daftar store hanya perlu bila keranjang belum punya store (juga bila dikosongkan saat halaman terbuka)
+onMounted(() => {
+  if (cartAktif && !cart.terisi) loadStores();
+});
+watch(
+  () => cart.terisi,
+  (v) => {
+    if (cartAktif && !v && storesState.value === "idle") loadStores();
+  }
+);
+onUnmounted(() => clearTimeout(statusTimer));
+
+const tampilStatus = (ok: boolean, teks: string) => {
+  status.value = { ok, teks };
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => (status.value = null), 5000);
+};
+
+const titikValid = computed(
+  () =>
+    form.titiks.length > 0 &&
+    (jasa.value.mode === "ukuran" || form.titiks.every((t) => luasOf(t) > 0))
+);
+
+// Keranjang yang sudah berisi menentukan store; kalau kosong, pakai pilihan user
+const tokoTujuan = computed(() => {
+  if (cart.terisi) return { kode: cart.toko, nama: cart.tokoNama };
+  const s = stores.value.find((x) => x.kode === pilihToko.value);
+  return s ? { kode: s.kode, nama: s.nama } : null;
+});
+
+const tambah = () => {
+  if (!qtyValid.value) {
+    tampilStatus(false, "Isi jumlah pesanan minimal 1 pcs.");
+    return;
+  }
+  if (!titikValid.value) {
+    tampilStatus(false, "Isi panjang dan lebar setiap titik cetak.");
+    return;
+  }
+  const t = tokoTujuan.value;
+  if (!t) {
+    tampilStatus(false, "Pilih store untuk pesanan dulu.");
+    return;
+  }
+  const input: CustomLineInput = {
+    jenis: form.jenis,
+    qty: Math.floor(form.qty),
+    ukuran: form.ukuran,
+    warna: form.warna,
+    titiks: form.titiks.map((x) => ({ ...x })),
+  };
+  const res = cart.addCustom(t, input);
+  if (res === "ok") tampilStatus(true, `Masuk ke keranjang ${t.nama}.`);
+  else if (res === "penuh")
+    tampilStatus(false, "Jasa custom di keranjang sudah penuh. Hapus salah satu dulu.");
+  else if (res === "beda-toko")
+    tampilStatus(false, "Keranjang berisi pesanan store lain. Kosongkan dulu.");
+  else tampilStatus(false, "Data jasa tidak valid. Periksa jumlah dan titik cetak.");
+};
 </script>
 
 <template>
@@ -220,6 +310,25 @@ const goBack = () => (window.history.state?.back ? router.back() : router.push("
               </li>
             </ul>
           </section>
+
+          <section v-if="cartAktif" class="ec-field">
+            <h2 class="ec-label">Store untuk pesanan</h2>
+            <p v-if="cart.terisi" class="ec-store-note">
+              Masuk ke keranjang <b>{{ cart.tokoNama }}</b
+              >. Untuk ganti store, kosongkan keranjang dulu.
+            </p>
+            <template v-else>
+              <select v-model="pilihToko" class="ec-input" aria-label="Store untuk pesanan">
+                <option value="" disabled>Pilih store</option>
+                <option v-for="s in stores" :key="s.kode" :value="s.kode">{{ s.nama }}</option>
+              </select>
+              <p v-if="storesState === 'loading'" class="ec-store-note">Memuat daftar store...</p>
+              <p v-else-if="storesState === 'error'" class="ec-store-note">
+                Daftar store tidak bisa dimuat.
+                <button type="button" class="ec-link" @click="loadStores">Coba lagi</button>
+              </p>
+            </template>
+          </section>
         </div>
 
         <aside class="ec-result" aria-live="polite">
@@ -253,6 +362,11 @@ const goBack = () => (window.history.state?.back ? router.back() : router.push("
             </div>
           </template>
 
+          <button v-if="cartAktif" type="button" class="ec-cta ec-cta--card" @click="tambah">
+            <v-icon size="18">mdi-cart-plus</v-icon>
+            Tambah ke keranjang
+          </button>
+
           <p class="ec-disclaimer">
             Estimasi biaya jasa saja, belum termasuk kaos polos. Harga final dikonfirmasi CS saat
             pemesanan.
@@ -261,10 +375,31 @@ const goBack = () => (window.history.state?.back ? router.back() : router.push("
       </div>
     </main>
 
-    <!-- Ringkasan tetap terlihat di layar kecil -->
-    <div class="ec-bar" aria-hidden="true">
-      <span class="ec-bar-label">Total estimasi jasa</span>
-      <span class="ec-bar-val">{{ qtyValid ? rp(hasil.total) : "-" }}</span>
+    <!-- Ringkasan + tombol tambah tetap terlihat di layar kecil -->
+    <div class="ec-bar" :class="{ 'ec-bar--fab': cart.count > 0 && !cart.open }">
+      <div class="ec-bar-sum" aria-hidden="true">
+        <span class="ec-bar-label">Total estimasi jasa</span>
+        <span class="ec-bar-val">{{ qtyValid ? rp(hasil.total) : "-" }}</span>
+      </div>
+      <button
+        v-if="cartAktif"
+        type="button"
+        class="ec-cta ec-cta--bar"
+        aria-label="Tambah ke keranjang"
+        @click="tambah"
+      >
+        <v-icon size="18">mdi-cart-plus</v-icon>
+        Tambah
+      </button>
+    </div>
+
+    <div class="ec-toast-wrap" role="status" aria-live="polite">
+      <div v-if="status" class="ec-toast" :class="{ 'is-err': !status.ok }">
+        <span>{{ status.teks }}</span>
+        <button v-if="status.ok" type="button" class="ec-link" @click="cart.open = true">
+          Lihat keranjang
+        </button>
+      </div>
     </div>
 
     <SiteFooter max-width="1040px" />
@@ -679,7 +814,10 @@ const goBack = () => (window.history.state?.back ? router.back() : router.push("
   bottom: 0;
   z-index: 90;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   background: #fff;
   border-top: 1px solid var(--ec-line);
@@ -694,6 +832,97 @@ const goBack = () => (window.history.state?.back ? router.back() : router.push("
   font-weight: 800;
   color: var(--ec-red);
   font-variant-numeric: tabular-nums;
+}
+.ec-bar-sum {
+  display: flex;
+  flex-direction: column;
+}
+/* Tombol keranjang mengambang (CartDock) menutupi sisi kanan bilah ini */
+.ec-bar--fab {
+  padding-right: 84px;
+}
+
+.ec-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--ec-red);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.ec-cta:hover {
+  background: #8e0000;
+}
+.ec-cta:focus-visible {
+  outline: 2px solid var(--ec-red);
+  outline-offset: 2px;
+}
+.ec-cta--bar {
+  width: auto;
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.ec-cta--card {
+  display: none;
+}
+
+.ec-store-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ec-muted);
+}
+.ec-link {
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  color: var(--ec-red);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.ec-toast-wrap {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 95;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.ec-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 420px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ec-ink);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(60, 20, 15, 0.28);
+}
+.ec-toast.is-err {
+  background: var(--ec-red);
+}
+.ec-toast .ec-link {
+  color: #fff;
+  white-space: nowrap;
 }
 
 @media (max-width: 899px) {
@@ -721,6 +950,14 @@ const goBack = () => (window.history.state?.back ? router.back() : router.push("
   }
   .ec-bar {
     display: none;
+  }
+  .ec-cta--card {
+    display: flex;
+  }
+  .ec-toast-wrap {
+    left: 24px;
+    right: auto;
+    bottom: 24px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

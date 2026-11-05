@@ -63,6 +63,7 @@ const KatalogHomeView = () => import("@/views/umum/KatalogHomeView.vue");
 const AdminKatalogView = () => import("@/views/umum/AdminKatalogView.vue");
 const KioskStudioView = () => import("@/views/umum/KioskStudioView.vue");
 const KioskPremiumView = () => import("@/views/umum/KioskPremiumView.vue");
+const EstimasiCustomView = () => import("@/views/umum/EstimasiCustomView.vue");
 
 // --- DTF & PESANAN ---
 const SoDtfTrialView = () => import("@/views/transaksi/penjualan/dtf/SoDtfTrialView.vue");
@@ -412,6 +413,17 @@ const routes = [
     name: "Kiosk Premium",
     component: KioskPremiumView,
     meta: { title: "Premium Collection", layout: "PrintLayout", requiresAuth: false, public: true },
+  },
+  {
+    path: "/estimasi-custom",
+    name: "Estimasi Custom",
+    component: EstimasiCustomView,
+    meta: {
+      title: "Estimasi Harga Custom",
+      layout: "PrintLayout",
+      requiresAuth: false,
+      public: true,
+    },
   },
   {
     path: "/katalog/:kategori?",
@@ -2971,7 +2983,7 @@ const routes = [
 const filteredRoutes = routes.filter((r) => {
   if (isKatalogMode) {
     return (
-      ["/", "/:pathMatch(.*)*", "/kiosk/premium"].includes(r.path) ||
+      ["/", "/:pathMatch(.*)*", "/kiosk/premium", "/estimasi-custom"].includes(r.path) ||
       r.path.startsWith("/katalog") ||
       r.path.startsWith("/cek-stok-store")
     );
@@ -2981,6 +2993,7 @@ const filteredRoutes = routes.filter((r) => {
     const allowedPaths = [
       "/",
       "/tracking",
+      "/estimasi-custom",
       "/:pathMatch(.*)*",
       "/unauthorized",
       "/login",

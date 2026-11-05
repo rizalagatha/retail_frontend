@@ -33,6 +33,7 @@ const links: FooterLink[] = [
     : { label: "Lacak Pesanan", to: "/tracking" },
   { label: "Katalog", to: "/katalog" },
   { label: "Cek Stok Store", to: "/cek-stok-store" },
+  { label: "Estimasi Harga", to: "/estimasi-custom" },
   isKatalogMode
     ? { label: "Pusat Bantuan", href: `${trackingBase}/tracking?bantuan=1` }
     : { label: "Pusat Bantuan", to: { path: "/tracking", query: { bantuan: "1" } } },

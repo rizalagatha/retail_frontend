@@ -827,17 +827,29 @@ onUnmounted(() => {
             {{ opt.label }}
           </button>
         </div>
-        <v-text-field
-          v-model="search"
-          placeholder="Cari nama / kode warna..."
-          variant="outlined"
-          density="compact"
-          hide-details
-          clearable
-          :bg-color="fromPremium ? '#170e0b' : 'white'"
-          prepend-inner-icon="mdi-magnify"
-          class="k-search"
-        />
+        <div class="sx-search" role="search">
+          <v-icon class="sx-search-icon" size="20">mdi-magnify</v-icon>
+          <input
+            v-model="search"
+            type="search"
+            class="sx-search-input"
+            placeholder="Cari nama / kode warna..."
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="search"
+            aria-label="Cari produk"
+          />
+          <button
+            v-if="search"
+            type="button"
+            class="sx-search-clear"
+            aria-label="Hapus pencarian"
+            @click="search = ''"
+          >
+            <v-icon size="16">mdi-close</v-icon>
+          </button>
+        </div>
       </div>
 
       <div v-if="isLoading" class="k-grid">
@@ -1267,9 +1279,100 @@ onUnmounted(() => {
   gap: 10px;
   margin-bottom: 14px;
 }
-.st-filters .k-search {
+.st-filters .sx-search {
   flex: 1 1 240px;
   max-width: 340px;
+}
+
+.sx-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 48px;
+  padding: 0 7px 0 14px;
+  background: #fff;
+  border: 1px solid #e9dfdb;
+  border-radius: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.sx-search:focus-within {
+  border-color: #b71c1c;
+  box-shadow: 0 0 0 3px rgba(183, 28, 28, 0.12);
+}
+.sx-search-icon {
+  flex-shrink: 0;
+  color: #6f6663;
+  transition: color 0.15s ease;
+}
+.sx-search:focus-within .sx-search-icon {
+  color: #b71c1c;
+}
+.sx-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  font: inherit;
+  font-size: 16px; /* 16px mencegah iOS memperbesar layar saat fokus */
+  color: #1f1a19;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.sx-search-input::placeholder {
+  color: #9a8f8b;
+}
+.sx-search-input::-webkit-search-cancel-button,
+.sx-search-input::-webkit-search-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+.sx-search-clear {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: #6f6663;
+  background: #f3ece9;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sx-search-clear:hover {
+  background: #e9dfdb;
+}
+
+.k-page--premium .sx-search {
+  background: #170e0b;
+  border-color: rgba(216, 189, 132, 0.28);
+}
+.k-page--premium .sx-search:focus-within {
+  border-color: #d8bd84;
+  box-shadow: 0 0 0 3px rgba(216, 189, 132, 0.16);
+}
+.k-page--premium .sx-search-icon {
+  color: #a8987a;
+}
+.k-page--premium .sx-search:focus-within .sx-search-icon {
+  color: #d8bd84;
+}
+.k-page--premium .sx-search-input {
+  color: #f3e8d2;
+}
+.k-page--premium .sx-search-input::placeholder {
+  color: rgba(243, 232, 210, 0.42);
+}
+.k-page--premium .sx-search-clear {
+  color: #d8bd84;
+  background: rgba(216, 189, 132, 0.12);
+}
+.k-page--premium .sx-search-clear:hover {
+  background: rgba(216, 189, 132, 0.22);
 }
 
 .st-badge {
@@ -1556,23 +1659,6 @@ onUnmounted(() => {
 }
 .k-page--premium .sx-km {
   color: #d8bd84;
-}
-
-/* Pencarian produk (Vuetify) */
-.k-page--premium .k-search :deep(.v-field) {
-  color: #f3e8d2;
-}
-.k-page--premium .k-search :deep(.v-field__outline) {
-  color: #d8bd84;
-  --v-field-border-opacity: 0.35;
-}
-.k-page--premium .k-search :deep(.v-field--focused .v-field__outline) {
-  --v-field-border-opacity: 1;
-}
-.k-page--premium .k-search :deep(.v-icon),
-.k-page--premium .k-search :deep(input::placeholder) {
-  color: rgba(243, 232, 210, 0.5);
-  opacity: 1;
 }
 
 /* Status stok: hijau/oranye gelap terlalu redup di latar hitam */

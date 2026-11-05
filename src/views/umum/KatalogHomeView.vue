@@ -6,6 +6,7 @@ import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
 import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
+import { JASA_CUSTOM } from "@/data/jasaCustom";
 import "@fontsource-variable/cormorant";
 import "@fontsource-variable/cormorant/wght-italic.css";
 import "@fontsource-variable/jost";
@@ -513,6 +514,24 @@ onUnmounted(() => {
             </div>
           </li>
         </ol>
+      </section>
+
+      <!-- ============ JASA CUSTOM ============ -->
+      <section class="lp-sec" aria-labelledby="lp-cust-h">
+        <div class="lp-cust-in">
+          <div>
+            <h2 id="lp-cust-h" v-reveal class="lp-h2">Mau disablon atau dibordir?</h2>
+            <p v-reveal="1" class="lp-lead">
+              Hitung perkiraan biaya jasanya lebih dulu. Belum termasuk harga kaos polos.
+            </p>
+            <ul v-reveal="2" class="lp-cust-pills">
+              <li v-for="j in JASA_CUSTOM" :key="j.kode" class="lp-chip">{{ j.nama }}</li>
+            </ul>
+          </div>
+          <router-link v-reveal="3" to="/estimasi-custom" class="lp-btn lp-btn--red">
+            Hitung estimasi
+          </router-link>
+        </div>
       </section>
 
       <!-- ============ PREMIUM ============ -->
@@ -1065,6 +1084,45 @@ onUnmounted(() => {
 }
 .lp-foot {
   margin-top: 0;
+}
+
+/* ===== Jasa custom ===== */
+.lp-cust-in {
+  display: grid;
+  gap: 24px;
+  align-items: center;
+  padding: clamp(22px, 4vw, 36px);
+  background: #fff;
+  border: 1.5px dashed #d6c4bd;
+  border-radius: 16px;
+}
+.lp-cust-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lp-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.lp-cust-in .lp-btn {
+  justify-self: start;
+}
+@media (min-width: 760px) {
+  .lp-cust-in {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 40px;
+  }
 }
 
 /* ===== Premium Collection (band gelap-emas) ===== */

@@ -200,7 +200,13 @@ onUnmounted(() => {
               />
             </header>
 
-            <div v-if="!terisi" class="cd-empty">Keranjang masih kosong.</div>
+            <div v-if="!terisi" class="cd-empty">
+              <p>Keranjang masih kosong.</p>
+              <router-link to="/estimasi-custom" class="cd-add-cust" @click="open = false">
+                <v-icon size="18">mdi-palette-outline</v-icon>
+                Tambah jasa custom (sablon / bordir)
+              </router-link>
+            </div>
 
             <template v-else>
               <div v-if="refreshError" class="cd-warn">
@@ -316,6 +322,11 @@ onUnmounted(() => {
                     </li>
                   </ul>
                 </section>
+
+                <router-link to="/estimasi-custom" class="cd-add-cust" @click="open = false">
+                  <v-icon size="18">mdi-palette-outline</v-icon>
+                  Tambah jasa custom (sablon / bordir)
+                </router-link>
               </div>
 
               <footer class="cd-foot">
@@ -510,6 +521,30 @@ onUnmounted(() => {
   place-items: center;
   color: #b71c1c;
   background: #fdecea;
+}
+.cd-empty p {
+  margin: 0;
+}
+.cd-add-cust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 14px 18px;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  color: #b71c1c;
+  border: 1px dashed #b71c1c;
+  border-radius: 12px;
+}
+.cd-add-cust:hover {
+  background: #fdecea;
+}
+.cd-add-cust:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
 }
 .cd-item {
   display: grid;
@@ -786,6 +821,13 @@ onUnmounted(() => {
 }
 .cd--premium .cd-img--cust {
   color: #d8bd84;
+}
+.cd--premium .cd-add-cust {
+  color: #d8bd84;
+  border-color: rgba(216, 189, 132, 0.5);
+}
+.cd--premium .cd-add-cust:hover {
+  background: rgba(216, 189, 132, 0.1);
 }
 .cd--premium .cd-name {
   font-family: "Cormorant Variable", Georgia, serif;

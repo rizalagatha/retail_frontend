@@ -10,6 +10,10 @@ import { PAMERAN_KODE } from "@/composables/useKiosk";
 import { useCartStore, type CartLineInput } from "@/stores/cartStore";
 import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
 
+import "@fontsource-variable/cormorant";
+import "@fontsource-variable/cormorant/wght-italic.css";
+import "@fontsource-variable/jost";
+
 interface StoreItem {
   kode: string;
   nama: string;
@@ -1036,10 +1040,8 @@ onUnmounted(() => {
     </Teleport>
 
     <v-dialog :model-value="!!bentrok" max-width="380" @update:model-value="bentrok = null">
-      <v-card v-if="bentrok">
-        <v-card-title class="text-subtitle-1 font-weight-bold" style="color: #b71c1c">
-          Ganti store?
-        </v-card-title>
+      <v-card v-if="bentrok" class="st-dlg" :class="{ 'st-dlg--premium': fromPremium }">
+        <v-card-title class="st-dlg-title">Ganti store?</v-card-title>
         <v-card-text>
           Keranjangmu berisi barang dari <b>{{ cart.tokoNama }}</b
           >. Satu keranjang hanya untuk satu store. Kosongkan lalu mulai dari
@@ -1048,8 +1050,13 @@ onUnmounted(() => {
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="bentrok = null">Batal</v-btn>
-          <v-btn variant="flat" color="#b71c1c" class="text-white" @click="kosongkanLaluTambah">
+          <v-btn variant="text" class="st-dlg-cancel" @click="bentrok = null">Batal</v-btn>
+          <v-btn
+            variant="flat"
+            :color="fromPremium ? '#d8bd84' : '#b71c1c'"
+            :class="fromPremium ? 'st-dlg-ok' : 'text-white'"
+            @click="kosongkanLaluTambah"
+          >
             Kosongkan dan tambah
           </v-btn>
         </v-card-actions>
@@ -1445,6 +1452,33 @@ onUnmounted(() => {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: #b71c1c;
+}
+
+/* Dialog Ganti store */
+.st-dlg-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #b71c1c;
+}
+.st-dlg--premium {
+  color: #f3e8d2 !important;
+  background: #120a08 !important;
+  border: 1px solid rgba(216, 189, 132, 0.35);
+}
+.st-dlg--premium .st-dlg-title {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #e6cf98;
+}
+.st-dlg--premium :deep(.v-card-text) {
+  color: rgba(243, 232, 210, 0.85);
+}
+.st-dlg--premium .st-dlg-cancel {
+  color: #d8bd84 !important;
+}
+.st-dlg-ok {
+  color: #1a0d0b !important;
 }
 
 /* ===== Tema Premium (datang dari halaman Premium) ===== */

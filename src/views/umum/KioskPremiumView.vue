@@ -137,7 +137,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="pm">
+  <div class="pm" :class="{ 'pm--kiosk': isKiosk }">
     <span
       v-for="(p, n) in dust"
       :key="n"
@@ -478,7 +478,8 @@ onUnmounted(() => {
   margin: 18px 0 0;
   overflow: hidden;
   font-family: var(--pm-serif);
-  font-size: clamp(48px, 5.6vw, 104px);
+  font-size: clamp(40px, 4vw, 72px);
+  text-transform: none;
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.01em;
@@ -507,7 +508,9 @@ onUnmounted(() => {
 .pm-tag {
   margin: 14px 0 0;
   font-family: var(--pm-serif);
-  font-size: clamp(24px, 2.3vw, 40px);
+  font-size: clamp(20px, 1.7vw, 30px);
+  text-transform: none;
+  letter-spacing: 0;
   font-style: italic;
   line-height: 1.3;
   color: var(--pm-gold);
@@ -525,9 +528,11 @@ onUnmounted(() => {
 .pm-desc {
   max-width: 46ch;
   margin: 0;
-  font-size: clamp(15px, 1.25vw, 21px);
+  font-size: clamp(15px, 1.05vw, 18px);
+  text-transform: none;
+  letter-spacing: 0;
   font-weight: 300;
-  line-height: 1.75;
+  line-height: 1.7;
   color: rgba(243, 232, 210, 0.84);
   animation-delay: 0.5s;
 }
@@ -549,7 +554,9 @@ onUnmounted(() => {
 }
 .pm-meta dd {
   margin: 6px 0 0;
-  font-size: clamp(14px, 1.1vw, 18px);
+  font-size: clamp(14px, 0.95vw, 16px);
+  text-transform: none;
+  letter-spacing: 0;
   line-height: 1.5;
 }
 .pm-cta {
@@ -851,6 +858,20 @@ onUnmounted(() => {
   .pm-meta div {
     max-width: none;
   }
+}
+
+/* Kiosk: layar sentuh dilihat dari jauh, ukuran besar dipertahankan */
+.pm--kiosk .pm-name {
+  font-size: clamp(48px, 5.6vw, 104px);
+}
+.pm--kiosk .pm-tag {
+  font-size: clamp(24px, 2.3vw, 40px);
+}
+.pm--kiosk .pm-desc {
+  font-size: clamp(15px, 1.25vw, 21px);
+}
+.pm--kiosk .pm-meta dd {
+  font-size: clamp(14px, 1.1vw, 18px);
 }
 
 @media (prefers-reduced-motion: reduce) {

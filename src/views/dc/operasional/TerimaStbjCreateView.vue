@@ -43,6 +43,7 @@ interface AllocationItem {
   kbs: number;
   kps: number;
   kpr: number;
+  kf1: number;
   total: number;
   [key: string]: unknown; // untuk kolom tambahan jika ada
 }
@@ -110,6 +111,7 @@ const allocationHeaders = [
   { title: "KBS", key: "kbs", align: "end", width: "70px" },
   { title: "KPS", key: "kps", align: "end", width: "70px" },
   { title: "KPR", key: "kpr", align: "end", width: "70px" },
+  { title: "KF1", key: "kf1", align: "end", width: "70px" },
   { title: "Total Alokasi", key: "total", align: "end", width: "90px" },
 ] as const;
 
@@ -141,10 +143,11 @@ const totalAllocation = computed(() => {
       acc.kbs += Number(item.kbs) || 0;
       acc.kps += Number(item.kps) || 0;
       acc.kpr += Number(item.kpr) || 0;
+      acc.kf1 += Number(item.kf1) || 0;
       acc.total += Number(item.total) || 0;
       return acc;
     },
-    { jumlah: 0, kdc: 0, kbs: 0, kps: 0, kpr: 0, total: 0 }
+    { jumlah: 0, kdc: 0, kbs: 0, kps: 0, kpr: 0, kf1: 0, total: 0 }
   );
 });
 
@@ -234,6 +237,7 @@ onMounted(async () => {
           | "kbs"
           | "kps"
           | "kpr"
+          | "kf1"
           | "k01"
           | "k02"
           | "k03"
@@ -249,6 +253,7 @@ onMounted(async () => {
         kbs: 0,
         kps: 0,
         kpr: 0,
+        kf1: 0,
 
         total: 0,
       })
@@ -266,7 +271,8 @@ watch(
   allocationItems,
   (newItems) => {
     newItems.forEach((item) => {
-      const totalAlokasiStore = (item.kbs || 0) + (item.kps || 0) + (item.kpr || 0);
+      const totalAlokasiStore =
+        (item.kbs || 0) + (item.kps || 0) + (item.kpr || 0) + (item.kf1 || 0);
       // hapus: k01, k02, k03, k04, k05, k06
       item.total = totalAlokasiStore;
       item.kdc = (item.jumlah || 0) - totalAlokasiStore;
@@ -512,6 +518,16 @@ watch(
                 class="text-end"
               />
             </template>
+            <template #[`item.kf1`]="{ item }">
+              <v-text-field
+                v-model.number="item.kf1"
+                type="number"
+                variant="underlined"
+                density="compact"
+                hide-details
+                class="text-end"
+              />
+            </template>
             <template #[`item.total`]="{ item }">
               <div class="text-end font-weight-bold">{{ item.total || 0 }}</div>
             </template>
@@ -534,6 +550,9 @@ watch(
                 </td>
                 <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
                   {{ totalAllocation.kpr.toLocaleString("id-ID") }}
+                </td>
+                <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
+                  {{ totalAllocation.kf1.toLocaleString("id-ID") }}
                 </td>
                 <td class="text-end font-weight-bold bg-blue-lighten-5 text-blue-darken-4">
                   {{ totalAllocation.total.toLocaleString("id-ID") }}

@@ -259,7 +259,7 @@ const drawCanvas = (targetCanvas: HTMLCanvasElement | null) => {
   if (!ctx) return;
 
   const scale = zoomScale.value * CM_TO_PX;
-  const rollWidth = formHeader.cabang === "K02" ? 30 : 60;
+  const rollWidth = 60;
   // Ubah 100 menjadi 20 atau 30 (sebagai batas minimal tampilan meja kerja saat kosong)
   const length = Math.max(formHeader.panjang || 0, calculatedPanjangSistem.value, 30);
 
@@ -536,7 +536,7 @@ const onDrag = (e: MouseEvent, targetCanvas: HTMLCanvasElement) => {
     const hitH = box.isRotated ? box.w : box.h;
 
     // Batas kanvas
-    const rollWidth = formHeader.cabang === "K02" ? 30 : 60;
+    const rollWidth = 60;
     const minX = MARGIN_CM; // Batas Kiri (2 cm)
     const maxRightEdge = rollWidth - MARGIN_CM; // Batas Kanan
 
@@ -622,7 +622,7 @@ const handleDoubleClick = (e: MouseEvent, targetCanvas: HTMLCanvasElement | null
       const newHitW = box.isRotated ? box.h : box.w;
 
       // Ukuran roll asli (30 cm atau 60 cm)
-      const rollWidth = formHeader.cabang === "K02" ? 30 : 60;
+      const rollWidth = 60;
 
       // Batas maksimal ke kanan (Lebar - 2 cm)
       const maxRight = rollWidth - MARGIN_CM;
@@ -657,7 +657,7 @@ const runAutoArrange = () => {
   }
 
   isLayoutLoading.value = true;
-  const rollWidth = formHeader.cabang === "K02" ? 30 : 60;
+  const rollWidth = 60;
   const padding = 0.5;
 
   // 1. Tentukan target jumlah dan ukuran spesifikasi dari tabel
@@ -1406,8 +1406,7 @@ const totalJumlahKaosSummaryVal = computed(() =>
   items.value.reduce((sum, item) => sum + (item.isStok ? 0 : Number(item.jumlah) || 0), 0)
 );
 const luasEstimasiLayoutVal = computed(() => {
-  const lebar = formHeader.cabang === "K02" ? 30 : 60;
-  return calculatedPanjangSistem.value * lebar;
+  return calculatedPanjangSistem.value * 60;
 });
 const efisiensiRatioVal = computed(() => {
   if (luasEstimasiLayoutVal.value === 0) return 0;
@@ -1612,7 +1611,7 @@ const tableHeaders = computed(() => {
       <div v-if="!isBordir" class="column-preview">
         <div class="desktop-form-section fill-height d-flex flex-column">
           <div class="section-title d-flex justify-space-between align-center">
-            <span>Simulasi Layout ({{ formHeader.cabang === "K02" ? "30" : "60" }} cm)</span>
+            <span>Simulasi Layout (60 cm)</span>
             <div class="d-flex align-center ga-1">
               <v-btn
                 icon="mdi-minus"
@@ -1649,9 +1648,7 @@ const tableHeaders = computed(() => {
               <!-- Label Lebar -->
               <div class="label-ruler-x" v-if="layoutPreview.length">
                 <div class="ruler-line"></div>
-                <div class="ruler-text">
-                  {{ formHeader.cabang === "K02" ? "30" : "60" }} cm (Lebar)
-                </div>
+                <div class="ruler-text">60 cm (Lebar)</div>
               </div>
 
               <canvas

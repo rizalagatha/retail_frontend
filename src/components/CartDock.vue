@@ -83,12 +83,28 @@ const totalPerkiraan = computed(() => subtotal.value + subtotalJasa.value);
 const galeri = computed(() => {
   const per = new Map<
     string,
-    { kode: string; nama: string; gambar: (typeof lines.value)[number]["gambar"]; qty: number }
+    {
+      kode: string;
+      nama: string;
+      gambar: (typeof lines.value)[number]["gambar"];
+      qty: number;
+      ukuran: { u: string; q: number }[];
+    }
   >();
   for (const l of lines.value) {
     const g = per.get(l.kode);
-    if (g) g.qty += l.qty;
-    else per.set(l.kode, { kode: l.kode, nama: l.nama, gambar: l.gambar, qty: l.qty });
+    if (g) {
+      g.qty += l.qty;
+      g.ukuran.push({ u: l.ukuran, q: l.qty });
+    } else {
+      per.set(l.kode, {
+        kode: l.kode,
+        nama: l.nama,
+        gambar: l.gambar,
+        qty: l.qty,
+        ukuran: [{ u: l.ukuran, q: l.qty }],
+      });
+    }
   }
   return [...per.values()];
 });
@@ -681,18 +697,28 @@ onUnmounted(() => {
               <div class="cd-gallery" aria-hidden="true">
                 <ul class="cd-gal" :class="{ 'cd-gal--solo': galeriSolo }">
                   <li v-for="g in galeri" :key="g.kode" class="cd-tile">
-                    <div class="cd-tile-img">
-                      <img
-                        v-if="g.gambar && !imgFailed[g.kode]"
-                        :src="g.gambar"
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        @error="imgFailed[g.kode] = true"
-                      />
-                      <ProductPlaceholder v-else />
+                    <div class="cd-tile-wrap">
+                      <div class="cd-tile-img">
+                        <img
+                          v-if="g.gambar && !imgFailed[g.kode]"
+                          :src="g.gambar"
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          @error="imgFailed[g.kode] = true"
+                        />
+                        <ProductPlaceholder v-else />
+                      </div>
+                      <span class="cd-badge">{{ g.qty }}</span>
                     </div>
-                    <span class="cd-badge">{{ g.qty }}</span>
+                    <div class="cd-tile-cap">
+                      <div class="cd-tile-name">{{ g.nama }}</div>
+                      <div class="cd-tile-sizes">
+                        <span v-for="s in g.ukuran" :key="s.u"
+                          ><b>{{ s.u }}</b> × {{ s.q }}</span
+                        >
+                      </div>
+                    </div>
                   </li>
                   <li v-for="c in custom" :key="c.id" class="cd-tile">
                     <div class="cd-tile-img cd-tile-img--cust">
@@ -1942,8 +1968,29 @@ onUnmounted(() => {
   .cd-gal--solo {
     grid-template-columns: minmax(260px, 360px);
   }
-  .cd-tile {
+  .cd-tile-wrap {
     position: relative;
+  }
+  .cd-tile-cap {
+    padding: 10px 2px 0;
+  }
+  .cd-tile-name {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--cd-ink);
+  }
+  .cd-tile-sizes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    margin-top: 4px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--cd-muted);
+  }
+  .cd-tile-sizes b {
+    color: var(--cd-ink);
   }
   .cd-tile-img {
     aspect-ratio: 3 / 4;
@@ -2207,6 +2254,11 @@ onUnmounted(() => {
 .cd--premium .cd-check input,
 .cd--premium .cd-pair-row input {
   accent-color: #d8bd84;
+}
+.cd--premium .cd-tile-name {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 @media (min-width: 900px) and (min-height: 500px) {

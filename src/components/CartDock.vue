@@ -79,6 +79,27 @@ const subJudul = computed(() => (sukses.value ? sukses.value.tokoNama : tokoNama
 const jumlahPcs = computed(() => lines.value.reduce((s, l) => s + l.qty, 0));
 const totalPerkiraan = computed(() => subtotal.value + subtotalJasa.value);
 
+// Galeri layar lebar: satu kotak per produk; bulatan = jumlah semua ukuran produk itu
+const galeri = computed(() => {
+  const per = new Map<
+    string,
+    { kode: string; nama: string; gambar: (typeof lines.value)[number]["gambar"]; qty: number }
+  >();
+  for (const l of lines.value) {
+    const g = per.get(l.kode);
+    if (g) g.qty += l.qty;
+    else per.set(l.kode, { kode: l.kode, nama: l.nama, gambar: l.gambar, qty: l.qty });
+  }
+  return [...per.values()];
+});
+const galeriSolo = computed(() => galeri.value.length + custom.value.length === 1);
+
+// Tujuan tombol di keranjang kosong (tema premium dibawa lewat query)
+const ruteStok = computed(() => ({
+  path: "/cek-stok-store",
+  query: premium.value ? { from: "premium" } : {},
+}));
+
 // Alasan tombol "Buat penawaran" belum bisa dipakai
 const alasanBelum = computed(() => {
   if (!lines.value.length) return "Tambahkan minimal satu kaos. Jasa custom dipasang pada kaos.";
@@ -633,16 +654,57 @@ onUnmounted(() => {
 
             <!-- ===== Kosong ===== -->
             <div v-else-if="tampil === 'kosong'" class="cd-empty">
-              <p>Keranjang masih kosong.</p>
-              <router-link to="/estimasi-custom" class="cd-add-cust" @click="tutup">
-                <v-icon size="18">mdi-palette-outline</v-icon>
-                Tambah jasa custom (sablon / bordir)
-              </router-link>
+              <div class="cd-empty-in">
+                <svg class="cd-empty-art" viewBox="0 0 96 96" aria-hidden="true">
+                  <path d="M48 40v-5a6 6 0 1 1 6 6" />
+                  <path d="M48 40L11 64q-4 3.5 0 7h74q4-3.5 0-7z" />
+                </svg>
+                <p class="cd-empty-eyebrow">Keranjang</p>
+                <h3 class="cd-empty-h">Belum ada kaos di sini</h3>
+                <p class="cd-empty-t">
+                  Pilih kaos dari stok store, lalu simpan sebagai penawaran. Jasa sablon atau bordir
+                  bisa ditambahkan setelah kaosnya ada.
+                </p>
+                <router-link :to="ruteStok" class="cd-btn" @click="tutup">
+                  <v-icon size="20">mdi-tshirt-crew-outline</v-icon>
+                  Pilih kaos
+                </router-link>
+                <router-link to="/estimasi-custom" class="cd-empty-alt" @click="tutup">
+                  Hitung jasa custom (sablon / bordir)
+                </router-link>
+              </div>
             </div>
 
             <!-- ===== Keranjang + form ===== -->
             <div v-else class="cd-body" :class="`cd-body--${step}`">
-              <div class="cd-left">
+              <!-- Galeri: hanya tampil di layar lebar; isinya sama dengan rincian di kanan -->
+              <div class="cd-gallery" aria-hidden="true">
+                <ul class="cd-gal" :class="{ 'cd-gal--solo': galeriSolo }">
+                  <li v-for="g in galeri" :key="g.kode" class="cd-tile">
+                    <div class="cd-tile-img">
+                      <img
+                        v-if="g.gambar && !imgFailed[g.kode]"
+                        :src="g.gambar"
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        @error="imgFailed[g.kode] = true"
+                      />
+                      <ProductPlaceholder v-else />
+                    </div>
+                    <span class="cd-badge">{{ g.qty }}</span>
+                  </li>
+                  <li v-for="c in custom" :key="c.id" class="cd-tile">
+                    <div class="cd-tile-img cd-tile-img--cust">
+                      <v-icon size="40">mdi-palette-outline</v-icon>
+                      <span class="cd-tile-lbl">{{ namaJasa(c) }}</span>
+                    </div>
+                    <span class="cd-badge">{{ cart.qtyCustom(c) }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="cd-lines">
                 <div v-if="refreshError" class="cd-warn">
                   Stok terbaru tidak bisa dimuat. Angka di bawah mungkin sudah berubah.
                 </div>
@@ -657,11 +719,12 @@ onUnmounted(() => {
 
                 <div class="cd-scroll">
                   <div class="cd-scroll-in">
+                    <h3 class="cd-sum-h">Rincian pesanan</h3>
                     <ul v-if="lines.length" class="cd-list">
                       <li
                         v-for="l in lines"
                         :key="`${l.kode}||${l.ukuran}`"
-                        class="cd-item"
+                        class="cd-item cd-item--prod"
                         :class="{ 'cd-item--warn': cart.bermasalah(l) }"
                       >
                         <div class="cd-img">
@@ -679,7 +742,8 @@ onUnmounted(() => {
                         <div class="cd-info">
                           <div class="cd-name">{{ l.nama }}</div>
                           <div class="cd-meta">
-                            Ukuran <b>{{ l.ukuran }}</b>
+                            Ukuran <b>{{ l.ukuran }}</b
+                            ><span class="cd-times"> × {{ l.qty }}</span>
                           </div>
                           <div class="cd-price">
                             {{ rp(cart.unitPrice(l)) }}
@@ -687,6 +751,7 @@ onUnmounted(() => {
                               {{ rp(l.harga) }}
                             </s>
                           </div>
+                          <div class="cd-lt">{{ rp(cart.unitPrice(l) * l.qty) }}</div>
                           <div v-if="l.stok <= 0" class="cd-stok">Stok habis</div>
                           <div v-else-if="l.qty > l.stok" class="cd-stok">
                             Melebihi stok tersedia
@@ -1123,12 +1188,69 @@ onUnmounted(() => {
 }
 
 .cd-empty {
-  padding: 40px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom, 0px));
+}
+.cd-empty-in {
+  width: 100%;
+  max-width: 380px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+}
+.cd-empty-art {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 24px;
+  fill: none;
+  stroke: var(--cd-accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cd-empty-eyebrow {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--cd-muted);
 }
-.cd-empty p {
+.cd-empty-h {
   margin: 0;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--cd-ink);
+}
+.cd-empty-t {
+  margin: 12px 0 28px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cd-muted);
+}
+.cd-empty-alt {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cd-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cd-empty-alt:focus-visible {
+  outline: 2px solid var(--cd-accent);
+  outline-offset: 2px;
 }
 .cd-warn {
   flex-shrink: 0;
@@ -1166,11 +1288,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
-.cd-left {
+.cd-lines {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+/* Galeri, bulatan jumlah, dan keterangan tambahan rincian hanya dipakai di layar lebar */
+.cd-gallery,
+.cd-times,
+.cd-lt {
+  display: none;
 }
 .cd-right {
   flex-shrink: 0;
@@ -1192,7 +1320,7 @@ onUnmounted(() => {
   padding: 10px 18px calc(14px + env(safe-area-inset-bottom, 0px));
 }
 /* Di layar sempit, langkah form menggantikan daftar */
-.cd-body--form .cd-left {
+.cd-body--form .cd-lines {
   display: none;
 }
 .cd-body--form .cd-right {
@@ -1766,21 +1894,102 @@ onUnmounted(() => {
   .cd-bar-title {
     font-size: 18px;
   }
+  /* Kiri: galeri gambar. Kanan: rincian (atas) dan ringkasan/form + tombol (bawah) */
   .cd-body {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(420px, 40vw, 560px);
+    grid-template-rows: minmax(0, 1fr) auto;
   }
-  .cd-left,
-  .cd-body--form .cd-left {
-    display: flex;
-    flex: 1;
+  .cd-gallery {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    display: block;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 32px;
+    background: var(--cd-bg2);
+  }
+  .cd-lines {
+    grid-column: 2;
+    grid-row: 1;
     min-width: 0;
+    border-left: 1px solid var(--cd-line);
   }
-  .cd-right,
+  .cd-right {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    max-height: 52vh;
+    border-left: 1px solid var(--cd-line);
+    border-top: 1px solid var(--cd-line);
+    background: var(--cd-bg);
+  }
   .cd-body--form .cd-right {
-    flex: 0 0 clamp(380px, 34vw, 480px);
+    grid-row: 1 / span 2;
     max-height: none;
     border-top: 0;
-    border-left: 1px solid var(--cd-line);
+  }
+  .cd-gal {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 240px));
+    justify-content: center;
+    gap: 20px;
+  }
+  .cd-gal--solo {
+    grid-template-columns: minmax(260px, 360px);
+  }
+  .cd-tile {
+    position: relative;
+  }
+  .cd-tile-img {
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--cd-bg);
+  }
+  .cd-tile-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 20%;
+  }
+  .cd-tile-img--cust {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    text-align: center;
+    color: var(--cd-accent);
+    background: var(--cd-soft);
+  }
+  .cd-tile-lbl {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .cd-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--cd-accent-ink);
+    background: var(--cd-accent);
+    box-shadow: 0 0 0 3px var(--cd-bg2);
   }
   .cd-right-scroll {
     padding: 24px 28px 0;
@@ -1798,22 +2007,46 @@ onUnmounted(() => {
     color: var(--cd-muted);
   }
   .cd-scroll-in {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 8px 12px 24px;
+    padding: 24px 28px 16px;
+  }
+  .cd-scroll-in .cd-sum-h {
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--cd-line);
   }
   .cd-warn {
     padding: 10px 28px;
   }
   .cd-item {
-    grid-template-columns: 88px 1fr auto;
+    grid-template-columns: 1fr auto;
     gap: 16px;
-    padding: 16px 16px;
+    padding: 16px 0;
   }
-  .cd-img {
-    width: 88px;
-    height: 88px;
-    border-radius: 12px;
+  /* Gambar sudah ada di galeri kiri */
+  .cd-item > .cd-img {
+    display: none;
+  }
+  .cd-times {
+    display: inline;
+    font-weight: 700;
+    color: var(--cd-ink);
+  }
+  .cd-item--prod .cd-price {
+    font-weight: 600;
+    color: var(--cd-muted);
+  }
+  .cd-item--prod .cd-price::after {
+    content: " / pcs";
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .cd-lt {
+    display: block;
+    margin-top: 6px;
+    font-size: 17px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--cd-price);
   }
   .cd-name {
     font-size: 15px;
@@ -1840,11 +2073,19 @@ onUnmounted(() => {
     min-height: 44px;
   }
   .cd-cust-h {
-    padding: 10px 16px;
-    margin-top: 8px;
+    margin-top: 16px;
+    padding: 14px 0 8px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: none;
+    border-top: 0;
   }
   .cd-add-cust {
-    margin: 18px 16px 4px;
+    margin: 18px 0 4px;
+  }
+  .cd-empty-h {
+    font-size: 30px;
   }
   .cd-total b {
     font-size: 22px;
@@ -1927,6 +2168,18 @@ onUnmounted(() => {
   font-family: "Cormorant Variable", Georgia, serif;
   font-size: 17px;
   font-weight: 600;
+}
+.cd--premium .cd-empty-h {
+  font-family: "Cormorant Variable", Georgia, serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.cd--premium .cd-tile-img {
+  background: #241714;
+}
+.cd--premium .cd-tile-img--cust {
+  background: #241714;
 }
 .cd--premium .cd-done-h {
   font-family: "Cormorant Variable", Georgia, serif;

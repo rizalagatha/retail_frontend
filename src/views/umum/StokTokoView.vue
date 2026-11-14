@@ -533,7 +533,7 @@ const onKey = (e: KeyboardEvent) => {
 const bentrok = ref<{ toko: StoreItem; line: CartLineInput } | null>(null);
 
 const bisaTambah = (kode: string, s: SizeStock) =>
-  s.harga > 0 && s.stok > 0 && cart.qtyOf(kode, s.ukuran) < MAX_QTY;
+  s.harga > 0 && cart.qtyOf(kode, s.ukuran) < MAX_QTY;
 
 const tambahKeranjang = (p: Product, s: SizeStock) => {
   const toko = currentStore.value;

@@ -341,7 +341,7 @@ export const useCartStore = defineStore("cart", () => {
       if (!bisaNaik(ada)) return "penuh";
       ada.qty += 1;
     } else {
-      if (lines.value.length >= MAX_LINES || input.stok < 1) return "penuh";
+      if (lines.value.length >= MAX_LINES) return "penuh";
       lines.value.push({ ...input, qty: 1 });
     }
     toko.value = t.kode;

@@ -7,7 +7,7 @@ import SiteFooter from "@/components/SiteFooter.vue";
 import ProductPlaceholder from "@/components/ProductPlaceholder.vue";
 import EmptyShelf from "@/components/EmptyShelf.vue";
 import { PAMERAN_KODE } from "@/composables/useKiosk";
-import { useCartStore, type CartLineInput } from "@/stores/cartStore";
+import { MAX_QTY, useCartStore, type CartLineInput } from "@/stores/cartStore";
 import { PREMIUM_FABRICS } from "@/data/premiumFabrics";
 
 import "@fontsource-variable/cormorant";
@@ -443,6 +443,11 @@ watch([filtered], () => (displayCount.value = 20));
 const totalState = (n: number) => (n <= 0 ? "out" : n <= LOW_TOTAL ? "low" : "ok");
 const sizeState = (n: number) => (n <= 0 ? "out" : n <= LOW_SIZE ? "low" : "ok");
 const sizeLabel = (n: number) => (n <= 0 ? "Habis" : n <= LOW_SIZE ? `Sisa ${n}` : `${n} pcs`);
+// Kartu hanya menampilkan status kasar; angka per ukuran baru muncul saat disorot, difokus, atau diketuk
+const totalLabel = (n: number) =>
+  n <= 0 ? "Habis" : n <= LOW_TOTAL ? "Stok terbatas" : "Tersedia";
+const ukuranTerbuka = ref<string | null>(null);
+const toggleUkuran = (u: string) => (ukuranTerbuka.value = ukuranTerbuka.value === u ? null : u);
 
 // --- Gambar ---
 const imgFailed = reactive<Record<string, boolean>>({});
@@ -501,6 +506,7 @@ const selectedKode = ref<string | null>(null);
 const selected = computed(() => products.value.find((p) => p.kode === selectedKode.value) ?? null);
 const openDetail = (p: Product) => {
   selectedKode.value = p.kode;
+  ukuranTerbuka.value = null;
   detailVisible.value = true;
 };
 const detailImages = computed<string[]>(() => {
@@ -527,7 +533,7 @@ const onKey = (e: KeyboardEvent) => {
 const bentrok = ref<{ toko: StoreItem; line: CartLineInput } | null>(null);
 
 const bisaTambah = (kode: string, s: SizeStock) =>
-  s.harga > 0 && s.stok > 0 && cart.qtyOf(kode, s.ukuran) < s.stok;
+  s.harga > 0 && s.stok > 0 && cart.qtyOf(kode, s.ukuran) < MAX_QTY;
 
 const tambahKeranjang = (p: Product, s: SizeStock) => {
   const toko = currentStore.value;
@@ -926,7 +932,7 @@ onUnmounted(() => {
               </div>
               <div v-else class="k-card-price k-card-price--na">Hubungi store untuk harga</div>
               <div class="st-stock" :class="`st-stock--${totalState(p.totalStok)}`">
-                <i></i>{{ p.totalStok > 0 ? `${p.totalStok} pcs` : "Habis" }}
+                <i></i>{{ totalLabel(p.totalStok) }}
               </div>
             </div>
           </article>
@@ -1004,13 +1010,25 @@ onUnmounted(() => {
                     Hubungi store untuk harga
                   </div>
 
-                  <div class="k-detail-label">Stok dan harga per ukuran</div>
+                  <div class="k-detail-label">Harga per ukuran</div>
+                  <p class="st-hint">
+                    <span class="st-hint--hover">Arahkan kursor ke ukuran</span>
+                    <span class="st-hint--touch">Ketuk ukuran</span>
+                    untuk melihat sisa stok.
+                  </p>
                   <div class="k-price-list">
                     <div
                       v-for="s in selected.sizes"
                       :key="s.ukuran"
                       class="k-price-row st-srow"
-                      :class="{ 'st-srow--out': s.stok <= 0, 'st-srow--cart': cartAktif }"
+                      :class="{
+                        'st-srow--out': s.stok <= 0,
+                        'st-srow--cart': cartAktif,
+                        'is-open': ukuranTerbuka === s.ukuran,
+                      }"
+                      :tabindex="cartAktif ? undefined : 0"
+                      @click="toggleUkuran(s.ukuran)"
+                      @keydown.enter.self="toggleUkuran(s.ukuran)"
                     >
                       <span class="k-size">{{ s.ukuran }}</span>
                       <span class="k-price-val" :class="{ 'k-price-val--na': !s.harga }">
@@ -1029,7 +1047,7 @@ onUnmounted(() => {
                         class="st-add"
                         :disabled="!bisaTambah(selected.kode, s)"
                         :aria-label="`Tambah ukuran ${s.ukuran} ke keranjang`"
-                        @click="tambahKeranjang(selected, s)"
+                        @click.stop="tambahKeranjang(selected, s)"
                       >
                         <v-icon size="18">mdi-cart-plus</v-icon>
                         <span v-if="cart.qtyOf(selected.kode, s.ukuran)" class="st-add-n">
@@ -1442,6 +1460,7 @@ onUnmounted(() => {
   font-size: 10.5px;
   font-weight: 800;
   white-space: nowrap;
+  transition: opacity 0.2s ease;
 }
 .st-pill--ok {
   color: #2e7d32;
@@ -1454,6 +1473,45 @@ onUnmounted(() => {
 .st-pill--out {
   color: #8a8a8a;
   background: #f0f0f0;
+}
+/* Angka stok per ukuran: tersembunyi sampai baris disorot, difokus, atau diketuk.
+   "Habis" tetap terlihat karena itu status, bukan jumlah. */
+.st-srow {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.st-srow:not(.st-srow--out) .st-pill {
+  opacity: 0;
+}
+.st-srow.is-open .st-pill,
+.st-srow:focus-within .st-pill {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .st-srow:hover .st-pill {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-pill {
+    transition: none;
+  }
+}
+.st-hint {
+  margin: -2px 0 8px;
+  font-size: 11px;
+  color: #8a7f7b;
+}
+.st-hint--hover {
+  display: none;
+}
+@media (hover: hover) {
+  .st-hint--hover {
+    display: inline;
+  }
+  .st-hint--touch {
+    display: none;
+  }
 }
 .st-srow--cart {
   grid-template-columns: auto 1fr auto auto;
@@ -1574,6 +1632,11 @@ onUnmounted(() => {
   font-weight: 600;
   color: #e6cf98;
 }
+.st-dlg--premium :deep(.v-card-title),
+.st-dlg--premium :deep(.v-card-text),
+.st-dlg--premium :deep(.v-card-actions) {
+  background: transparent !important;
+}
 .st-dlg--premium :deep(.v-card-text) {
   color: rgba(243, 232, 210, 0.85);
 }
@@ -1674,6 +1737,9 @@ onUnmounted(() => {
 
 /* Drawer detail (ter-teleport ke body, jadi selektornya lewat .k-detail--premium) */
 .k-detail--premium .st-code {
+  color: rgba(243, 232, 210, 0.5);
+}
+.k-detail--premium .st-hint {
   color: rgba(243, 232, 210, 0.5);
 }
 .k-detail--premium .st-pill--ok {

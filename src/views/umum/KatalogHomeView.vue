@@ -290,8 +290,8 @@ onUnmounted(() => {
         <div class="lp-copy">
           <h1 class="lp-title">Polos yang berkarakter.</h1>
           <p class="lp-sub">
-            Kaos polos yang dipilih per kain. Cek stok di store terdekat, susun daftar belanja, lalu
-            kirim lewat WhatsApp.
+            Kaos polos yang dipilih per kain. Pilih store terdekat, susun daftar belanja, lalu
+            simpan sebagai penawaran.
           </p>
           <div class="lp-cta">
             <router-link to="/cek-stok-store" class="lp-btn lp-btn--solid"
@@ -472,7 +472,7 @@ onUnmounted(() => {
         <div>
           <h2 id="lp-how-h" v-reveal class="lp-h2">Belanja dari store terdekat</h2>
           <p v-reveal="1" class="lp-lead">
-            Susun daftar belanja dari stok yang benar-benar ada di store pilihanmu.
+            Susun daftar belanja dari kain dan ukuran yang tersedia di store pilihanmu.
           </p>
           <router-link v-reveal="2" to="/cek-stok-store" class="lp-btn lp-btn--red lp-how-cta"
             >Pilih store</router-link
@@ -500,16 +500,16 @@ onUnmounted(() => {
             <span class="lp-num" aria-hidden="true">2</span>
             <div>
               <h3>Pilih kain dan ukuran</h3>
-              <p>Lihat harga dan stok per ukuran, lalu tambahkan ke keranjang.</p>
+              <p>Lihat harga per ukuran, lalu tambahkan ke keranjang.</p>
             </div>
           </li>
           <li v-reveal="2" class="lp-step">
             <span class="lp-num" aria-hidden="true">3</span>
             <div>
-              <h3>Kirim ke WhatsApp store</h3>
+              <h3>Simpan sebagai penawaran</h3>
               <p>
-                Daftar belanjamu terkirim sebagai pesan. Keranjang tidak menahan stok, ketersediaan
-                akhir dikonfirmasi store.
+                Isi nama, nomor HP, dan alamat. Penawaran berlaku 3 hari dan bisa dikonfirmasi lewat
+                WhatsApp store. Keranjang tidak menahan stok, ketersediaan akhir dikonfirmasi store.
               </p>
             </div>
           </li>

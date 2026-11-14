@@ -4,12 +4,15 @@ import { useRouter } from "vue-router";
 import LogoKaosan from "@/assets/logo.png";
 import SiteFooter from "@/components/SiteFooter.vue";
 import api from "@/services/api";
-import { useCartStore, type CustomLineInput } from "@/stores/cartStore";
+import { MAX_DIM_CM, MIN_DIM_CM, useCartStore, type CustomLineInput } from "@/stores/cartStore";
 import {
   JASA_CUSTOM,
   UKURAN_CETAK,
   WARNA_KAOS,
   hitungEstimasi,
+  jasaMemuat,
+  muatJasa,
+  type HasilEstimasi,
   type JasaCustom,
   type TitikCetak,
   type UkuranCetak,
@@ -22,27 +25,39 @@ const NAMA_PRESET = ["Dada Kiri", "Punggung", "Lengan Kiri", "Lengan Kanan", "Ke
 
 const rp = (n: number) => `Rp ${new Intl.NumberFormat("id-ID").format(Math.round(n) || 0)}`;
 
+// Jenis jasa dipilih setelah daftar tarif dari server tersedia
 const form = reactive({
-  jenis: JASA_CUSTOM[0].kode,
+  jenis: "",
   qty: 12,
   ukuran: "A4" as UkuranCetak,
   warna: "WARNA" as WarnaKaos,
   titiks: [{ nama: "Dada Kiri", panjang: 10, lebar: 12 }] as TitikCetak[],
 });
 
-const jasa = computed<JasaCustom>(
-  () => JASA_CUSTOM.find((j) => j.kode === form.jenis) ?? JASA_CUSTOM[0]
+watch(
+  () => JASA_CUSTOM.length,
+  (n) => {
+    if (n > 0 && !JASA_CUSTOM.some((j) => j.kode === form.jenis)) form.jenis = JASA_CUSTOM[0].kode;
+  },
+  { immediate: true }
 );
+
+const jasa = computed<JasaCustom | undefined>(() => JASA_CUSTOM.find((j) => j.kode === form.jenis));
 
 const basisHarga = (j: JasaCustom) =>
   j.mode === "luas" ? "Dihitung per cm²" : "Harga per ukuran cetak";
 
-const hasil = computed(() =>
-  hitungEstimasi(jasa.value, form.qty, form.ukuran, form.warna, form.titiks)
+const KOSONG: HasilEstimasi = { satuan: 0, total: 0, perTitik: [], catatan: "" };
+// Jumlah di halaman ini hanya untuk melihat estimasi. Jumlah di keranjang mengikuti kaos yang dipilih.
+const hasil = computed<HasilEstimasi>(() =>
+  jasa.value ? hitungEstimasi(jasa.value, form.qty, form.ukuran, form.warna, form.titiks) : KOSONG
 );
 const qtyValid = computed(() => form.qty >= 1);
 
-const luasOf = (t: TitikCetak) => Math.max(0, t.panjang || 0) * Math.max(0, t.lebar || 0);
+// Dimensi dibulatkan 2 desimal, sama dengan perhitungan server
+const dim = (n: number) => Math.round(Math.max(0, n || 0) * 100) / 100;
+const luasOf = (t: TitikCetak) => Math.round(dim(t.panjang) * dim(t.lebar) * 100) / 100;
+const dimOk = (n: number) => Number.isFinite(n) && n >= MIN_DIM_CM && n <= MAX_DIM_CM;
 
 const ubahQty = (delta: number) => {
   form.qty = Math.max(1, (Number(form.qty) || 0) + delta);
@@ -108,8 +123,9 @@ const tampilStatus = (ok: boolean, teks: string) => {
 
 const titikValid = computed(
   () =>
+    !!jasa.value &&
     form.titiks.length > 0 &&
-    (jasa.value.mode === "ukuran" || form.titiks.every((t) => luasOf(t) > 0))
+    (jasa.value.mode === "ukuran" || form.titiks.every((t) => dimOk(t.panjang) && dimOk(t.lebar)))
 );
 
 // Keranjang yang sudah berisi menentukan store; kalau kosong, pakai pilihan user
@@ -120,12 +136,15 @@ const tokoTujuan = computed(() => {
 });
 
 const tambah = () => {
-  if (!qtyValid.value) {
-    tampilStatus(false, "Isi jumlah pesanan minimal 1 pcs.");
+  if (!jasa.value) {
+    tampilStatus(false, "Tarif jasa belum termuat. Coba lagi sebentar.");
     return;
   }
   if (!titikValid.value) {
-    tampilStatus(false, "Isi panjang dan lebar setiap titik cetak.");
+    tampilStatus(
+      false,
+      `Isi panjang dan lebar setiap titik cetak (${MIN_DIM_CM}-${MAX_DIM_CM} cm).`
+    );
     return;
   }
   const t = tokoTujuan.value;
@@ -135,18 +154,24 @@ const tambah = () => {
   }
   const input: CustomLineInput = {
     jenis: form.jenis,
-    qty: Math.floor(form.qty),
+    nama: "",
     ukuran: form.ukuran,
     warna: form.warna,
     titiks: form.titiks.map((x) => ({ ...x })),
   };
   const res = cart.addCustom(t, input);
-  if (res === "ok") tampilStatus(true, `Masuk ke keranjang ${t.nama}.`);
+  if (res === "ok")
+    tampilStatus(true, `Masuk ke keranjang ${t.nama}. Pilih kaos untuk jasa ini di keranjang.`);
   else if (res === "penuh")
     tampilStatus(false, "Jasa custom di keranjang sudah penuh. Hapus salah satu dulu.");
   else if (res === "beda-toko")
     tampilStatus(false, "Keranjang berisi pesanan store lain. Kosongkan dulu.");
-  else tampilStatus(false, "Data jasa tidak valid. Periksa jumlah dan titik cetak.");
+  else if (res === "beda-jenis")
+    tampilStatus(
+      false,
+      "Satu pesanan hanya untuk satu jenis jasa. Hapus jasa di keranjang atau pesan terpisah."
+    );
+  else tampilStatus(false, "Data jasa tidak valid. Periksa titik cetak.");
 };
 </script>
 
@@ -174,7 +199,13 @@ const tambah = () => {
         </p>
       </div>
 
-      <div class="ec-grid">
+      <p v-if="!jasa && jasaMemuat" class="ec-store-note">Memuat tarif jasa...</p>
+      <p v-else-if="!jasa" class="ec-store-note">
+        Tarif jasa tidak bisa dimuat.
+        <button type="button" class="ec-link" @click="muatJasa()">Coba lagi</button>
+      </p>
+
+      <div v-if="jasa" class="ec-grid">
         <div class="ec-form">
           <section class="ec-field">
             <h2 class="ec-label">Jenis jasa</h2>
@@ -196,7 +227,7 @@ const tambah = () => {
           </section>
 
           <section class="ec-field">
-            <h2 class="ec-label">Jumlah pesanan</h2>
+            <h2 class="ec-label">Jumlah untuk estimasi</h2>
             <div class="ec-qty">
               <button type="button" aria-label="Kurangi jumlah" @click="ubahQty(-1)">
                 <v-icon size="18">mdi-minus</v-icon>
@@ -213,6 +244,9 @@ const tambah = () => {
                 <v-icon size="18">mdi-plus</v-icon>
               </button>
             </div>
+            <p class="ec-store-note">
+              Hanya untuk melihat estimasi. Jumlah di keranjang mengikuti kaos yang kamu pilih.
+            </p>
           </section>
 
           <template v-if="jasa.mode === 'ukuran'">
@@ -288,7 +322,8 @@ const tambah = () => {
                       v-model.number="t.panjang"
                       type="number"
                       inputmode="decimal"
-                      min="0"
+                      :min="MIN_DIM_CM"
+                      :max="MAX_DIM_CM"
                       class="ec-input"
                     />
                   </label>
@@ -299,7 +334,8 @@ const tambah = () => {
                       v-model.number="t.lebar"
                       type="number"
                       inputmode="decimal"
-                      min="0"
+                      :min="MIN_DIM_CM"
+                      :max="MAX_DIM_CM"
                       class="ec-input"
                     />
                   </label>

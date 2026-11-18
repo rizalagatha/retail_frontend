@@ -371,6 +371,22 @@ const resetForm = () => {
   showPriceOnLabel.value = false;
 };
 
+const fillMissingPrices = async (list: BarcodeItem[]) => {
+  await Promise.all(
+    list.map(async (item) => {
+      if (Number(item.harga) > 0 || !item.barcode) return;
+      try {
+        const res = await api.get<{ harga: number | null }>(
+          `/barcode-form/lookup/by-barcode/${item.barcode}`
+        );
+        item.harga = Number(res.data?.harga) || 0;
+      } catch {
+        // harga tetap 0, label dicetak tanpa harga
+      }
+    })
+  );
+};
+
 const save = async () => {
   isSaving.value = true;
   const validItems = items.value.filter((item) => item.kode && (item.jumlah || 0) > 0);
@@ -399,6 +415,9 @@ const save = async () => {
     toast.success(`Data barcode ${nomor.value} berhasil disimpan.`);
 
     // 3. Siapkan data untuk pratinjau cetak
+    if (showPriceOnLabel.value) {
+      await fillMissingPrices(validItems);
+    }
     const printOptions = {
       showPrice: showPriceOnLabel.value,
       printerType: selectedPrinter.value,

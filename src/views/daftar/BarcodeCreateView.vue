@@ -163,9 +163,15 @@ ${printFontFaces}
     text-overflow: ellipsis;
   }
   .item-size {
+    display: flex;
+    justify-content: space-between;
+    width: 95%;
     font-size: 4.5pt;
     font-family: 'LabelCondensed', Arial, sans-serif;
     margin-bottom: 0.1mm;
+  }
+  .item-price {
+    font-weight: bold;
   }
   .barcode-svg {
     width: 27mm !important;
@@ -236,9 +242,15 @@ const printStylesPostek = `
     text-overflow: ellipsis;
   }
   .item-size {
+    display: flex;
+    justify-content: space-between;
+    width: 95%;
     font-size: 4.5pt;
     font-family: 'LabelCondensed', Arial, sans-serif;
     margin-bottom: 0.1mm;
+  }
+  .item-price {
+    font-weight: bold;
   }
   .barcode-svg {
     width: 29mm !important;
@@ -888,21 +900,15 @@ onMounted(() => {
               >
                 <div v-for="item in chunk" :key="item.nourut" class="barcode-label">
                   <div class="item-info item-name">{{ item.nama }}</div>
-                  <div class="item-info item-size">{{ item.ukuran }}</div>
+                  <div class="item-info item-size">
+                    <span>{{ item.ukuran }}</span>
+                    <span v-if="item.charga" class="item-price">{{ item.charga }}</span>
+                  </div>
 
                   <svg class="barcode-svg" :data-barcode-value="item.barcode"></svg>
 
-                  <div class="label-footer" style="align-items: flex-start">
-                    <div style="display: flex; flex-direction: column; line-height: 1.1">
-                      <span>{{ item.barcode }}</span>
-                      <span
-                        v-if="item.charga"
-                        style="font-weight: normal; font-size: 4.5pt; margin-top: 1px"
-                      >
-                        {{ item.charga }}
-                      </span>
-                    </div>
-
+                  <div class="label-footer">
+                    <span>{{ item.barcode }}</span>
                     <span>{{ item.tgl }}</span>
                     <span>{{ item.ukuran }}</span>
                   </div>
@@ -1207,9 +1213,16 @@ onMounted(() => {
 }
 
 .item-size {
+  display: flex;
+  justify-content: space-between;
+  width: 95%;
   font-size: 9px;
   font-weight: normal;
   color: #000000 !important;
+}
+
+.item-price {
+  font-weight: bold;
 }
 
 .barcode-svg {

@@ -34,7 +34,9 @@ interface MasterDataItem {
   mutOutPesan?: number;
   mutOutProduksi?: number;
   saldoAkhir?: number;
-  // tambahkan properti lain yang muncul di API
+  mutKeBs?: number;
+  mutMasukBs?: number;
+  mutKeluarBs?: number;
 }
 interface DetailItem {
   id: string;
@@ -83,10 +85,11 @@ const filters = reactive({
   gudangDc: 0,
   kodeBarang: "",
   namaBarang: "",
+  jenisStok: "showroom",
 });
 
 // --- Header Tabel ---
-const headers = [
+const headersShowroom = [
   { title: "Kode", key: "kode", fixed: true, width: "100px" },
   { title: "Nama Barang", key: "nama", fixed: true, width: "200px" },
   { title: "Ukuran", key: "ukuran" },
@@ -102,7 +105,7 @@ const headers = [
     key: "mutInProduksi",
     align: "end",
     cellProps: { class: "text-green" },
-  }, // [BARU]
+  },
   { title: "Invoice", key: "invoice", align: "end" },
   { title: "Retur ke DC", key: "returKeDC", align: "end" },
   { title: "Kirim Mutasi", key: "mutStoreKirim", align: "end" },
@@ -112,7 +115,8 @@ const headers = [
     key: "mutOutProduksi",
     align: "end",
     cellProps: { class: "text-red" },
-  }, // [BARU]
+  },
+  { title: "Mutasi ke BS", key: "mutKeBs", align: "end", cellProps: { class: "text-red" } },
   {
     title: "Saldo Akhir",
     key: "saldoAkhir",
@@ -120,6 +124,41 @@ const headers = [
     cellProps: { class: "font-weight-bold" },
   },
 ] as const;
+
+const headersBs = [
+  { title: "Kode", key: "kode", fixed: true, width: "100px" },
+  { title: "Nama Barang", key: "nama", fixed: true, width: "200px" },
+  { title: "Ukuran", key: "ukuran" },
+  { title: "Stok Awal", key: "stokAwal", align: "end" },
+  { title: "Masuk BS", key: "mutMasukBs", align: "end", cellProps: { class: "text-green" } },
+  { title: "Keluar BS", key: "mutKeluarBs", align: "end", cellProps: { class: "text-red" } },
+  {
+    title: "Saldo Akhir",
+    key: "saldoAkhir",
+    align: "end",
+    cellProps: { class: "font-weight-bold" },
+  },
+] as const;
+
+const isBsTab = computed(() => filters.jenisStok !== "showroom");
+const headers = computed(() => (isBsTab.value ? headersBs : headersShowroom));
+
+const emptyState = computed(() => {
+  if (!filters.kodeBarang) {
+    return {
+      icon: "mdi-text-search-variant",
+      title: "Pilih Produk Terlebih Dahulu",
+      desc: 'Gunakan filter "Gudang" dan "Kode Barang" (F1) untuk memuat laporan kartu stok.',
+    };
+  }
+  return {
+    icon: "mdi-magnify-close",
+    title: isBsTab.value ? "Belum Ada Stok Bad Stock" : "Tidak Ada Mutasi",
+    desc: isBsTab.value
+      ? "Barang ini belum punya mutasi Bad Stock pada gudang dan periode yang dipilih."
+      : "Barang ini tidak punya stok maupun mutasi pada gudang dan periode yang dipilih.",
+  };
+});
 
 const canView = computed(() => authStore.can(MENU_ID, "view"));
 // Asumsi export memerlukan izin view
@@ -181,6 +220,7 @@ const expanded = ref([]);
 const fetchMasterData = async () => {
   isLoading.value = true;
   details.value = {};
+  expanded.value = [];
   try {
     const response = await api.get("/laporan-kartu-stok/product-list", { params: filters });
     masterData.value = response.data;
@@ -270,7 +310,7 @@ const exportData = (type: "header" | "detail") => {
 
     XLSX.writeFile(
       wb,
-      `LaporanKartuStok-Header-${filters.kodeBarang}-${filters.startDate}_sd_${filters.endDate}.xlsx`
+      `LaporanKartuStok-Header-${filters.jenisStok}-${filters.kodeBarang}-${filters.startDate}_sd_${filters.endDate}.xlsx`
     );
 
     toast.success("Export Header berhasil.");
@@ -320,7 +360,7 @@ const exportData = (type: "header" | "detail") => {
 
     XLSX.writeFile(
       wb,
-      `LaporanKartuStok-Detail-${filters.kodeBarang}-${filters.startDate}_sd_${filters.endDate}.xlsx`
+      `LaporanKartuStok-Detail-${filters.jenisStok}-${filters.kodeBarang}-${filters.startDate}_sd_${filters.endDate}.xlsx`
     );
 
     toast.success("Export Detail berhasil.");
@@ -349,13 +389,16 @@ onMounted(async () => {
   }
 });
 // 1. Watcher ini HANYA bereaksi pada perubahan filter utama
-//    (Tanggal, Gudang)
-watch([() => filters.startDate, () => filters.endDate, () => filters.gudang], () => {
-  // Hanya fetch jika kode barang SUDAH diisi
-  if (filters.kodeBarang) {
-    fetchMasterData();
+//    (Tanggal, Gudang, Jenis Stok)
+watch(
+  [() => filters.startDate, () => filters.endDate, () => filters.gudang, () => filters.jenisStok],
+  () => {
+    // Hanya fetch jika kode barang SUDAH diisi
+    if (filters.kodeBarang) {
+      fetchMasterData();
+    }
   }
-});
+);
 
 // 2. Watcher ini HANYA bereaksi pada perubahan Kode Barang
 watch(
@@ -376,7 +419,13 @@ watch(
     <template #header-actions>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
+          >
             Export
           </v-btn>
         </template>
@@ -400,70 +449,100 @@ watch(
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-label class="filter-label">Periode:</v-label>
-        <v-text-field
-          v-model="filters.startDate"
-          type="date"
+        <div class="filter-group">
+          <span class="filter-label">Periode:</span>
+          <v-text-field
+            v-model="filters.startDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="periode-field"
+          />
+          <span class="filter-sep">s/d</span>
+          <v-text-field
+            v-model="filters.endDate"
+            type="date"
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="periode-field"
+          />
+        </div>
+
+        <span class="filter-divider" />
+
+        <div class="filter-group">
+          <span class="filter-label">Gudang:</span>
+          <v-select
+            v-model="filters.gudang"
+            :items="gudangList"
+            item-title="nama"
+            item-value="kode"
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="gudang-field"
+            :menu-props="{ class: 'kr-red' }"
+            @update:model-value="onGudangSelected"
+          />
+        </div>
+
+        <span class="filter-divider" />
+
+        <v-btn-toggle
+          v-model="filters.jenisStok"
+          mandatory
           density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-        />
-        <v-label class="mx-2">s/d</v-label>
-        <v-text-field
-          v-model="filters.endDate"
-          type="date"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-        />
-        <v-select
-          v-model="filters.gudang"
-          :items="gudangList"
-          item-title="nama"
-          item-value="kode"
-          label="Gudang"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-          class="ms-4"
-          @update:model-value="onGudangSelected"
-        />
-        <v-text-field
-          v-model="filters.kodeBarang"
-          label="Kode Barang (F1)"
-          density="compact"
-          hide-details
-          variant="outlined"
-          style="max-width: 180px"
-          class="ms-4"
-          readonly
-          @click="openProductSearch"
-          @keydown.f1.prevent="openProductSearch"
-          clearable
-          @click:clear="clearProductFilter"
+          variant="text"
+          class="jenis-toggle"
         >
-          <template #append-inner><v-icon @click="openProductSearch">mdi-magnify</v-icon></template>
-        </v-text-field>
-        <v-text-field
-          v-model="filters.namaBarang"
-          readonly
-          filled
-          density="compact"
-          hide-details
-          style="max-width: 250px"
-          class="ms-1"
-        />
+          <v-btn value="showroom" size="small">Showroom</v-btn>
+          <v-btn value="bs_cetak" size="small">BS Cetak</v-btn>
+          <v-btn value="bs_produksi" size="small">BS Produksi</v-btn>
+        </v-btn-toggle>
+
+        <span class="filter-divider" />
+
+        <div class="filter-group">
+          <v-text-field
+            v-model="filters.kodeBarang"
+            placeholder="Kode Barang (F1)"
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="kode-field"
+            readonly
+            clearable
+            @click="openProductSearch"
+            @keydown.f1.prevent="openProductSearch"
+            @click:clear="clearProductFilter"
+          >
+            <template #append-inner>
+              <v-icon @click="openProductSearch">mdi-magnify</v-icon>
+            </template>
+          </v-text-field>
+          <v-text-field
+            v-model="filters.namaBarang"
+            placeholder="Nama barang"
+            readonly
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="nama-field"
+          />
+        </div>
+
         <v-spacer />
+
         <v-btn
-          @click="fetchMasterData"
           icon="mdi-refresh"
           variant="text"
           size="small"
           :loading="isLoading"
           title="Muat Ulang Data"
+          class="btn-refresh"
+          @click="fetchMasterData"
         />
       </div>
 
@@ -483,31 +562,29 @@ watch(
         >
           <template #no-data>
             <div class="empty-data-wrapper custom-empty-state">
-              <v-icon size="64" color="grey-lighten-2" class="mb-4">
-                mdi-text-search-variant
+              <v-icon size="64" color="#b71c1c" class="mb-4 empty-icon">
+                {{ emptyState.icon }}
               </v-icon>
-              <h4 class="text-h6 text-grey-darken-1">Pilih Produk Terlebih Dahulu</h4>
-              <p class="text-body-2 text-grey-lighten-1 mt-2">
-                Silakan gunakan filter "Gudang" dan "Kode Barang" (F1)
-                <br />
-                untuk memuat laporan kartu stok.
-              </p>
+              <h4 class="text-h6 empty-title">{{ emptyState.title }}</h4>
+              <p class="text-body-2 empty-desc mt-2">{{ emptyState.desc }}</p>
             </div>
           </template>
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length">
-                <div class="detail-container pa-2">
+              <td :colspan="columns.length" class="pa-0 expanded-cell">
+                <div class="detail-container">
                   <div class="detail-table-wrapper">
                     <div
                       v-if="loadingDetails.has(item.kode + (item.ukuran || ''))"
                       class="text-center pa-4"
                     >
-                      Memuat detail mutasi...
+                      <v-progress-circular indeterminate color="#b71c1c" size="24" />
+                      <div class="mt-2 text-caption">Memuat detail mutasi...</div>
                     </div>
 
                     <v-data-table
+                      v-else
                       :headers="detailHeaders"
                       :items="details[item.kode + (item.ukuran || '')]"
                       density="compact"
@@ -550,7 +627,332 @@ watch(
 </template>
 
 <style scoped>
+/* Layout full height + tema merah lokal (DESIGN.md 10.3) */
+.browse-content {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+}
+
+/* ══════════ TOMBOL HEADER ══════════ */
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════ FILTER ══════════ */
+.filter-section {
+  flex-shrink: 0;
+  padding: 8px 10px !important;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px !important;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-divider {
+  flex: none;
+  width: 1px;
+  height: 22px;
+  background-color: rgba(183, 28, 28, 0.2);
+}
+
+.filter-label,
+.filter-sep {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+  white-space: nowrap;
+}
+.filter-sep {
+  font-size: 11px;
+}
+
+/* Lebar field dikunci (!important: menimpa CSS global filter-section) */
+.filter-section .periode-field {
+  --w: 150px;
+}
+.filter-section .gudang-field {
+  --w: 180px;
+}
+.filter-section .kode-field {
+  --w: 170px;
+}
+.filter-section .nama-field {
+  --w: 240px;
+}
+.filter-section .periode-field,
+.filter-section .gudang-field,
+.filter-section .kode-field,
+.filter-section .nama-field {
+  flex: none !important;
+  width: var(--w) !important;
+  min-width: var(--w) !important;
+  max-width: var(--w) !important;
+}
+
+/* Global (.filter-section .v-input = flex) membuat .v-input__control menyusut ke isi.
+   Paksa control mengisi lebar field yang sudah dikunci di atas. */
+.filter-section .periode-field :deep(.v-input__control),
+.filter-section .gudang-field :deep(.v-input__control),
+.filter-section .kode-field :deep(.v-input__control),
+.filter-section .nama-field :deep(.v-input__control) {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Global memaksa input[type="date"] selebar 110px */
+.filter-section .periode-field :deep(input[type="date"]) {
+  width: 100% !important;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .gudang-field :deep(.v-field),
+.filter-section .kode-field :deep(.v-field),
+.filter-section .nama-field :deep(.v-field) {
+  width: 100%;
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .gudang-field :deep(.v-field__outline),
+.filter-section .kode-field :deep(.v-field__outline),
+.filter-section .nama-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .gudang-field :deep(.v-field--focused),
+.filter-section .kode-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.filter-section .gudang-field :deep(.v-field__append-inner .v-icon),
+.filter-section .kode-field :deep(.v-field__append-inner .v-icon) {
+  color: #b71c1c !important;
+}
+.filter-section .kode-field :deep(input) {
+  cursor: pointer;
+}
+.filter-section .nama-field :deep(.v-field) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+
+/* Toggle jenis stok */
+.jenis-toggle {
+  flex: none !important;
+  width: auto !important;
+  height: 32px !important;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.jenis-toggle :deep(.v-btn) {
+  flex: none !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 30px !important;
+  padding: 0 14px !important;
+  border-radius: 0 !important;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #b71c1c;
+}
+.jenis-toggle :deep(.v-btn + .v-btn) {
+  border-left: 1px solid rgba(183, 28, 28, 0.25);
+}
+.jenis-toggle :deep(.v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+.jenis-toggle :deep(.v-btn--active .v-btn__overlay) {
+  opacity: 0;
+}
+
+.btn-refresh {
+  color: #b71c1c !important;
+}
+
+/* ══════════ TABEL ══════════ */
+.table-container {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-table {
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-table :deep(.v-table__wrapper) {
+  flex-grow: 1;
+  height: 100% !important;
+}
+
+.desktop-table :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.desktop-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 40px !important;
+  white-space: nowrap;
+  border-bottom: 2px solid #8e0000 !important;
+}
+
+.desktop-table :deep(thead tr th .v-icon),
+.desktop-table :deep(thead tr th .v-data-table-header__sort-icon) {
+  color: #ffffff !important;
+}
+
+/* Sel data (sel baris expand dikecualikan supaya padding-nya tetap 0) */
+.desktop-table :deep(td:not(.expanded-cell)) {
+  font-size: 11px !important;
+  padding: 0 8px !important;
+  height: 36px !important;
+  white-space: nowrap;
+}
+
+/* Sel data (baris expand dan baris no-data dikecualikan) */
+.desktop-table :deep(tbody tr:not(.v-data-table-rows-no-data) > td:not(.expanded-cell)) {
+  font-size: 11px !important;
+  padding: 0 8px !important;
+  height: 36px !important;
+  white-space: nowrap;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+/* ══════════ EMPTY STATE ══════════ */
 .custom-empty-state {
   padding: 64px 32px;
+}
+.empty-icon {
+  opacity: 0.35;
+}
+.empty-title {
+  color: #8e0000;
+  font-weight: 700;
+}
+.empty-desc {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+/* ══════════ DETAIL (EXPAND) ══════════ */
+.detail-container {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+  background-color: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
+  padding: 16px;
+  width: fit-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-table-wrapper {
+  width: 100%;
+  max-width: 900px;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.detail-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 32px !important;
+}
+
+/* ══════════ FOOTER PAGING (milik AppDataTable) ══════════ */
+.desktop-table :deep(.custom-pagination-footer) {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+
+.desktop-table :deep(.items-per-page-select .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.items-per-page-select .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.pagination-text) {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+  border: none !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next .v-btn) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active .v-btn) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
 }
 </style>

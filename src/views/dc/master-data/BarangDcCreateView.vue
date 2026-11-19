@@ -34,6 +34,9 @@ interface Header {
   warna: string;
   warnaKode: string;
   kategoriProduk: string;
+  subKategori: string;
+  newArrival: boolean;
+  newUntil: string | null;
   status: number;
   logStok: "Y" | "N";
   bcdId: number;
@@ -94,6 +97,9 @@ const header = reactive<Header>({
   warna: "",
   warnaKode: "",
   kategoriProduk: "REGULER",
+  subKategori: "",
+  newArrival: false,
+  newUntil: null,
   status: 0,
   logStok: "Y",
   bcdId: 0,
@@ -105,10 +111,12 @@ const options = reactive<{
   jenisKaos: string[];
   tipe: string[];
   lengan: string[];
+  subKategori: string[];
 }>({
   jenisKaos: [],
   tipe: [],
   lengan: [],
+  subKategori: [],
 });
 const isLoading = ref(true);
 const isSaving = ref(false);
@@ -153,6 +161,9 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   const error = err as AxiosError<{ message?: string }>;
   return error.response?.data?.message || error.message || fallback;
 };
+
+// "2027-05-15" -> "15-05-2027"
+const formatTanggal = (iso: string | null) => (iso ? iso.split("-").reverse().join("-") : "");
 
 const generateNamaBarang = () => {
   const jk = header.jenisKaos ?? "";
@@ -236,6 +247,8 @@ const uploadImageToServer = async (kode: string): Promise<boolean> => {
 
     toast.error("Upload gagal: " + message);
     return false;
+  } finally {
+    isImageUploading.value = false;
   }
 };
 
@@ -255,6 +268,7 @@ const save = async () => {
   }
   if (!isEditMode.value) {
     // Validasi ini hanya untuk data baru
+    if (!header.subKategori) return toast.error("Sub kategori belum dipilih.");
     if (!header.jenisKaos) return toast.error("Jenis kaos kosong, tidak dapat disimpan.");
     if (!header.tipe) return toast.error("Tipe kaos kosong, tidak dapat disimpan.");
     if (!header.lengan) return toast.error("Lengan kaos kosong, tidak dapat disimpan.");
@@ -342,6 +356,9 @@ const resetForm = () => {
     warna: "",
     warnaKode: "",
     kategoriProduk: "REGULER",
+    subKategori: "",
+    newArrival: false,
+    newUntil: null,
     status: 0,
     logStok: "Y",
     bcdId: 0,
@@ -379,6 +396,9 @@ const loadDataForEdit = async (kode: string) => {
     header.warna = data.header.brg_warna;
     header.warnaKode = data.header.warnaKode;
     header.kategoriProduk = data.header.brg_ktgp;
+    header.subKategori = data.header.brg_subktgp ?? "";
+    header.newArrival = Boolean(data.header.isNewArrival);
+    header.newUntil = data.header.newUntil ?? null;
     header.status = data.header.brg_aktif;
     header.logStok = data.header.brg_logstok;
     imagePreview.value = data.header.gambarUrl; // Tampilkan gambar yang sudah ada
@@ -525,6 +545,7 @@ onMounted(async () => {
     options.jenisKaos = response.data.jenisKaos;
     options.tipe = response.data.tipe;
     options.lengan = response.data.lengan;
+    options.subKategori = response.data.subKategori;
     varianItems.value = response.data.ukuran.map((u: UkuranItem) => ({
       id: Math.random(),
       aktif: false,
@@ -597,6 +618,7 @@ watch(
         size="small"
         prepend-icon="mdi-content-save"
         color="primary"
+        class="kr-red"
         @click="save"
         :loading="isSaving"
         :disabled="!canSave"
@@ -606,6 +628,9 @@ watch(
       <v-btn
         size="small"
         prepend-icon="mdi-refresh"
+        variant="outlined"
+        color="primary"
+        class="kr-red"
         @click="
           showConfirmation(
             'Konfirmasi Batal',
@@ -619,6 +644,9 @@ watch(
       <v-btn
         size="small"
         prepend-icon="mdi-close"
+        variant="outlined"
+        color="primary"
+        class="kr-red"
         @click="
           showConfirmation(
             'Konfirmasi Tutup',
@@ -631,7 +659,7 @@ watch(
       </v-btn>
     </template>
 
-    <div class="form-grid-container">
+    <div class="form-grid-container kr-red">
       <div class="left-column">
         <div class="desktop-form-section header-section">
           <v-row dense>
@@ -681,6 +709,16 @@ watch(
                 variant="outlined"
                 density="compact"
                 hide-details
+            /></v-col>
+            <v-col cols="6"
+              ><v-select
+                label="Sub Kategori"
+                v-model="header.subKategori"
+                :items="options.subKategori"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :placeholder="isEditMode ? 'Belum diisi' : undefined"
             /></v-col>
             <v-col cols="6"
               ><v-select
@@ -738,17 +776,38 @@ watch(
             </v-col>
             <v-col cols="6">
               <label class="v-label text-caption">Status</label>
-              <v-radio-group v-model="header.status" inline hide-details>
+              <v-radio-group v-model="header.status" color="primary" inline hide-details>
                 <v-radio label="Aktif" :value="0" />
                 <v-radio label="Pasif" :value="1" />
               </v-radio-group>
             </v-col>
             <v-col cols="6">
               <label class="v-label text-caption">Ada Stok</label>
-              <v-radio-group v-model="header.logStok" inline hide-details>
+              <v-radio-group v-model="header.logStok" color="primary" inline hide-details>
                 <v-radio label="Ya" value="Y" />
                 <v-radio label="Tidak" value="N" />
               </v-radio-group>
+            </v-col>
+            <v-col cols="12">
+              <label class="v-label text-caption">Tag</label>
+              <div class="mt-1">
+                <v-chip
+                  v-if="header.newArrival"
+                  size="small"
+                  color="primary"
+                  variant="flat"
+                  prepend-icon="mdi-star-four-points"
+                >
+                  NEW ARRIVAL s/d {{ formatTanggal(header.newUntil) }}
+                </v-chip>
+                <v-chip v-else-if="header.newUntil" size="small" variant="tonal">
+                  New arrival berakhir {{ formatTanggal(header.newUntil) }}
+                </v-chip>
+                <span v-else-if="!isEditMode" class="text-caption text-medium-emphasis">
+                  Barang baru otomatis NEW ARRIVAL selama 6 bulan setelah disimpan.
+                </span>
+                <span v-else class="text-caption text-medium-emphasis">-</span>
+              </div>
             </v-col>
             <v-col cols="12" class="mt-2">
               <label class="v-label text-caption">Upload Gambar</label>
@@ -829,7 +888,7 @@ watch(
         </div>
       </div>
       <div class="right-column">
-        <div class="text-subtitle-1 font-weight-bold">Varian Ukuran</div>
+        <div class="section-title">Varian Ukuran</div>
         <div class="desktop-form-section varian-section">
           <v-data-table
             :headers="varianHeaders"
@@ -842,6 +901,7 @@ watch(
             <template #[`item.aktif`]="{ item }">
               <v-checkbox-btn
                 v-model="item.aktif"
+                color="primary"
                 hide-details
                 density="compact"
                 @update:model-value="handleAktifChange(item)"
@@ -928,7 +988,7 @@ watch(
           </v-data-table>
         </div>
 
-        <div class="text-subtitle-1 font-weight-bold mt-4">History Perubahan Harga Jual</div>
+        <div class="section-title mt-4">History Perubahan Harga Jual</div>
         <div class="desktop-form-section history-section">
           <v-data-table
             :headers="historyHeaders"
@@ -956,7 +1016,7 @@ watch(
     />
 
     <!-- Fullscreen Image Modal -->
-    <v-dialog v-model="isImageFullscreenVisible" max-width="90vw">
+    <v-dialog v-model="isImageFullscreenVisible" max-width="90vw" class="kr-red">
       <v-card>
         <v-toolbar density="compact" color="primary" dark>
           <v-toolbar-title>
@@ -1002,7 +1062,7 @@ watch(
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
+    <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent class="kr-red">
       <v-card>
         <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
         <v-card-text>{{ dialogConfirm.text }}</v-card-text>
@@ -1026,6 +1086,21 @@ watch(
 </template>
 
 <style scoped>
+/* Tema merah Kaosan Retail: menimpa warna primary Vuetify hanya di halaman ini */
+:global(.kr-red) {
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+}
+
+.section-title {
+  padding-left: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1f1a19;
+  border-left: 3px solid #b71c1c;
+}
+
 .form-grid-container {
   padding: 12px;
   height: 100%;
@@ -1139,16 +1214,13 @@ watch(
 }
 
 .desktop-table :deep(thead tr th) {
-  background-color: #0d47a1 !important;
-  /* Biru Tua */
+  background-color: #b71c1c !important;
   color: #ffffff !important;
-  /* Teks Putih */
   font-weight: bold !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-bottom: none !important;
-  /* Supaya lebih rapi */
 }
 </style>

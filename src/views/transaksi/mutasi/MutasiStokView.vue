@@ -155,6 +155,8 @@ const fetchCabangList = async () => {
 
 const fetchMasterData = async () => {
   loading.value = true;
+  selected.value = [];
+  expanded.value = [];
   try {
     const response = await api.get<MutasiStokHeader[]>("/mutasi-stok", { params: filters });
     masterData.value = response.data;
@@ -329,25 +331,31 @@ watch(filters, fetchMasterData, { deep: true });
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
-        color="primary"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-plus"
         @click="router.push({ name: 'MutasiStokCreate' })"
-        >Baru</v-btn
       >
+        Baru
+      </v-btn>
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-pencil"
         :disabled="!isSingleSelected"
         @click="router.push({ name: 'MutasiStokEdit', params: { nomor: selectedRow?.Nomor } })"
-        >Ubah</v-btn
       >
+        Ubah
+      </v-btn>
       <!-- <v-btn v-if="authStore.can(MENU_ID, 'delete')" size="small" prepend-icon="mdi-delete" color="error"
         :disabled="!isSingleSelected" @click="handleDelete">Hapus</v-btn> -->
       <v-btn
         v-if="authStore.can(MENU_ID, 'view')"
         size="small"
-        color="green"
+        variant="tonal"
+        class="btn-header-action"
         :disabled="!isSingleSelected"
         prepend-icon="mdi-printer"
         @click="printData"
@@ -356,7 +364,13 @@ watch(filters, fetchMasterData, { deep: true });
       </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props">
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
+          >
             Export
           </v-btn>
         </template>
@@ -373,26 +387,27 @@ watch(filters, fetchMasterData, { deep: true });
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-label class="filter-label">Filter Periode:</v-label>
+        <span class="filter-label">Filter Periode:</span>
         <v-text-field
           v-model="filters.startDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 180px"
+          class="periode-field"
         />
-        <v-label class="mx-2">s/d</v-label>
+        <span class="filter-sep">s/d</span>
         <v-text-field
           v-model="filters.endDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 180px"
+          class="periode-field"
         />
+
+        <span class="filter-label ms-4">Cabang:</span>
         <v-select
-          label="Cabang"
           v-model="filters.cabang"
           :items="cabangList"
           item-title="nama"
@@ -400,11 +415,20 @@ watch(filters, fetchMasterData, { deep: true });
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-4"
-          style="max-width: 200px"
+          class="cabang-field"
+          :menu-props="{ class: 'kr-red' }"
         />
+
         <v-spacer />
-        <v-btn @click="fetchMasterData" icon="mdi-refresh" variant="text" size="small" />
+
+        <v-btn
+          icon="mdi-refresh"
+          variant="text"
+          size="small"
+          :loading="loading"
+          class="btn-refresh"
+          @click="fetchMasterData"
+        />
       </div>
 
       <div class="table-container">
@@ -483,14 +507,12 @@ watch(filters, fetchMasterData, { deep: true });
 
           <template #expanded-row="{ columns, item }">
             <tr>
-              <td :colspan="columns.length" class="pa-0">
+              <td :colspan="columns.length" class="pa-0 expanded-cell">
                 <div class="detail-container">
                   <div class="detail-table-wrapper">
-                    <div
-                      v-if="loadingDetails.has(item.Nomor)"
-                      class="text-center pa-4 text-caption"
-                    >
-                      Memuat detail...
+                    <div v-if="loadingDetails.has(item.Nomor)" class="text-center pa-4">
+                      <v-progress-circular indeterminate color="#b71c1c" size="24" />
+                      <div class="mt-2 text-caption">Memuat detail...</div>
                     </div>
                     <v-data-table
                       v-else
@@ -542,35 +564,100 @@ watch(filters, fetchMasterData, { deep: true });
 </template>
 
 <style scoped>
-/* --- Layout Full Height --- */
+/* Layout full height + tema merah lokal (DESIGN.md 10.3) */
 .browse-content {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
+
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
+/* ══════════ TOMBOL HEADER ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════ FILTER ══════════ */
 .filter-section {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 12px;
-
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  gap: 8px;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
 }
 
-.filter-section :deep(.v-field),
-.filter-section :deep(.v-field--variant-outlined),
-.filter-section :deep(.v-field--variant-filled) {
-  background-color: rgb(var(--v-theme-surface)) !important;
+.filter-label,
+.filter-sep {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+.filter-sep {
+  font-size: 11px;
 }
 
-.filter-section:deep(.v-field--variant-filled .v-field__overlay) {
-  background-color: rgb(var(--v-theme-surface)) !important;
+.filter-section .periode-field {
+  flex: none;
+  width: 150px;
+}
+.filter-section .cabang-field {
+  flex: none;
+  width: 220px;
 }
 
+.filter-section .periode-field :deep(.v-field),
+.filter-section .cabang-field :deep(.v-field) {
+  width: 100%;
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .cabang-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .cabang-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.filter-section .cabang-field :deep(.v-field__append-inner .v-icon) {
+  color: #b71c1c !important;
+}
+
+.btn-refresh {
+  color: #b71c1c !important;
+}
+
+/* ══════════ TABEL ══════════ */
 .table-container {
   flex-grow: 1;
   min-height: 0;
@@ -579,8 +666,10 @@ watch(filters, fetchMasterData, { deep: true });
   overflow: hidden;
 }
 
-/* --- Tabel Style --- */
 .desktop-table {
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -598,25 +687,53 @@ watch(filters, fetchMasterData, { deep: true });
   min-width: 100%;
 }
 
-/* --- Header Resize --- */
-.resizable-header {
-  position: relative;
-
-  background-color: rgb(var(--v-theme-primary)) !important;
-  color: rgb(var(--v-theme-on-primary)) !important;
-
+.desktop-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
+  white-space: nowrap;
+  border-bottom: 2px solid #8e0000 !important;
+}
 
-  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
+.desktop-table :deep(thead tr th .v-icon),
+.desktop-table :deep(thead tr th .v-data-table-header__sort-icon) {
+  color: #ffffff !important;
+}
+
+/* Sel data (sel baris expand dikecualikan supaya padding-nya tetap 0) */
+.desktop-table :deep(td:not(.expanded-cell)) {
+  font-size: 11px !important;
   padding: 0 8px !important;
+  height: 36px !important;
+  white-space: nowrap;
+  cursor: pointer;
+}
 
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+/* Baris terpilih */
+.desktop-table :deep(tr.v-data-table__selected > td),
+.desktop-table :deep(tr.v-data-table__tr--selected > td) {
+  background-color: rgba(183, 28, 28, 0.12) !important;
+}
+
+/* Header kustom (resize kolom) */
+.resizable-header {
+  position: relative;
+  padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 
 .header-content {
@@ -646,10 +763,10 @@ watch(filters, fetchMasterData, { deep: true });
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid rgba(var(--v-theme-on-primary), 0.6);
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
 }
 
-/* --- Detail Sticky --- */
+/* ══════════ DETAIL (EXPAND) ══════════ */
 .detail-container {
   position: sticky;
   left: 0;
@@ -671,20 +788,56 @@ watch(filters, fetchMasterData, { deep: true });
 .detail-table-wrapper {
   width: 100%;
   max-width: 600px;
-
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  height: 32px !important;
 }
 
-.detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.06) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+/* ══════════ FOOTER PAGING (milik AppDataTable) ══════════ */
+.desktop-table :deep(.custom-pagination-footer) {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+
+.desktop-table :deep(.items-per-page-select .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.items-per-page-select .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+
+.desktop-table :deep(.pagination-text) {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+  border: none !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next .v-btn) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active .v-btn) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
 }
 </style>

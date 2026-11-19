@@ -23,6 +23,8 @@ interface DataTableHeader {
   sortable?: boolean;
 }
 
+type StatusAcc = "" | "MENUNGGU" | "ACC" | "DITOLAK";
+
 interface ProformaItem {
   nomor: string;
   tanggal: string;
@@ -31,6 +33,7 @@ interface ProformaItem {
   tempo: string;
   keterangan: string;
   closing: "Y" | "N";
+  statusAcc?: StatusAcc;
   [key: string]: unknown;
 }
 
@@ -67,6 +70,23 @@ const toast = useToast();
 const authStore = useAuthStore();
 const MENU_ID = "28";
 
+// Samakan dengan nama route ProformaPrintView di router (route-nya memakai params.nomor)
+const PRINT_ROUTE_NAME = "ProformaPrint";
+
+type StatusAccAktif = Exclude<StatusAcc, "">;
+
+const STATUS_ACC_META: Record<StatusAccAktif, { label: string; color: string }> = {
+  MENUNGGU: { label: "MENUNGGU ACC", color: "warning" },
+  ACC: { label: "ACC", color: "success" },
+  DITOLAK: { label: "DITOLAK", color: "error" },
+};
+
+// Menerima unknown karena item slot AppDataTable bertipe any
+const metaStatusAcc = (status: unknown): { label: string; color: string } | null =>
+  status === "MENUNGGU" || status === "ACC" || status === "DITOLAK"
+    ? STATUS_ACC_META[status]
+    : null;
+
 const masterData = ref<ProformaItem[]>([]);
 const details = ref<Record<string, ProformaDetailItem[]>>({});
 const loading = ref(true);
@@ -99,7 +119,11 @@ const selectedRow = computed<ProformaItem | null>(() =>
 );
 
 const canEdit = computed(() => isSingleSelected.value && selectedRow.value?.closing !== "Y");
-const canCetak = computed(() => isSingleSelected.value);
+// Cetak hanya setelah ACC. Status kosong = proforma lama (boleh); server tetap jadi penjaga akhir.
+const canCetak = computed(() => {
+  const row = selectedRow.value;
+  return row !== null && (!row.statusAcc || row.statusAcc === "ACC");
+});
 
 // --- Logic Filtering ---
 const columnFilters = ref<Record<string, ColumnFilter>>({});
@@ -281,6 +305,7 @@ const headers = computed<DataTableHeader[]>(() => [
   { title: "Tempo", key: "tempo", width: 100 },
   { title: "Keterangan", key: "keterangan", width: 250 },
   { title: "Closing", key: "closing", align: "center", width: 90 },
+  { title: "Status ACC", key: "statusAcc", align: "center", width: 130 },
 ]);
 
 const customFilterTitle = computed(
@@ -361,12 +386,12 @@ const handleEdit = () => {
   router.push({ name: "ProformaEdit", params: { id: selectedRow.value!.nomor } });
 };
 const handleCetak = () => {
-  if (!canCetak.value) return;
-  router.push({
-    name: "ProformaEdit",
-    params: { id: selectedRow.value!.nomor },
-    query: { print: "true" },
+  if (!canCetak.value || !selectedRow.value) return;
+  const { href } = router.resolve({
+    name: PRINT_ROUTE_NAME,
+    params: { nomor: selectedRow.value.nomor },
   });
+  window.open(href, "_blank");
 };
 
 const formatDateIndo = (dateString: string | Date) => {
@@ -793,6 +818,19 @@ onBeforeRouteLeave((to, from, next) => {
 
               <template v-else-if="header.key === 'nominal'">
                 {{ formatRupiah(Number(item[header.key] || 0)) }}
+              </template>
+
+              <template v-else-if="header.key === 'statusAcc'">
+                <v-chip
+                  v-if="metaStatusAcc(item.statusAcc)"
+                  size="x-small"
+                  :color="metaStatusAcc(item.statusAcc)?.color"
+                  variant="tonal"
+                  class="font-weight-bold"
+                >
+                  {{ metaStatusAcc(item.statusAcc)?.label }}
+                </v-chip>
+                <span v-else>-</span>
               </template>
 
               <template v-else-if="header.key === 'closing'">

@@ -6,8 +6,8 @@ import MasterProductSearchModal from "@/components/lookup/MasterProductSearchMod
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "@/stores/authStore";
 import { format } from "date-fns";
-import ExcelJS from "exceljs";
 import AppDataTable from "@/components/AppDataTable.vue";
+import type ExcelJS from "exceljs";
 import axios from "axios";
 
 interface DataTableHeader {
@@ -102,6 +102,9 @@ const filters = reactive({
 const gudangList = ref<Gudang[]>([]);
 const isProductSearchVisible = ref(false);
 const hasViewPermission = computed(() => authStore.can(MENU_ID, "view"));
+const isBsTab = computed(
+  () => filters.jenisStok === "bs_cetak" || filters.jenisStok === "bs_produksi"
+);
 const showBookedDetail = ref(false);
 const bookedDetailList = ref<BookedDetailItem[]>([]);
 const isLoadingBookedDetail = ref(false);
@@ -176,6 +179,15 @@ const sortSizes = (a: string, b: string) => {
   return a.localeCompare(b);
 };
 
+const headerStyle = (header: DataTableHeader) =>
+  header.width
+    ? {
+        width: header.width + "px",
+        minWidth: header.width + "px",
+        maxWidth: header.width + "px",
+      }
+    : undefined;
+
 // ─── Debounce search ──────────────────────────────────────────────────────────
 let searchTimeout: ReturnType<typeof setTimeout>;
 const onSearchInput = () => {
@@ -189,15 +201,21 @@ const clearSearch = () => {
 };
 
 // ─── Fetch data ───────────────────────────────────────────────────────────────
+// Penanda permintaan terbaru: respons lama (mis. tab Semua yang lambat) tidak
+// boleh menimpa tabel tab yang sedang aktif.
+let fetchSeq = 0;
+
 const fetchData = async () => {
+  const seq = ++fetchSeq;
   isLoading.value = true;
   try {
     const response = await api.get("/laporan-stok/real-time", { params: filters });
-    const isStoreViewCalc = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+    if (seq !== fetchSeq) return;
 
-    // [BARU] Hitung kolom Tersedia = Total - Pesanan Ready - Pesanan Booked
-    // (murni dihitung di frontend dari kolom yang sudah ada, tidak perlu
-    // query tambahan ke backend).
+    const isStoreViewCalc = filters.gudang !== "ALL" && filters.gudang !== "KDC" && !isBsTab.value;
+
+    // Kolom Tersedia = Total - Pesanan Ready - Pesanan Booked
+    // (dihitung di frontend dari kolom yang sudah ada).
     stokList.value = isStoreViewCalc
       ? response.data.map((item: StokItem) => ({
           ...item,
@@ -238,7 +256,7 @@ const fetchData = async () => {
         { title: "Total", key: "TOTAL", width: 100, class: "font-weight-bold bg-grey-lighten-4" },
       ];
 
-      if (isUserKDC && isViewKDC) {
+      if (isUserKDC && isViewKDC && !isBsTab.value) {
         newHeaders.push(
           {
             title: "Qty PL",
@@ -255,8 +273,8 @@ const fetchData = async () => {
         );
       }
 
-      // [BARU] Kolom khusus cabang store (bukan ALL, bukan KDC)
-      const isStoreView = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+      // Kolom khusus cabang store (bukan ALL, bukan KDC)
+      const isStoreView = filters.gudang !== "ALL" && filters.gudang !== "KDC" && !isBsTab.value;
       if (isStoreView) {
         newHeaders.push(
           {
@@ -280,7 +298,7 @@ const fetchData = async () => {
         );
       }
 
-      newHeaders.push({ title: "Buffer", key: "Buffer", width: 100 });
+      if (!isBsTab.value) newHeaders.push({ title: "Buffer", key: "Buffer", width: 100 });
       headers.value = newHeaders;
     } else {
       headers.value = [
@@ -290,10 +308,11 @@ const fetchData = async () => {
       ];
     }
   } catch (error) {
+    if (seq !== fetchSeq) return;
     toast.error("Gagal memuat data stok.");
     console.error(error);
   } finally {
-    isLoading.value = false;
+    if (seq === fetchSeq) isLoading.value = false;
   }
 };
 
@@ -366,17 +385,17 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       return;
     }
 
-    const ExcelJS = (await import("exceljs")).default;
-    const isKDC = authStore.user?.cabang === "KDC" && filters.gudang === "KDC";
-    const workbook = new ExcelJS.Workbook();
+    const { default: ExcelLib } = await import("exceljs");
+    const isKDC = authStore.user?.cabang === "KDC" && filters.gudang === "KDC" && !isBsTab.value;
+    const workbook = new ExcelLib.Workbook();
 
     // ── Helper styles ──────────────────────────────────────
     const applyHeaderStyle = (cell: ExcelJS.Cell) => {
-      cell.font = { bold: true, color: { argb: "FF0D47A1" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFE3F2FD" },
+        fgColor: { argb: "FFB71C1C" },
       };
       cell.alignment = { horizontal: "center", vertical: "middle" };
       cell.border = {
@@ -387,15 +406,15 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       };
     };
 
-    const applyDataStyle = (cell: ExcelJS.Cell, isRed = false) => {
+    const applyDataStyle = (cell: ExcelJS.Cell, isCritical = false) => {
       cell.border = {
         top: { style: "thin" },
         left: { style: "thin" },
         bottom: { style: "thin" },
         right: { style: "thin" },
       };
-      if (isRed) {
-        cell.font = { bold: true, color: { argb: "FFC62828" } };
+      if (isCritical) {
+        cell.font = { bold: true, color: { argb: "FFB26A00" } };
       }
     };
 
@@ -445,15 +464,14 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
         item.Total += Number(row.TOTAL || 0);
         item.PL += Number(row.PL_QTY || 0);
         item.Tersedia += Number(row.TOTAL2 || 0);
-        // [FIX] Backend sekarang balikin nilai PER UKURAN (bukan total kode
-        // yang sama di semua baris) — wajib DIJUMLAH biar total per kode
-        // tetap benar, bukan cuma nyisa nilai baris ukuran terakhir.
+        // Backend mengembalikan nilai PER UKURAN, jadi wajib DIJUMLAH
+        // supaya total per kode tetap benar.
         item.PesananReady += Number(row.PESANAN_READY || 0);
         item.PesananBooked += Number(row.PESANAN_BOOKED || 0);
       });
 
       const sortedSizes = Array.from(sizeSet).sort(sortSizes);
-      const isStoreExport = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+      const isStoreExport = filters.gudang !== "ALL" && filters.gudang !== "KDC" && !isBsTab.value;
 
       const colHeaders = [
         "Kategori",
@@ -466,7 +484,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       ];
       if (isKDC) colHeaders.push("Qty PL", "Tersedia");
       if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked", "Tersedia");
-      colHeaders.push("Buffer");
+      if (!isBsTab.value) colHeaders.push("Buffer");
 
       const finalData = Array.from(pivotedMap.values())
         .map((row) => {
@@ -505,16 +523,16 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       finalData.forEach((row) => {
         const bufferVal = Number(row["Buffer"]) || 0;
         const totalVal = Number(row["Total"]) || 0;
-        const isRed = bufferVal > 0 && totalVal < bufferVal;
+        const isCritical = !isBsTab.value && bufferVal > 0 && totalVal < bufferVal;
         const dataRow = sheet.addRow(colHeaders.map((h) => row[h] ?? 0));
-        dataRow.eachCell({ includeEmpty: true }, (cell) => applyDataStyle(cell, isRed));
+        dataRow.eachCell({ includeEmpty: true }, (cell) => applyDataStyle(cell, isCritical));
       });
 
       autoWidth(sheet);
 
       // ── VERTIKAL ───────────────────────────────────────────
     } else {
-      const isStoreExport = filters.gudang !== "ALL" && filters.gudang !== "KDC";
+      const isStoreExport = filters.gudang !== "ALL" && filters.gudang !== "KDC" && !isBsTab.value;
 
       const colHeaders = [
         "Kategori",
@@ -527,7 +545,7 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
       ];
       if (isKDC) colHeaders.push("Qty PL", "Tersedia");
       if (isStoreExport) colHeaders.push("Pesanan Ready", "Pesanan Booked", "Tersedia");
-      colHeaders.push("Buffer Min", "Buffer Max");
+      if (!isBsTab.value) colHeaders.push("Buffer Min", "Buffer Max");
 
       const finalData = rawData
         .map((row: RawStockRow) => {
@@ -572,13 +590,13 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
 
       // Data rows
       finalData.forEach((row: Record<string, string | number>) => {
-        // [BARU] Logika penanda merah (Kritis) di Excel berdasarkan Buffer Min
+        // Penanda kritis di Excel berdasarkan Buffer Min
         const minBufferVal = Number(row["Buffer Min"]) || 0;
         const qtyVal = Number(row["Qty"]) || 0;
-        const isRed = minBufferVal > 0 && qtyVal < minBufferVal;
+        const isCritical = !isBsTab.value && minBufferVal > 0 && qtyVal < minBufferVal;
 
         const dataRow = sheet.addRow(colHeaders.map((h) => row[h] ?? 0));
-        dataRow.eachCell({ includeEmpty: true }, (cell) => applyDataStyle(cell, isRed));
+        dataRow.eachCell({ includeEmpty: true }, (cell) => applyDataStyle(cell, isCritical));
       });
 
       autoWidth(sheet);
@@ -592,9 +610,9 @@ const exportToExcel = async (tipe: "horizontal" | "vertical") => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Stok_${tipe}_${filters.gudang === "ALL" ? "SEMUA" : filters.gudang}_${
-      filters.tanggal
-    }.xlsx`;
+    a.download = `Stok_${tipe}${isBsTab.value ? "_" + filters.jenisStok.toUpperCase() : ""}_${
+      filters.gudang === "ALL" ? "SEMUA" : filters.gudang
+    }_${filters.tanggal}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Export berhasil.");
@@ -635,11 +653,12 @@ const onProductSelected = (p: { kode: string; nama: string }) => {
 
 // ─── Row color ────────────────────────────────────────────────────────────────
 const getRowTextColor = (item: StokItem) => {
+  if (isBsTab.value) return "";
   const bufferVal = Number(item.Buffer) || 0;
   if (bufferVal <= 0) return "";
   const isKDC = authStore.user?.cabang === "KDC" && filters.gudang === "KDC";
   const checkVal = isKDC ? Number(item.TOTAL2) || 0 : Number(item.TOTAL) || 0;
-  return checkVal < bufferVal ? "text-red font-weight-bold" : "";
+  return checkVal < bufferVal ? "stok-kritis font-weight-bold" : "";
 };
 
 // ─── Watchers ─────────────────────────────────────────────────────────────────
@@ -670,7 +689,8 @@ onMounted(() => {
         <template v-slot:activator="{ props }">
           <v-btn
             size="small"
-            color="teal"
+            variant="tonal"
+            class="btn-header-action"
             prepend-icon="mdi-file-excel"
             append-icon="mdi-chevron-down"
             v-bind="props"
@@ -714,6 +734,7 @@ onMounted(() => {
             variant="outlined"
             class="fixed-input gudang-input"
             placeholder="Gudang"
+            :menu-props="{ class: 'kr-red' }"
           />
 
           <v-text-field
@@ -725,15 +746,25 @@ onMounted(() => {
             class="fixed-input tgl-input"
           />
 
-          <v-radio-group v-model="filters.jenisStok" inline density="compact" hide-details>
-            <v-radio label="Showroom" value="showroom" />
-            <v-radio label="Pesanan" value="pesanan" />
-            <v-radio label="Semua" value="semua" />
-          </v-radio-group>
+          <v-btn-toggle
+            v-model="filters.jenisStok"
+            mandatory
+            density="compact"
+            variant="text"
+            class="jenis-toggle"
+          >
+            <v-btn value="showroom" size="small">Showroom</v-btn>
+            <v-btn value="pesanan" size="small">Pesanan</v-btn>
+            <v-btn value="semua" size="small" title="Showroom + Pesanan, tidak termasuk Bad Stock">
+              Semua
+            </v-btn>
+            <v-btn value="bs_cetak" size="small">BS Cetak</v-btn>
+            <v-btn value="bs_produksi" size="small">BS Produksi</v-btn>
+          </v-btn-toggle>
 
           <v-spacer />
 
-          <span class="legend-stok">Stok Kurang dari Buffer</span>
+          <span v-if="!isBsTab" class="legend-stok">Stok Kurang dari Buffer</span>
 
           <v-btn
             icon="mdi-refresh"
@@ -801,7 +832,7 @@ onMounted(() => {
           :items="stokList"
           :loading="isLoading"
           density="compact"
-          class="desktop-table header-browse-blue"
+          class="desktop-table"
           fixed-header
           :items-per-page="-1"
         >
@@ -809,11 +840,7 @@ onMounted(() => {
             <tr>
               <template v-for="header in columns" :key="header.key">
                 <th
-                  :style="{
-                    width: header.width + 'px',
-                    minWidth: header.width + 'px',
-                    maxWidth: header.width + 'px',
-                  }"
+                  :style="headerStyle(header as DataTableHeader)"
                   class="resizable-header"
                   :class="{
                     'text-center': header.align === 'center',
@@ -829,7 +856,7 @@ onMounted(() => {
                   </div>
                   <div
                     class="resizer"
-                    @mousedown.stop="onResizeStart($event, header)"
+                    @mousedown.stop="onResizeStart($event, header as DataTableHeader)"
                     @click.stop
                   />
                 </th>
@@ -1027,16 +1054,41 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ── Layout ─────────────────────────────────────────────────────────────────── */
+/* ── Layout + tema merah lokal (DESIGN.md 10.3) ─────────────────────────────── */
 .browse-content {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
+
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+}
+
+/* ── Tombol header ──────────────────────────────────────────────────────────── */
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
 }
 
 /* ── Filter Section ──────────────────────────────────────────────────────────── */
-/* [UPDATE PENTING] Override CSS Global khusus untuk halaman Laporan Stok ini */
+.filter-section {
+  flex-shrink: 0;
+  display: flex;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+}
+
+/* Override CSS global (.filter-section) khusus halaman ini */
 .stok-filter-section {
   flex-direction: column !important;
   align-items: stretch !important;
@@ -1046,9 +1098,14 @@ onMounted(() => {
   height: auto !important;
 }
 
-/* Override paksaan dari Global CSS untuk Input yang kaku */
+/* Lebar input tetap. Control dipaksa mengisi: global membuat .v-input = flex,
+   sehingga .v-input__control menyusut ke isi. */
 .stok-filter-section :deep(.fixed-input) {
   flex: 0 0 auto !important;
+}
+.stok-filter-section :deep(.fixed-input .v-input__control) {
+  width: 100%;
+  min-width: 0;
 }
 .stok-filter-section :deep(.gudang-input) {
   width: 180px !important;
@@ -1059,8 +1116,12 @@ onMounted(() => {
 .stok-filter-section :deep(.kode-input) {
   width: 160px !important;
 }
+.stok-filter-section :deep(input[type="date"]) {
+  width: 100% !important;
+  text-align: center !important;
+}
 
-/* INI KUNCI UTAMA AGAR KOTAK SEARCH BISA MELAR: Nabrak CSS Global */
+/* Kotak search yang bisa melar */
 .stok-filter-section :deep(.flex-grow-input) {
   flex: 1 1 auto !important;
   width: 100% !important;
@@ -1070,7 +1131,6 @@ onMounted(() => {
 .stok-filter-section :deep(.flex-grow-input .v-field) {
   width: 100% !important;
 }
-
 .stok-filter-section :deep(.nama-input) {
   min-width: 250px !important;
 }
@@ -1078,64 +1138,90 @@ onMounted(() => {
   min-width: 300px !important;
 }
 
-/* Penyesuaian general field */
-.filter-section {
-  flex-shrink: 0;
-  display: flex;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.filter-section :deep(.v-field) {
+/* Field bergaya merah */
+.stok-filter-section :deep(.v-field) {
   font-size: 11px !important;
   min-height: 28px !important;
   height: 28px !important;
-  background-color: rgb(var(--v-theme-surface)) !important;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
 }
-
-.filter-section :deep(.v-field__input) {
+.stok-filter-section :deep(.v-field__outline) {
+  display: none !important;
+}
+.stok-filter-section :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.stok-filter-section :deep(.nama-input .v-field) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+}
+.stok-filter-section :deep(.v-field__input) {
   font-size: 11px !important;
   min-height: 28px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
-
-.filter-section :deep(.v-label) {
+.stok-filter-section :deep(.v-select__selection-text) {
   font-size: 11px !important;
 }
-
-.filter-section :deep(input[type="date"]) {
-  font-size: 11px !important;
-  padding: 0 !important;
-  text-align: center !important;
-}
-
-.filter-section :deep(.v-select__selection-text) {
-  font-size: 11px !important;
-}
-
-.filter-section :deep(.v-field__append-inner .v-icon),
-.filter-section :deep(.v-field__prepend-inner .v-icon) {
+.stok-filter-section :deep(.v-field__append-inner .v-icon),
+.stok-filter-section :deep(.v-field__prepend-inner .v-icon),
+.stok-filter-section :deep(.v-field__clearable .v-icon) {
+  color: #b71c1c !important;
   font-size: 14px !important;
+  opacity: 0.85;
+}
+.stok-filter-section :deep(.v-divider) {
+  border-color: rgba(183, 28, 28, 0.25) !important;
+  opacity: 1;
 }
 
-/* Radio group compact */
-.filter-section :deep(.v-radio-group .v-label),
-.filter-section :deep(.v-radio .v-label) {
+/* Toggle jenis stok (menimpa .filter-section .v-btn { width: 28px } milik global) */
+.stok-filter-section :deep(.jenis-toggle) {
+  flex: none !important;
+  width: auto !important;
+  height: 32px !important;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.stok-filter-section :deep(.jenis-toggle .v-btn) {
+  flex: none !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 30px !important;
+  padding: 0 14px !important;
+  border-radius: 0 !important;
   font-size: 11px !important;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #b71c1c;
 }
-.filter-section :deep(.v-radio-group .v-selection-control-group) {
-  gap: 4px !important;
+.stok-filter-section :deep(.jenis-toggle .v-btn + .v-btn) {
+  border-left: 1px solid rgba(183, 28, 28, 0.25);
 }
-.filter-section :deep(.v-selection-control) {
-  min-height: unset !important;
+.stok-filter-section :deep(.jenis-toggle .v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+.stok-filter-section :deep(.jenis-toggle .v-btn--active .v-btn__overlay) {
+  opacity: 0;
 }
 
-/* Legend */
+/* Tombol refresh */
+.stok-filter-section :deep(.v-btn--icon) {
+  color: #b71c1c !important;
+}
+
+/* Legend: peringatan memakai amber, bukan merah brand */
 .legend-stok {
   font-size: 11px;
   font-weight: 600;
-  color: #d32f2f;
+  color: #b26a00;
   white-space: nowrap;
 }
 .legend-stok::before {
@@ -1152,6 +1238,9 @@ onMounted(() => {
 }
 
 .desktop-table {
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -1169,16 +1258,24 @@ onMounted(() => {
   min-width: 100%;
 }
 
-/* ── Resizable Header ────────────────────────────────────────────────────────── */
-.resizable-header {
-  position: relative;
-  background-color: rgb(var(--v-theme-primary)) !important;
-  color: rgb(var(--v-theme-on-primary)) !important;
+/* ── Header tabel merah (pola BarangDcView) ──────────────────────────────────── */
+.desktop-table :deep(thead tr th),
+.desktop-table :deep(thead th.v-data-table__th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  border-bottom: 2px solid #8e0000 !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid rgb(var(--v-theme-primary)) !important;
+}
+.desktop-table :deep(thead tr th *),
+.desktop-table :deep(thead tr th .v-icon) {
+  color: #ffffff !important;
+}
+
+.resizable-header {
+  position: relative;
   padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
@@ -1211,23 +1308,39 @@ onMounted(() => {
 }
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid rgba(var(--v-theme-on-primary), 0.6);
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
 }
 
-/* ── Row colors ──────────────────────────────────────────────────────────────── */
-:deep(td.text-red) {
-  color: rgb(var(--v-theme-error)) !important;
-}
-:deep(td.text-red span),
-:deep(td.text-red div) {
-  color: rgb(var(--v-theme-error)) !important;
-}
-
+/* ── Baris data ──────────────────────────────────────────────────────────────── */
 .desktop-table :deep(td) {
   font-size: 11px !important;
   height: 30px !important;
   padding: 0 8px !important;
   color: rgb(var(--v-theme-on-surface));
+}
+
+/* Warna SOLID (bukan rgba) supaya kolom fixed tidak tembus saat scroll horizontal */
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: #fdf6f6;
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: #f9e3e3;
+}
+
+/* Stok di bawah buffer: amber */
+.desktop-table :deep(td.stok-kritis),
+.desktop-table :deep(td.stok-kritis span),
+.desktop-table :deep(td.stok-kritis div) {
+  color: #b26a00 !important;
+}
+
+/* Footer pagination (kalau AppDataTable menampilkannya) */
+.desktop-table :deep(.custom-pagination-footer) {
+  background-color: rgba(183, 28, 28, 0.04);
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+}
+.desktop-table :deep(.custom-pagination-footer .v-btn) {
+  color: #b71c1c;
 }
 
 /* ── Misc ────────────────────────────────────────────────────────────────────── */
@@ -1249,8 +1362,9 @@ onMounted(() => {
   opacity: 0.75;
 }
 
+/* Biru tetap: kalau mengikuti primary (kini merah), Ready tak bisa dibedakan dari Booked */
 .pesanan-ready-link {
-  color: rgb(var(--v-theme-primary));
+  color: #1565c0;
   text-decoration: underline;
   cursor: pointer;
   font-weight: 700;

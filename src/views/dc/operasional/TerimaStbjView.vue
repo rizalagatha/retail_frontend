@@ -23,28 +23,59 @@ interface DataTableHeader {
   sortable?: boolean;
 }
 
+type StatusTerima = "BELUM" | "SEBAGIAN" | "SEMUA";
+type TabAsal = "GABUNGAN" | "RETAIL" | "DC";
+type AsalBaris = "DC" | "RETAIL";
+type StatusPacking = "DITERIMA" | "SEBAGIAN" | "BELUM";
+
 interface MasterItem {
   nomor: string;
   tanggal: string;
-  nomorTerima: string | null;
-  tglTerima: string | null;
+  nomorTerima: string | null; // bisa lebih dari satu, dipisah koma
+  tglTerima: string | null; // tanggal penerimaan terakhir
   nomorTolak: string | null;
   tglTolak: string | null;
   asalGudang: string;
   keterangan: string;
-  statusPengajuan: "WAIT" | "ACC" | "TOLAK" | "";
+  jumlahPenerimaan: number;
+  totalQty: number;
+  diterima: number;
+  kekurangan: number;
+  persen: number;
+  statusTerima: StatusTerima;
   closing: "Y" | "N";
   [key: string]: unknown;
 }
 
 interface DetailItem {
-  spk: string;
+  nomor: string;
   packing: string;
-  gudang: string;
+  spk: string;
+  gudang: string | null;
+  asal: AsalBaris;
   kode: string;
   nama: string;
   ukuran: string;
   jumlah: number;
+  diterima: number;
+  selisih: number;
+  status: StatusPacking;
+  nomorTerima: string;
+  tglTerima: string | null;
+}
+
+interface PackingGroup {
+  packing: string;
+  spk: string;
+  gudang: string;
+  asal: AsalBaris | "CAMPUR";
+  jumlah: number;
+  diterima: number;
+  selisih: number;
+  status: StatusPacking;
+  nomorTerima: string;
+  tglTerima: string | null;
+  items: DetailItem[];
 }
 
 interface ColumnFilter {
@@ -82,6 +113,7 @@ const filters = reactive({
   endDate: format(new Date(), "yyyy-MM-dd"),
   gudang: "WH003", // Fixed value
   gudangNama: "GUDANG JADI KAOSAN", // Nama gudang
+  tab: "GABUNGAN" as TabAsal,
 });
 
 // --- State Filter & Resize ---
@@ -98,15 +130,19 @@ const selectedRow = computed<MasterItem | null>(() =>
   isSingleSelected.value ? selected.value[0] : null
 );
 
+// Terima boleh berulang selama masih ada kekurangan
 const canTerima = computed(
-  () => isSingleSelected.value && !selectedRow.value?.nomorTerima && !selectedRow.value?.nomorTolak
-);
-const canBatalTerima = computed(
   () =>
-    isSingleSelected.value && !!selectedRow.value?.nomorTerima && selectedRow.value?.closing !== "Y"
+    isSingleSelected.value &&
+    selectedRow.value?.statusTerima !== "SEMUA" &&
+    !selectedRow.value?.nomorTolak
 );
+// Tolak hanya untuk STBJ yang belum disentuh sama sekali
 const canTolak = computed(
-  () => isSingleSelected.value && !selectedRow.value?.nomorTerima && !selectedRow.value?.nomorTolak
+  () =>
+    isSingleSelected.value &&
+    selectedRow.value?.statusTerima === "BELUM" &&
+    !selectedRow.value?.nomorTolak
 );
 const canBatalTolak = computed(() => isSingleSelected.value && !!selectedRow.value?.nomorTolak);
 
@@ -116,22 +152,111 @@ const headers = ref<DataTableHeader[]>([
   { title: "Nomor STBJ", key: "nomor", width: 160, fixed: true },
   { title: "Tanggal", key: "tanggal", width: 110 },
   { title: "Asal Gudang", key: "asalGudang", width: 120 },
-  { title: "Nomor Terima", key: "nomorTerima", width: 150 },
+  { title: "Status Terima", key: "statusTerima", align: "center", width: 120 },
+  { title: "% Terima", key: "persen", align: "center", width: 130 },
+  { title: "Kekurangan", key: "kekurangan", align: "end", width: 110 },
+  { title: "Nomor Terima", key: "nomorTerima", width: 200 },
   { title: "Nomor Tolak", key: "nomorTolak", width: 150 },
   { title: "User Create", key: "userCreate", width: 120 },
   { title: "Closing", key: "closing", align: "center", width: 80 },
-  { title: "Pengajuan Ubah", key: "statusPengajuan", align: "center", width: 130 },
 ]);
 
-const detailHeaders = [
-  { title: "SPK", key: "spk", width: "150px" },
+const packingHeaders = [
   { title: "No. Packing", key: "packing", width: "170px" },
-  { title: "Gudang", key: "gudang", width: "140px" },
-  { title: "Kode", key: "kode", width: "120px" },
-  { title: "Nama Barang", key: "nama", width: "250px" },
-  { title: "Ukuran", key: "ukuran", width: "80px" },
-  { title: "Jumlah", key: "jumlah", align: "end", width: "100px" },
+  { title: "SPK", key: "spk", width: "150px" },
+  { title: "Jenis", key: "asal", align: "center", width: "100px" },
+  { title: "Gudang Asal", key: "gudang", width: "120px" },
+  { title: "Total Qty", key: "jumlah", align: "end", width: "90px" },
+  { title: "Diterima DC", key: "diterima", align: "end", width: "100px" },
+  { title: "Selisih", key: "selisih", align: "end", width: "80px" },
+  { title: "Status", key: "status", align: "center", width: "120px" },
+  { title: "No. Terima", key: "nomorTerima", width: "170px" },
+  { title: "Tgl Terima", key: "tglTerima", width: "100px" },
+  { title: "", key: "aksi", align: "center", sortable: false, width: "70px" },
 ] as const;
+
+const itemHeaders = [
+  { title: "Kode", key: "kode", width: "90px" },
+  { title: "Nama Barang", key: "nama" },
+  { title: "Ukuran", key: "ukuran", width: "60px" },
+  { title: "Qty STBJ", key: "jumlah", align: "end", width: "80px" },
+  { title: "Diterima", key: "diterima", align: "end", width: "80px" },
+  { title: "Selisih", key: "selisih", align: "end", width: "70px" },
+] as const;
+
+// --- Meta Status ---
+// Item slot bertipe longgar, jadi helper menerima unknown dan mempersempit sendiri
+const STATUS_TERIMA_META: Record<StatusTerima, { label: string; color: string }> = {
+  BELUM: { label: "Belum", color: "red" },
+  SEBAGIAN: { label: "Sebagian", color: "orange" },
+  SEMUA: { label: "Semua", color: "green" },
+};
+const STATUS_PACKING_META: Record<StatusPacking, { label: string; color: string }> = {
+  DITERIMA: { label: "Diterima", color: "green" },
+  SEBAGIAN: { label: "Sebagian", color: "orange" },
+  BELUM: { label: "Belum Diterima", color: "red" },
+};
+const metaStatusTerima = (s: unknown) =>
+  s === "BELUM" || s === "SEBAGIAN" || s === "SEMUA" ? STATUS_TERIMA_META[s] : null;
+const metaStatusPacking = (s: unknown) =>
+  s === "DITERIMA" || s === "SEBAGIAN" || s === "BELUM" ? STATUS_PACKING_META[s] : null;
+const ASAL_META: Record<AsalBaris | "CAMPUR", { label: string; color: string }> = {
+  DC: { label: "Stok DC", color: "grey-darken-1" },
+  RETAIL: { label: "SPK Retail", color: "orange-darken-4" },
+  CAMPUR: { label: "Campur", color: "grey-darken-1" },
+};
+const metaAsal = (a: unknown) =>
+  a === "DC" || a === "RETAIL" || a === "CAMPUR" ? ASAL_META[a] : null;
+
+const fmtQty = (n: unknown) => Number(n || 0).toLocaleString("id-ID");
+const fmtTgl = (v: string | null | undefined) => (v ? format(new Date(v), "dd/MM/yyyy") : "-");
+
+// --- Detail: dikelompokkan per packing (sumber: baris detail dari server) ---
+const groupedDetails = computed<Record<string, PackingGroup[]>>(() => {
+  const result: Record<string, PackingGroup[]> = {};
+  for (const [nomor, rows] of Object.entries(details.value)) {
+    const map = new Map<string, PackingGroup>();
+    for (const r of rows) {
+      if (filters.tab !== "GABUNGAN" && r.asal !== filters.tab) continue;
+      let g = map.get(r.packing);
+      if (!g) {
+        g = {
+          packing: r.packing,
+          spk: r.spk,
+          gudang: r.gudang ?? "DC",
+          asal: r.asal,
+          jumlah: 0,
+          diterima: 0,
+          selisih: 0,
+          status: "BELUM",
+          nomorTerima: r.nomorTerima,
+          tglTerima: r.tglTerima,
+          items: [],
+        };
+        map.set(r.packing, g);
+      }
+      g.jumlah += r.jumlah;
+      g.diterima += r.diterima;
+      g.items.push(r);
+      if (g.asal !== r.asal) g.asal = "CAMPUR";
+      if (!g.spk.split(", ").includes(r.spk)) g.spk += `, ${r.spk}`;
+    }
+    for (const g of map.values()) {
+      g.selisih = g.diterima - g.jumlah;
+      g.status = g.diterima >= g.jumlah ? "DITERIMA" : g.diterima > 0 ? "SEBAGIAN" : "BELUM";
+    }
+    result[nomor] = [...map.values()];
+  }
+  return result;
+});
+
+// Panel rincian barang per packing yang sedang dibuka (per STBJ)
+const panelPacking = reactive<Record<string, string | undefined>>({});
+const activeGroup = (nomor: string): PackingGroup | null => {
+  const key = panelPacking[nomor];
+  if (key === undefined) return null;
+  return groupedDetails.value[nomor]?.find((g) => g.packing === key) ?? null;
+};
 
 // --- Logic Filter Client-Side ---
 const filteredList = computed(() => {
@@ -332,30 +457,6 @@ const handleTolak = () => {
   router.push({ name: "TolakStbjCreate", query: { nomorKirim: row.nomor } });
 };
 
-const handleBatalTerima = () => {
-  const row = selectedRow.value; // [PERBAIKAN]
-  if (!canBatalTerima.value || !row) return;
-
-  showConfirmation(
-    "Konfirmasi Batal Terima",
-    `Yakin membatalkan penerimaan untuk STBJ dengan nomor ${row.nomor}?`,
-    async () => {
-      try {
-        const response = await api.delete("/terima-stbj/cancel-receipt", {
-          params: { nomor: row.nomor },
-        });
-        toast.success(response.data.message);
-        fetchMasterData();
-      } catch (error: unknown) {
-        // [PERBAIKAN]
-        let msg = "Gagal membatalkan penerimaan.";
-        if (axios.isAxiosError(error)) msg = error.response?.data?.message || msg;
-        toast.error(msg);
-      }
-    }
-  );
-};
-
 const handleBatalTolak = () => {
   const row = selectedRow.value; // [PERBAIKAN]
   if (!canBatalTolak.value || !row) return;
@@ -381,8 +482,9 @@ const handleBatalTolak = () => {
 };
 
 const getRowTextColor = (item: MasterItem) => {
-  if (!item.nomorTerima && !item.nomorTolak) return "text-red";
   if (!!item.nomorTolak) return "text-blue";
+  if (item.statusTerima === "BELUM") return "text-red";
+  if (item.statusTerima === "SEBAGIAN") return "text-orange-darken-2";
   return "";
 };
 
@@ -523,26 +625,19 @@ watch(filters, fetchMasterData, { deep: true });
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-check"
-        color="primary"
         @click="handleTerima"
         :disabled="!canTerima"
         >Terima</v-btn
       >
       <v-btn
-        v-if="authStore.can(MENU_ID, 'delete')"
-        size="small"
-        prepend-icon="mdi-undo"
-        color="error"
-        @click="handleBatalTerima"
-        :disabled="!canBatalTerima"
-        >Batal Terima</v-btn
-      >
-      <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-close"
-        color="blue"
         @click="handleTolak"
         :disabled="!canTolak"
         >Tolak</v-btn
@@ -550,15 +645,21 @@ watch(filters, fetchMasterData, { deep: true });
       <v-btn
         v-if="authStore.can(MENU_ID, 'delete')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-restore"
-        color="orange"
         @click="handleBatalTolak"
         :disabled="!canBatalTolak"
         >Batal Tolak</v-btn
       >
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
             >Export</v-btn
           >
         </template>
@@ -575,22 +676,23 @@ watch(filters, fetchMasterData, { deep: true });
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-divider vertical class="mx-2" />
-        <v-label class="filter-label">Tgl Kirim:</v-label>
+        <span class="filter-label">Tgl Kirim:</span>
         <v-text-field
           v-model="filters.startDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
+          class="periode-field"
         />
-        <v-label class="filter-label mx-2">s/d</v-label>
+        <span class="filter-sep">s/d</span>
         <v-text-field
           v-model="filters.endDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
+          class="periode-field"
         />
         <v-text-field
           label="Gudang"
@@ -606,38 +708,54 @@ watch(filters, fetchMasterData, { deep: true });
           density="compact"
           hide-details
           readonly
-          filled
+          variant="outlined"
           class="ms-2 field-gudang-nama"
         />
 
         <v-spacer />
 
-        <div class="d-flex align-center ga-4 text-caption me-4">
+        <div class="d-flex align-center ga-4 text-caption me-2">
           <div>
             <v-icon color="red" icon="mdi-square-rounded" size="small"></v-icon> Belum Diproses
+          </div>
+          <div>
+            <v-icon color="orange" icon="mdi-square-rounded" size="small"></v-icon> Sebagian
           </div>
           <div><v-icon color="blue" icon="mdi-square-rounded" size="small"></v-icon> Ditolak</div>
         </div>
 
         <v-btn
-          class="reset-filter-btn ms-2"
-          color="error"
           variant="tonal"
-          icon
+          size="small"
+          icon="mdi-filter-off"
+          class="btn-header-action ms-1"
+          title="Reset semua filter"
           @click="resetAllFilters"
-        >
-          <v-icon size="18">mdi-filter-off</v-icon>
-        </v-btn>
+        />
 
         <v-btn
           @click="fetchMasterData"
           icon="mdi-refresh"
           variant="text"
           size="small"
+          class="btn-refresh"
+          title="Muat ulang data"
           :loading="loading"
-          class="ms-2"
         />
       </div>
+
+      <v-tabs
+        v-model="filters.tab"
+        density="compact"
+        class="browse-tabs"
+        color="#b71c1c"
+        slider-color="#b71c1c"
+        :disabled="loading"
+      >
+        <v-tab value="GABUNGAN" prepend-icon="mdi-view-list-outline">Gabungan</v-tab>
+        <v-tab value="RETAIL" prepend-icon="mdi-storefront-outline">SPK Retail</v-tab>
+        <v-tab value="DC" prepend-icon="mdi-warehouse">Stok DC</v-tab>
+      </v-tabs>
 
       <div class="table-container">
         <AppDataTable
@@ -648,7 +766,7 @@ watch(filters, fetchMasterData, { deep: true });
           :loading="loading"
           item-value="nomor"
           density="compact"
-          class="desktop-table header-browse-blue"
+          class="desktop-table"
           fixed-header
           show-select
           show-expand
@@ -687,8 +805,8 @@ watch(filters, fetchMasterData, { deep: true });
                           v-bind="props"
                           size="16"
                           class="ms-1"
+                          :class="{ 'filter-active': isFilterActive(header.key) }"
                           @click.stop
-                          :color="isFilterActive(header.key) ? 'blue' : ''"
                           :icon="
                             filterType(header.key) === 'custom'
                               ? 'mdi-filter-cog'
@@ -712,6 +830,7 @@ watch(filters, fetchMasterData, { deep: true });
                         >
                           <template #prepend>
                             <v-checkbox-btn
+                              color="red-darken-4"
                               :model-value="columnFilters[header.key]?.values?.includes(val)"
                               density="compact"
                             />
@@ -722,7 +841,7 @@ watch(filters, fetchMasterData, { deep: true });
                         </v-list-item>
                         <v-divider />
                         <v-list-item @click="openCustomFilter(header.key)">
-                          <v-list-item-title class="text-caption text-primary"
+                          <v-list-item-title class="custom-filter-item"
                             >(Custom Filter...)</v-list-item-title
                           >
                         </v-list-item>
@@ -753,20 +872,36 @@ watch(filters, fetchMasterData, { deep: true });
             {{ format(parseISO(item.tanggal), "dd/MM/yyyy") }}
           </template>
 
-          <template #[`item.statusPengajuan`]="{ item }">
+          <template #[`item.statusTerima`]="{ item }">
             <v-chip
-              v-if="item.statusPengajuan"
+              v-if="metaStatusTerima(item.statusTerima)"
               size="x-small"
-              :color="
-                item.statusPengajuan === 'ACC'
-                  ? 'green'
-                  : item.statusPengajuan === 'TOLAK'
-                  ? 'red'
-                  : 'blue'
-              "
+              :color="metaStatusTerima(item.statusTerima)?.color"
+              class="font-weight-bold"
             >
-              {{ item.statusPengajuan }}
+              {{ metaStatusTerima(item.statusTerima)?.label }}
             </v-chip>
+          </template>
+
+          <template #[`item.persen`]="{ item }">
+            <v-progress-linear
+              :model-value="Number(item.persen) || 0"
+              :color="metaStatusTerima(item.statusTerima)?.color"
+              height="14"
+              rounded
+            >
+              <span class="persen-text">
+                {{
+                  Number(item.persen || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })
+                }}%
+              </span>
+            </v-progress-linear>
+          </template>
+
+          <template #[`item.kekurangan`]="{ item }">
+            <span :class="Number(item.kekurangan) > 0 ? 'text-red font-weight-bold' : ''">
+              {{ Number(item.kekurangan) > 0 ? fmtQty(item.kekurangan) : "-" }}
+            </span>
           </template>
 
           <template #[`item.closing`]="{ item }">
@@ -784,17 +919,158 @@ watch(filters, fetchMasterData, { deep: true });
                       <v-progress-circular indeterminate color="primary"></v-progress-circular>
                       <div class="mt-2 text-caption">Memuat detail...</div>
                     </div>
-                    <v-data-table
-                      v-else
-                      :headers="detailHeaders"
-                      :items="details[item.nomor]"
-                      density="compact"
-                      class="detail-table"
-                      :items-per-page="-1"
-                      hide-default-footer
-                    >
-                      <template #bottom></template>
-                    </v-data-table>
+
+                    <template v-else-if="groupedDetails[item.nomor]">
+                      <div class="detail-summary">
+                        <v-chip size="small" variant="tonal" color="blue">
+                          Total STBJ: {{ fmtQty(item.totalQty) }} pcs
+                        </v-chip>
+                        <v-chip size="small" variant="tonal" color="green">
+                          Diterima DC: {{ fmtQty(item.diterima) }} pcs
+                        </v-chip>
+                        <v-chip
+                          size="small"
+                          variant="tonal"
+                          :color="Number(item.kekurangan) > 0 ? 'red' : 'grey'"
+                        >
+                          Kekurangan: {{ fmtQty(item.kekurangan) }} pcs
+                        </v-chip>
+                        <v-chip size="small" variant="tonal" color="indigo">
+                          {{ item.jumlahPenerimaan }}x penerimaan
+                        </v-chip>
+                      </div>
+
+                      <div class="detail-body">
+                        <v-data-table
+                          :headers="packingHeaders"
+                          :items="groupedDetails[item.nomor]"
+                          item-value="packing"
+                          density="compact"
+                          class="detail-table"
+                          :items-per-page="-1"
+                          hide-default-footer
+                        >
+                          <template #[`item.packing`]="{ item: g }">
+                            {{ g.packing || "(tanpa packing)" }}
+                          </template>
+                          <template #[`item.asal`]="{ item: g }">
+                            <v-chip
+                              v-if="metaAsal(g.asal)"
+                              size="x-small"
+                              variant="tonal"
+                              class="font-weight-bold"
+                              :color="metaAsal(g.asal)?.color"
+                            >
+                              {{ metaAsal(g.asal)?.label }}
+                            </v-chip>
+                          </template>
+                          <template #[`item.jumlah`]="{ item: g }">{{ fmtQty(g.jumlah) }}</template>
+                          <template #[`item.diterima`]="{ item: g }">{{
+                            fmtQty(g.diterima)
+                          }}</template>
+                          <template #[`item.selisih`]="{ item: g }">
+                            <span :class="g.selisih < 0 ? 'text-red font-weight-bold' : ''">
+                              {{ g.selisih === 0 ? "0" : fmtQty(g.selisih) }}
+                            </span>
+                          </template>
+                          <template #[`item.status`]="{ item: g }">
+                            <v-chip
+                              v-if="metaStatusPacking(g.status)"
+                              size="x-small"
+                              :color="metaStatusPacking(g.status)?.color"
+                              variant="tonal"
+                              class="font-weight-bold"
+                            >
+                              {{ metaStatusPacking(g.status)?.label }}
+                            </v-chip>
+                          </template>
+                          <template #[`item.nomorTerima`]="{ item: g }">
+                            {{ g.nomorTerima || "-" }}
+                          </template>
+                          <template #[`item.tglTerima`]="{ item: g }">
+                            {{ fmtTgl(g.tglTerima) }}
+                          </template>
+                          <template #[`item.aksi`]="{ item: g }">
+                            <v-btn
+                              size="x-small"
+                              variant="tonal"
+                              class="btn-header-action"
+                              @click="panelPacking[item.nomor] = g.packing"
+                              >Detail</v-btn
+                            >
+                          </template>
+                          <template #bottom></template>
+                        </v-data-table>
+
+                        <div v-if="activeGroup(item.nomor)" class="detail-panel">
+                          <div class="d-flex align-center mb-2">
+                            <div class="font-weight-bold">
+                              Rincian Packing
+                              {{ activeGroup(item.nomor)?.packing || "(tanpa packing)" }}
+                            </div>
+                            <v-spacer />
+                            <v-btn
+                              icon="mdi-close"
+                              size="x-small"
+                              variant="text"
+                              @click="panelPacking[item.nomor] = undefined"
+                            />
+                          </div>
+                          <div class="panel-meta mb-2">
+                            <div>SPK: {{ activeGroup(item.nomor)?.spk }}</div>
+                            <div>Asal: {{ activeGroup(item.nomor)?.gudang }}</div>
+                            <div>No. Terima: {{ activeGroup(item.nomor)?.nomorTerima || "-" }}</div>
+                            <div>Tgl Terima: {{ fmtTgl(activeGroup(item.nomor)?.tglTerima) }}</div>
+                          </div>
+                          <v-data-table
+                            :headers="itemHeaders"
+                            :items="activeGroup(item.nomor)?.items ?? []"
+                            density="compact"
+                            class="detail-table"
+                            :items-per-page="-1"
+                            hide-default-footer
+                          >
+                            <template #[`item.jumlah`]="{ item: r }">{{
+                              fmtQty(r.jumlah)
+                            }}</template>
+                            <template #[`item.diterima`]="{ item: r }">{{
+                              fmtQty(r.diterima)
+                            }}</template>
+                            <template #[`item.selisih`]="{ item: r }">
+                              <span :class="r.selisih < 0 ? 'text-red font-weight-bold' : ''">
+                                {{ fmtQty(r.selisih) }}
+                              </span>
+                            </template>
+                            <template #bottom></template>
+                          </v-data-table>
+                          <div class="panel-total">
+                            <div class="font-weight-bold mb-1">Perbandingan Penerimaan</div>
+                            <div class="d-flex justify-space-between">
+                              <span>Total STBJ</span>
+                              <span>{{ fmtQty(activeGroup(item.nomor)?.jumlah) }} pcs</span>
+                            </div>
+                            <div class="d-flex justify-space-between">
+                              <span>Diterima DC</span>
+                              <span>{{ fmtQty(activeGroup(item.nomor)?.diterima) }} pcs</span>
+                            </div>
+                            <div class="d-flex justify-space-between font-weight-bold">
+                              <span>Selisih</span>
+                              <span
+                                :class="
+                                  (activeGroup(item.nomor)?.selisih ?? 0) < 0 ? 'text-red' : ''
+                                "
+                              >
+                                {{ fmtQty(activeGroup(item.nomor)?.selisih) }} pcs
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+
+                    <div v-else class="text-center text-caption pa-4">
+                      Tidak ada data detail untuk STBJ ini.
+                    </div>
                   </div>
                 </div>
               </td>
@@ -805,15 +1081,15 @@ watch(filters, fetchMasterData, { deep: true });
     </div>
 
     <v-dialog v-model="dialogConfirm.show" max-width="400px" persistent>
-      <v-card>
-        <v-card-title class="text-h6 font-weight-bold">{{ dialogConfirm.title }}</v-card-title>
-        <v-card-text> <span v-html="dialogConfirm.text"></span> </v-card-text>
+      <v-card class="dialog-card">
+        <v-card-title class="confirm-title">{{ dialogConfirm.title }}</v-card-title>
+        <v-card-text class="pt-4"> <span v-html="dialogConfirm.text"></span> </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="dialogConfirm.show = false">Batal</v-btn>
+          <v-btn variant="text" @click="dialogConfirm.show = false">Batal</v-btn>
           <v-btn
-            color="primary"
-            variant="tonal"
+            variant="flat"
+            class="btn-primary-red"
             @click="
               dialogConfirm.onConfirm();
               dialogConfirm.show = false;
@@ -825,28 +1101,31 @@ watch(filters, fetchMasterData, { deep: true });
     </v-dialog>
 
     <v-dialog v-model="customFilterDialog" max-width="350px">
-      <v-card>
-        <v-card-title class="text-subtitle-1 font-weight-bold">Custom Filter</v-card-title>
-        <v-card-text>
+      <v-card class="dialog-card">
+        <v-card-title class="confirm-title">Custom Filter</v-card-title>
+        <v-card-text class="pt-4">
           <v-select
             v-model="customFilter.operator"
             :items="['=', '!=', '>', '>=', '<', '<=', 'contains', 'starts', 'ends']"
             density="compact"
+            variant="outlined"
             hide-details
-            class="mb-2"
+            class="form-field mb-3"
           />
           <v-text-field
             v-model="customFilter.value"
             density="compact"
+            variant="outlined"
             hide-details
             autofocus
             placeholder="Value..."
+            class="form-field"
           />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn text @click="customFilterDialog = false">Batal</v-btn>
-          <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
+          <v-btn variant="text" @click="customFilterDialog = false">Batal</v-btn>
+          <v-btn variant="flat" class="btn-primary-red" @click="applyCustomFilter">Terapkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -854,22 +1133,120 @@ watch(filters, fetchMasterData, { deep: true });
 </template>
 
 <style scoped>
-/* Layout Full Height */
+/* --- Layout Full Height + tema merah lokal (DESIGN.md 10.3) --- */
 .browse-content {
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
+
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
 }
 
+/* ══════════ TOMBOL ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-primary-red:disabled {
+  opacity: 0.4;
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+.btn-refresh {
+  color: #b71c1c !important;
+}
+
+/* ══════════ FILTER ══════════ */
 .filter-section {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  gap: 8px;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
+}
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+.filter-sep {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+
+.filter-section .periode-field {
+  flex: none;
+  width: 150px;
+}
+
+.filter-section :deep(.v-field) {
+  --v-field-border-radius: 8px;
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  box-shadow: none !important;
+}
+.filter-section :deep(.v-field__outline) {
+  color: #b71c1c;
+  --v-field-border-opacity: 0.3;
+}
+.filter-section :deep(.v-field--focused) {
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.filter-section :deep(.v-field--focused .v-field__outline) {
+  --v-field-border-opacity: 1;
+}
+
+/* --- Field Gudang (readonly): abu tanpa aksen merah, override width global --- */
+.field-gudang {
+  flex-shrink: 0 !important;
+  width: 120px !important;
+}
+.field-gudang :deep(.v-input__control),
+.field-gudang :deep(.v-field) {
+  width: 100% !important;
+  min-width: 120px !important;
+}
+.field-gudang-nama {
+  flex-shrink: 0 !important;
+  width: 300px !important;
+}
+.field-gudang-nama :deep(.v-input__control),
+.field-gudang-nama :deep(.v-field) {
+  width: 100% !important;
+  min-width: 300px !important;
+}
+.filter-section .field-gudang :deep(.v-field),
+.filter-section .field-gudang-nama :deep(.v-field) {
+  background-color: rgba(var(--v-theme-on-surface), 0.05) !important;
+}
+.filter-section .field-gudang :deep(.v-field__outline),
+.filter-section .field-gudang-nama :deep(.v-field__outline) {
+  color: rgb(var(--v-theme-on-surface));
+  --v-field-border-opacity: 0.2;
 }
 
 .table-container {
@@ -880,7 +1257,19 @@ watch(filters, fetchMasterData, { deep: true });
   overflow: hidden;
 }
 
-/* Table Style */
+/* ══════════ TAB ASAL ══════════ */
+.browse-tabs {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(183, 28, 28, 0.15);
+}
+.browse-tabs :deep(.v-tab) {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ══════════ TABEL ══════════ */
 .desktop-table {
   height: 100%;
   display: flex;
@@ -890,6 +1279,8 @@ watch(filters, fetchMasterData, { deep: true });
 .desktop-table :deep(.v-table__wrapper) {
   flex-grow: 1;
   height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
 }
 
 .desktop-table :deep(table) {
@@ -897,22 +1288,30 @@ watch(filters, fetchMasterData, { deep: true });
   min-width: 100%;
 }
 
-/* Header Resize */
-.resizable-header {
+/* Selector berspesifisitas tinggi agar mengalahkan style global AppDataTable */
+.desktop-table :deep(thead tr th.resizable-header) {
   position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+  border-bottom: 2px solid #8e0000 !important;
   padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: pointer;
+}
+.desktop-table :deep(thead tr th.resizable-header *),
+.desktop-table :deep(thead tr th.resizable-header .v-icon) {
+  color: #ffffff !important;
+}
+/* Kolom yang sedang difilter: ikon kuning supaya terbaca di atas header merah */
+.desktop-table :deep(thead tr th.resizable-header .v-icon.filter-active) {
+  color: #ffd54f !important;
 }
 
 .header-content {
@@ -932,82 +1331,178 @@ watch(filters, fetchMasterData, { deep: true });
   cursor: col-resize;
   z-index: 10;
 }
-
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
 }
 
-/* --- DETAIL STICKY (POSISI KIRI) --- */
+/* Tint baris memakai background-image (bukan background-color) karena kolom
+   expand/nomor bersifat sticky: latar opaque bawaan harus tetap ada. */
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-image: linear-gradient(rgba(183, 28, 28, 0.03), rgba(183, 28, 28, 0.03));
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-image: linear-gradient(rgba(183, 28, 28, 0.08), rgba(183, 28, 28, 0.08));
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
+  transition: transform 0.2s;
+}
+
+.persen-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #000;
+}
+
+/* ══════════ DETAIL (EXPAND) ══════════ */
 .detail-container {
   position: sticky;
   left: 0;
   background-color: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-
-  /* Padding 16px agar rata kiri */
   padding: 16px;
-
   width: 100%;
   box-sizing: border-box;
-
-  /* Flex start agar konten mulai dari kiri */
   display: flex;
   justify-content: flex-start;
 }
 
 .detail-table-wrapper {
   width: 100%;
-  max-width: 1150px;
+  max-width: 1500px;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
   font-size: 11px !important;
   height: 32px !important;
 }
+.detail-table :deep(tbody tr > td) {
+  background-image: none !important;
+  font-size: 11px !important;
+  font-variant-numeric: tabular-nums;
+}
 
+.detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 8px 0;
+}
+
+.detail-body {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px;
+}
+.detail-body > .detail-table {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.detail-panel {
+  flex: 0 0 400px;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 11px;
+}
+.panel-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+}
+.panel-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(183, 28, 28, 0.35);
+}
+
+/* ══════════ FOOTER PAGING (milik AppDataTable) ══════════ */
+.desktop-table :deep(.custom-pagination-footer) {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
+}
+.desktop-table :deep(.items-per-page-select .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.items-per-page-select .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
+}
+.desktop-table :deep(.pagination-text) {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+  border: none !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next .v-btn) {
+  color: #b71c1c !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active .v-btn) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+
+/* ══════════ DIALOG ══════════ */
+.dialog-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.confirm-title {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.form-field :deep(.v-field) {
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.form-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.form-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+</style>
+
+<style>
+/* Menu dropdown di-teleport ke luar halaman, jadi tidak bisa memakai scoped */
 .filter-menu {
   max-height: 300px;
   overflow-y: auto;
 }
-
-/* --- TOMBOL RESET FILTER --- */
-.reset-filter-btn {
-  width: 40px;
-  height: 40px;
-
-  border-radius: 6px !important;
-  /* sama seperti input */
-  background-color: rgba(211, 47, 47, 0.15) !important;
+.filter-menu .v-list-item--active {
+  background-color: rgba(183, 28, 28, 0.1) !important;
+  color: #b71c1c !important;
 }
-
-.reset-filter-btn:hover {
-  background-color: rgba(211, 47, 47, 0.25) !important;
+.filter-menu .v-list-item:hover {
+  background-color: rgba(183, 28, 28, 0.06) !important;
 }
-
-/* --- Override Global CSS untuk Field Gudang --- */
-.field-gudang {
-  flex-shrink: 0 !important;
-  width: 120px !important;
-}
-.field-gudang :deep(.v-input__control),
-.field-gudang :deep(.v-field) {
-  width: 100% !important;
-  min-width: 120px !important;
-}
-
-.field-gudang-nama {
-  flex-shrink: 0 !important;
-  width: 300px !important;
-}
-.field-gudang-nama :deep(.v-input__control),
-.field-gudang-nama :deep(.v-field) {
-  width: 100% !important;
-  min-width: 300px !important;
+.filter-menu .custom-filter-item {
+  color: #b71c1c;
+  font-weight: 600;
 }
 </style>

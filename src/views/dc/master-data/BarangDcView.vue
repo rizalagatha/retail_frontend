@@ -26,6 +26,9 @@ interface MasterItem {
   kode: string;
   nama: string;
   kategori: string;
+  subKategori: string;
+  newArrival: "NEW" | "";
+  newUntil: string | null;
   date_create: string;
   otomatis: string;
   adaStok: "Y" | "N";
@@ -57,6 +60,8 @@ interface BarangExportHeader {
   Kode: string;
   "Nama Barang": string;
   Kategori: string;
+  SubKategori: string;
+  NewArrival: string;
   DateCreate?: string | Date;
   Otomatis: string;
   AdaStok: string;
@@ -135,6 +140,7 @@ const headers = ref<DataTableHeader[]>([
   { title: "Kode", key: "kode", width: 150, fixed: true },
   { title: "Nama Barang", key: "nama", width: 250, fixed: true },
   { title: "Kategori", key: "kategori", width: 120 },
+  { title: "Sub Kategori", key: "subKategori", width: 140 },
   { title: "Tgl Buat", key: "date_create", width: 110 },
   { title: "Otomatis", key: "otomatis", align: "center", width: 100 },
   { title: "Log Stok", key: "adaStok", align: "center", width: 100 },
@@ -420,10 +426,12 @@ const exportHeaderData = async () => {
       { header: "Kode", key: "Kode", width: 22, align: "left" },
       { header: "Nama Barang", key: "Nama Barang", width: 50, align: "left" },
       { header: "Kategori", key: "Kategori", width: 16, align: "left" },
+      { header: "Sub Kategori", key: "SubKategori", width: 18, align: "left" },
       { header: "Tgl Buat", key: "DateCreate", width: 13, align: "center" },
       { header: "Otomatis", key: "Otomatis", width: 10, align: "center" },
       { header: "Log Stok", key: "AdaStok", width: 10, align: "center" },
       { header: "Status", key: "Status", width: 12, align: "center" },
+      { header: "New Arrival s/d", key: "NewArrival", width: 16, align: "center" },
     ];
 
     sheet.columns = cols.map((c) => ({ width: c.width }));
@@ -660,24 +668,35 @@ watch(
       <v-btn
         v-if="authStore.can(MENU_ID, 'insert')"
         size="small"
+        variant="flat"
+        class="btn-primary-red"
         prepend-icon="mdi-plus"
-        color="primary"
         @click="handleNew"
-        >Baru</v-btn
       >
+        Baru
+      </v-btn>
       <v-btn
         v-if="authStore.can(MENU_ID, 'edit')"
         size="small"
+        variant="tonal"
+        class="btn-header-action"
         prepend-icon="mdi-pencil"
-        @click="handleEdit"
         :disabled="!isSingleSelected"
-        >Ubah</v-btn
+        @click="handleEdit"
       >
+        Ubah
+      </v-btn>
       <v-menu offset-y>
         <template v-slot:activator="{ props }">
-          <v-btn size="small" color="teal" prepend-icon="mdi-file-excel" v-bind="props"
-            >Export</v-btn
+          <v-btn
+            size="small"
+            variant="tonal"
+            class="btn-header-action"
+            prepend-icon="mdi-file-excel"
+            v-bind="props"
           >
+            Export
+          </v-btn>
         </template>
         <v-list density="compact">
           <v-list-item @click="exportData('header')"
@@ -692,28 +711,29 @@ watch(
 
     <div class="browse-content">
       <div class="filter-section">
-        <v-label class="filter-label">Tgl Buat:</v-label>
+        <span class="filter-label">Tgl Buat:</span>
         <v-text-field
           v-model="filters.startDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 150px"
+          class="periode-field"
         />
-        <v-label class="mx-2">s/d</v-label>
+        <span class="filter-sep">s/d</span>
         <v-text-field
           v-model="filters.endDate"
           type="date"
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width: 150px"
+          class="periode-field"
         />
 
         <v-checkbox
           v-model="filters.hargaNol"
           label="Harga Nol Saja"
+          color="primary"
           hide-details
           density="compact"
           class="ms-4"
@@ -721,6 +741,7 @@ watch(
         <v-checkbox
           v-model="filters.hppNol"
           label="HPP Nol Saja"
+          color="primary"
           hide-details
           density="compact"
           class="ms-2"
@@ -731,8 +752,7 @@ watch(
           density="compact"
           hide-details
           variant="outlined"
-          class="ms-4"
-          style="min-width: 300px"
+          class="search-field"
           prepend-inner-icon="mdi-magnify"
           clearable
         />
@@ -757,12 +777,12 @@ watch(
         </v-btn>
 
         <v-btn
-          @click="fetchMasterData"
           icon="mdi-refresh"
           variant="text"
           size="small"
           :loading="loading"
-          class="ms-2"
+          class="btn-refresh ms-2"
+          @click="fetchMasterData"
         />
       </div>
 
@@ -808,14 +828,13 @@ watch(
                     <span>{{ header.title }}</span>
                     <v-icon v-if="isSorted(header)" size="14">{{ getSortIcon(header) }}</v-icon>
 
-                    <v-menu location="bottom start" :close-on-content-click="false">
+                    <v-menu location="bottom start" :close-on-content-click="false" class="kr-red">
                       <template #activator="{ props }">
                         <v-icon
                           v-bind="props"
                           size="16"
                           class="ms-1"
-                          @click.stop
-                          :color="isFilterActive(header.key) ? 'blue' : ''"
+                          :class="{ 'filter-active': isFilterActive(header.key) }"
                           :icon="
                             filterType(header.key) === 'custom'
                               ? 'mdi-filter-cog'
@@ -823,6 +842,7 @@ watch(
                               ? 'mdi-filter-multiple'
                               : 'mdi-filter-variant'
                           "
+                          @click.stop
                         />
                       </template>
                       <v-list class="filter-menu" density="compact">
@@ -840,6 +860,7 @@ watch(
                           <template #prepend>
                             <v-checkbox-btn
                               :model-value="columnFilters[header.key]?.values?.includes(val)"
+                              color="#b71c1c"
                               density="compact"
                             />
                           </template>
@@ -874,6 +895,19 @@ watch(
 
           <template #[`item.kode`]="{ item }">
             <span :class="getRowTextColor(item)">{{ item.kode }}</span>
+          </template>
+
+          <template #[`item.nama`]="{ item }">
+            <span :class="getRowTextColor(item)">{{ item.nama }}</span>
+            <v-chip
+              v-if="item.newArrival"
+              size="x-small"
+              variant="flat"
+              class="chip-new ms-2"
+              :title="`New arrival s/d ${formatTgl(item.newUntil)}`"
+            >
+              NEW
+            </v-chip>
           </template>
 
           <template #[`item.date_create`]="{ item }">
@@ -952,7 +986,7 @@ watch(
         <v-card-actions>
           <v-spacer />
           <v-btn text @click="customFilterDialog = false">Batal</v-btn>
-          <v-btn color="primary" @click="applyCustomFilter">Terapkan</v-btn>
+          <v-btn variant="flat" class="btn-primary-red" @click="applyCustomFilter">Terapkan</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -960,24 +994,119 @@ watch(
 </template>
 
 <style scoped>
-/* Layout Full Height */
+/* Layout full height + tema merah lokal (DESIGN.md 10.3) */
 .browse-content {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 32px);
   overflow: hidden;
+
+  --v-theme-primary: 183, 28, 28;
+  --v-theme-on-primary: 255, 255, 255;
 }
 
+/* ══════════ TOMBOL HEADER ══════════ */
+.btn-primary-red {
+  background: linear-gradient(135deg, #b71c1c 0%, #8e0000 100%) !important;
+  color: #ffffff !important;
+}
+.btn-primary-red:hover {
+  filter: brightness(1.08);
+}
+.btn-header-action {
+  background-color: rgba(183, 28, 28, 0.08) !important;
+  color: #b71c1c !important;
+  font-weight: 700;
+  border: 1px solid rgba(183, 28, 28, 0.2);
+}
+.btn-header-action:hover:not(:disabled) {
+  background-color: rgba(183, 28, 28, 0.14) !important;
+}
+.btn-header-action:disabled {
+  opacity: 0.4;
+}
+.btn-primary-red:focus-visible,
+.btn-header-action:focus-visible {
+  outline: 2px solid #b71c1c;
+  outline-offset: 2px;
+}
+
+/* ══════════ FILTER ══════════ */
 .filter-section {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background-color: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  gap: 8px;
+  background-color: rgba(183, 28, 28, 0.03);
+  border-bottom: 2px solid rgba(183, 28, 28, 0.15);
 }
 
+.filter-label,
+.filter-sep {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+.filter-sep {
+  font-size: 11px;
+}
+
+.filter-section .periode-field {
+  flex: none;
+  width: 150px;
+}
+.filter-section .search-field {
+  flex: none;
+  width: 300px;
+  margin-left: 16px;
+}
+
+.filter-section .periode-field :deep(.v-field),
+.filter-section .search-field :deep(.v-field) {
+  width: 100%;
+  font-size: 11px;
+  border-radius: 8px !important;
+  background-color: rgba(183, 28, 28, 0.03) !important;
+  border: 1px solid rgba(183, 28, 28, 0.25) !important;
+  box-shadow: none !important;
+}
+.filter-section .periode-field :deep(.v-field__outline),
+.filter-section .search-field :deep(.v-field__outline) {
+  display: none !important;
+}
+.filter-section .periode-field :deep(.v-field--focused),
+.filter-section .search-field :deep(.v-field--focused) {
+  border-color: #b71c1c !important;
+  background-color: rgba(183, 28, 28, 0.07) !important;
+}
+.filter-section .search-field :deep(.v-field__prepend-inner .v-icon) {
+  color: #b71c1c !important;
+  opacity: 0.8 !important;
+}
+
+.btn-refresh {
+  color: #b71c1c !important;
+}
+
+.reset-filter-btn {
+  height: 40px !important;
+  min-width: 120px !important;
+  padding: 0 16px !important;
+  font-size: 0.875rem !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-weight: 500 !important;
+  border-radius: 4px !important;
+
+  color: #d32f2f !important;
+  background-color: rgba(211, 47, 47, 0.15) !important;
+}
+.reset-filter-btn:hover {
+  background-color: rgba(211, 47, 47, 0.25) !important;
+}
+
+/* ══════════ TABEL ══════════ */
 .table-container {
   flex-grow: 1;
   min-height: 0;
@@ -986,7 +1115,6 @@ watch(
   overflow: hidden;
 }
 
-/* Table Style */
 .desktop-table {
   height: 100%;
   display: flex;
@@ -1003,16 +1131,50 @@ watch(
   min-width: 100%;
 }
 
-/* Header Resize */
-.resizable-header {
-  position: relative;
-  background-color: #e3f2fd !important;
-  color: #0d47a1 !important;
+.desktop-table :deep(thead tr th) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   font-size: 11px !important;
   height: 40px !important;
-  border-bottom: 2px solid #1976d2 !important;
+  white-space: nowrap;
+  border-bottom: 2px solid #8e0000 !important;
+}
+
+.desktop-table :deep(thead tr th .v-icon),
+.desktop-table :deep(thead tr th .v-data-table-header__sort-icon) {
+  color: #ffffff !important;
+}
+/* Ikon filter kolom yang sedang aktif */
+.desktop-table :deep(thead tr th .v-icon.filter-active) {
+  color: #ffeb3b !important;
+}
+
+.desktop-table :deep(td) {
+  font-size: 11px !important;
+  padding: 0 8px !important;
+  height: 36px !important;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.desktop-table :deep(tbody tr:nth-child(even) > td) {
+  background-color: rgba(183, 28, 28, 0.025);
+}
+.desktop-table :deep(tbody tr:hover > td) {
+  background-color: rgba(183, 28, 28, 0.07);
+}
+
+/* Baris terpilih */
+.desktop-table :deep(tr.v-data-table__selected > td),
+.desktop-table :deep(tr.v-data-table__tr--selected > td) {
+  background-color: rgba(183, 28, 28, 0.12) !important;
+}
+
+/* Header kustom (resize kolom + filter) */
+.resizable-header {
+  position: relative;
   padding: 0 8px !important;
   user-select: none;
   overflow: hidden;
@@ -1041,14 +1203,19 @@ watch(
 
 .resizer:hover,
 .resizable-header:hover .resizer {
-  border-right: 2px solid #1565c0;
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
 }
 
-/* Detail Sticky (Left) */
+.filter-menu {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ══════════ DETAIL (EXPAND) ══════════ */
 .detail-container {
   position: sticky;
   left: 0;
-  background-color: rgb(var(--v-theme-surface));
+  background-color: rgba(183, 28, 28, 0.02);
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   padding: 16px;
   width: 100%;
@@ -1060,39 +1227,56 @@ watch(
 .detail-table-wrapper {
   width: 100%;
   max-width: 900px;
+  background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-left: 3px solid #b71c1c;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .detail-table :deep(thead tr th) {
-  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
-  color: rgb(var(--v-theme-on-surface)) !important;
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
   font-size: 11px !important;
   height: 32px !important;
 }
 
-.filter-menu {
-  max-height: 300px;
-  overflow-y: auto;
+/* ══════════ FOOTER PAGING (milik AppDataTable) ══════════ */
+.desktop-table :deep(.custom-pagination-footer) {
+  border-top: 2px solid rgba(183, 28, 28, 0.15);
+  background-color: rgba(183, 28, 28, 0.03);
 }
 
-/* --- TOMBOL RESET FILTER --- */
-.reset-filter-btn {
-  height: 40px !important;
-  min-width: 120px !important;
-  padding: 0 16px !important;
-  font-size: 0.875rem !important;
-  text-transform: none !important;
-  letter-spacing: normal !important;
-  font-weight: 500 !important;
-  border-radius: 4px !important;
-
-  color: #d32f2f !important;
-  background-color: rgba(211, 47, 47, 0.15) !important;
+.desktop-table :deep(.items-per-page-select .v-field) {
+  border-radius: 8px;
+  background-color: rgba(183, 28, 28, 0.05);
+}
+.desktop-table :deep(.items-per-page-select .v-field__outline) {
+  color: rgba(183, 28, 28, 0.25) !important;
 }
 
-.reset-filter-btn:hover {
-  background-color: rgba(211, 47, 47, 0.25) !important;
+.desktop-table :deep(.pagination-text) {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next) {
+  background-color: rgba(183, 28, 28, 0.06) !important;
+  border: none !important;
+}
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__prev .v-btn),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__next .v-btn) {
+  color: #b71c1c !important;
+}
+
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active),
+.desktop-table :deep(.custom-pagination-footer .v-pagination__item--is-active .v-btn) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
 }
 </style>

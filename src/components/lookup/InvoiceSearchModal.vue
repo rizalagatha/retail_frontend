@@ -33,6 +33,14 @@ interface BiayaKirimLookupInvoice {
   Sisa?: number;
 }
 
+interface ProformaLookupInvoice {
+  Nomor: string;
+  Tanggal: string;
+  NomorSo: string;
+  KdCus: string;
+  Customer: string;
+}
+
 interface Props {
   source: string;
   customerKode?: string;
@@ -40,7 +48,11 @@ interface Props {
 }
 
 // Union Type
-type Invoice = ReturJualInvoice | PotonganPiutangInvoice | BiayaKirimLookupInvoice;
+type Invoice =
+  | ReturJualInvoice
+  | PotonganPiutangInvoice
+  | BiayaKirimLookupInvoice
+  | ProformaLookupInvoice;
 
 const props = defineProps<Props>();
 const emit = defineEmits(["close", "invoice-selected"]);
@@ -61,6 +73,14 @@ const headers = computed<DataTableHeader[]>(() => {
       { title: "Nominal", key: "nominalInvoice", align: "end", width: "120px" },
       { title: "Terbayar", key: "terbayarPiutang", align: "end", width: "120px" },
       { title: "Sisa Piutang", key: "sisaPiutang", align: "end", width: "120px" },
+    ];
+  }
+  if (props.source === "proforma") {
+    return [
+      { title: "Nomor Invoice", key: "Nomor", width: "180px" },
+      { title: "Tanggal", key: "Tanggal", width: "120px" },
+      { title: "No. SO", key: "NomorSo", width: "180px" },
+      { title: "Customer", key: "Customer" },
     ];
   }
   if (props.source === "biaya-kirim" || props.source === "komplain") {
@@ -126,6 +146,11 @@ const resolveSisa = (item: Invoice): string => {
   return typeof rawSisa === "number" ? formatNum(rawSisa) : "0";
 };
 
+const resolveSo = (item: Invoice): string => {
+  const rawSo = getRawValue(item, "NomorSo");
+  return typeof rawSo === "string" && rawSo ? rawSo : "-";
+};
+
 // --- Logic Load Data ---
 const loadItems = async () => {
   loading.value = true;
@@ -146,6 +171,9 @@ const loadItems = async () => {
     } else if (props.source === "komplain") {
       // [FIX] Tambahkan endpoint komplain
       apiUrl = "/komplain-form/lookup/invoice";
+    } else if (props.source === "proforma") {
+      // Cabang diambil server dari user yang login
+      apiUrl = "/proforma-form/lookup/invoice";
     } else {
       toast.error("Sumber data invoice tidak valid.");
       return;
@@ -166,6 +194,13 @@ const filteredItems = computed(() => {
   const lower = search.value.toLowerCase();
 
   return items.value.filter((item) => {
+    // 0. Kasus: Proforma (Nomor, NomorSo, Customer)
+    if (props.source === "proforma" && "NomorSo" in item) {
+      const nomor = (item.Nomor || "").toLowerCase();
+      const noSo = (item.NomorSo || "").toLowerCase();
+      const customer = (item.Customer || "").toLowerCase();
+      return nomor.includes(lower) || noSo.includes(lower) || customer.includes(lower);
+    }
     // 1. Kasus: Biaya Kirim (Menggunakan 'Nomor' dan 'Customer')
     if ("Nomor" in item && (props.source === "biaya-kirim" || props.source === "komplain")) {
       const nomor = (item.Nomor || "").toLowerCase();
@@ -253,6 +288,10 @@ onMounted(loadItems);
 
           <template #[`item.Nominal`]="{ item }">
             {{ resolveNominal(item) }}
+          </template>
+
+          <template #[`item.NomorSo`]="{ item }">
+            {{ resolveSo(item) }}
           </template>
 
           <template #[`item.Sisa`]="{ item }">

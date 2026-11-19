@@ -12,6 +12,7 @@ interface PrintHeader {
   mso_nomor: string;
   jenis_mutasi: string;
   mso_tanggal: string;
+  mso_jenis: string;
   mso_so_nomor: string;
   mso_ket: string;
   perush_nama: string;
@@ -48,6 +49,8 @@ const dynamicLogo = computed(() => {
   }
   return Logo;
 });
+
+const isBs = computed(() => ["BC", "BP"].includes(printData.value?.header?.mso_jenis ?? ""));
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
@@ -107,7 +110,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="title">Mutasi Stok</div>
+      <div class="title">{{ isBs ? "Mutasi ke Bad Stock" : "Mutasi Stok" }}</div>
 
       <div class="info-grid">
         <div><span class="label">Nomor</span>: {{ printData.header.mso_nomor }}</div>
@@ -116,7 +119,9 @@ onMounted(() => {
           <span class="label">Tanggal</span>:
           {{ format(parseISO(printData.header.mso_tanggal), "dd-MM-yyyy") }}
         </div>
-        <div><span class="label">No. Pesanan</span>: {{ printData.header.mso_so_nomor }}</div>
+        <div v-if="!isBs">
+          <span class="label">No. Pesanan</span>: {{ printData.header.mso_so_nomor }}
+        </div>
         <div class="keterangan">
           <span class="label">Keterangan</span>: {{ printData.header.mso_ket }}
         </div>

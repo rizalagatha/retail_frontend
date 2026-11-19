@@ -7,15 +7,21 @@ import api from "@/services/api";
 import { format, addDays, parseISO, isValid } from "date-fns";
 import PageLayout from "@/components/PageLayout.vue";
 import SoSearchModal from "@/components/lookup/SoSearchModal.vue";
+import InvoiceSearchModal from "@/components/lookup/InvoiceSearchModal.vue";
 import CustomerSearchModal from "@/components/lookup/CustomerSearchModal.vue";
+import AuthWaitingDialog from "@/components/AuthWaitingDialog.vue";
+import { useAuthPolling } from "@/composables/useAuthPolling";
 import type { AxiosError } from "axios";
 
 // --- Tipe Data ---
+type SumberTipe = "SO" | "INVOICE";
+
 interface FormHeader {
   cabang: string;
   nomor: string | null;
   tanggal: string;
   nomorSo: string;
+  refInvoice: string;
   tanggalSo: string | null;
   customerKode: string;
   customerNama: string;
@@ -66,12 +72,19 @@ interface SoHeaderResponse extends SummaryState {
   top: number;
   ppn: number;
 }
+interface InvoiceHeaderResponse extends SoHeaderResponse {
+  nomorSo: string;
+}
 interface SoResponse {
   header: SoHeaderResponse;
   items: ItemResponse[];
 }
+interface InvoiceResponse {
+  header: InvoiceHeaderResponse;
+  items: ItemResponse[];
+}
 interface ProformaResponse {
-  header: FormHeader & SummaryState;
+  header: FormHeader & SummaryState & { statusAcc: string };
   items: ItemResponse[];
 }
 interface SaveResponse {
@@ -84,13 +97,16 @@ const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
+const { startGlobalPolling } = useAuthPolling();
 const MENU_ID = "28";
 const BROWSE_ROUTE = "Proforma";
 
 const isEditMode = ref(false);
 const busy = ref(true);
 const isSoLookupVisible = ref(false);
+const isInvoiceLookupVisible = ref(false);
 const isCustomerLookupVisible = ref(false);
+const isWaitingAuth = ref(false);
 
 const confirmDlg = reactive({
   show: false,
@@ -99,13 +115,14 @@ const confirmDlg = reactive({
   okLabel: "Ya, Lanjutkan",
   onConfirm: () => {},
 });
-const printDlg = reactive({ show: false, nomor: "" });
+const saveDlg = reactive({ show: false, alasan: "" });
 
 const createHeader = (): FormHeader => ({
   cabang: authStore.user?.cabang || "",
   nomor: "",
   tanggal: format(new Date(), "yyyy-MM-dd"),
   nomorSo: "",
+  refInvoice: "",
   tanggalSo: null,
   customerKode: "",
   customerNama: "",
@@ -122,8 +139,12 @@ const formHeader = reactive<FormHeader>(createHeader());
 const summary = reactive<SummaryState>({ diskonPersen: 0, diskon: 0, biayaKirim: 0, dp: 0 });
 const items = ref<DetailItem[]>([]);
 
-// Nomor SO yang datanya benar-benar sedang tampil di form (mencegah nomor diketik ≠ data)
-const soLoaded = ref("");
+// Sumber dokumen: dari SO atau dari Invoice (alternatif)
+const sumberTipe = ref<SumberTipe>("SO");
+// Nomor sumber yang datanya benar-benar sedang tampil di form (mencegah nomor diketik ≠ data)
+const sumberLoaded = ref("");
+// Status ACC dokumen yang sedang diubah ("" = baru / dokumen lama tanpa ACC)
+const statusAcc = ref("");
 
 // ID lokal bernilai negatif agar tidak pernah bentrok dengan ID dari server
 let rowSeq = 0;
@@ -168,6 +189,18 @@ const runConfirm = () => {
   confirmDlg.onConfirm();
 };
 
+// Input nomor sumber mengikuti mode (SO / Invoice)
+const nomorSumber = computed({
+  get: () => (sumberTipe.value === "INVOICE" ? formHeader.refInvoice : formHeader.nomorSo),
+  set: (v: string) => {
+    if (sumberTipe.value === "INVOICE") formHeader.refInvoice = v;
+    else formHeader.nomorSo = v;
+  },
+});
+const labelSumber = computed(() =>
+  sumberTipe.value === "INVOICE" ? "No. Invoice (F1)" : "No. SO (F1)"
+);
+
 // --- Computed (pengganti prosedur 'hitung') ---
 const subtotal = computed(() => items.value.reduce((t, i) => t + num(i.jumlah) * num(i.harga), 0));
 const totalDiskonItem = computed(() => items.value.reduce((t, i) => t + num(i.diskonRp), 0));
@@ -175,6 +208,7 @@ const totalSetelahDiskonItem = computed(() => subtotal.value - totalDiskonItem.v
 const totalDiskonHeader = computed(
   () => totalSetelahDiskonItem.value * (num(summary.diskonPersen) / 100) + num(summary.diskon)
 );
+const totalDiskonSemua = computed(() => totalDiskonItem.value + totalDiskonHeader.value);
 const dpp = computed(() => totalSetelahDiskonItem.value - totalDiskonHeader.value);
 const totalPpn = computed(() => dpp.value * (num(formHeader.ppn) / 100));
 const grandTotal = computed(() => dpp.value + totalPpn.value);
@@ -182,10 +216,14 @@ const netto = computed(() => grandTotal.value + num(summary.biayaKirim) - num(su
 
 const validItems = computed(() => items.value.filter((i) => i.kode && num(i.jumlah) > 0));
 const jumlahNol = computed(() => items.value.length - validItems.value.length);
-const soDirty = computed(
-  () => !isEditMode.value && !!soLoaded.value && formHeader.nomorSo.trim() !== soLoaded.value
+const catatanNol = computed(() =>
+  jumlahNol.value > 0 ? `${jumlahNol.value} baris berjumlah 0 tidak akan ikut disimpan.` : ""
 );
-const soTarget = computed(() => !isEditMode.value && !soLoaded.value);
+const sumberDirty = computed(
+  () => !isEditMode.value && !!sumberLoaded.value && nomorSumber.value.trim() !== sumberLoaded.value
+);
+const sumberTarget = computed(() => !isEditMode.value && !sumberLoaded.value);
+const alasanValid = computed(() => saveDlg.alasan.trim().length >= 5);
 
 // --- Watchers ---
 watch([() => formHeader.tanggal, () => formHeader.top], ([tgl, top]) => {
@@ -197,7 +235,9 @@ watch([() => formHeader.tanggal, () => formHeader.top], ([tgl, top]) => {
 });
 
 // --- Methods ---
-const clearSoData = () => {
+const clearSumber = () => {
+  // Di mode Invoice, No. SO hanyalah turunan dari invoice yang dimuat
+  if (sumberTipe.value === "INVOICE") formHeader.nomorSo = "";
   formHeader.tanggalSo = null;
   formHeader.customerKode = "";
   formHeader.customerNama = "";
@@ -211,41 +251,61 @@ const clearSoData = () => {
   summary.biayaKirim = 0;
   summary.dp = 0;
   items.value = [];
-  soLoaded.value = "";
+  sumberLoaded.value = "";
 };
 
-const loadFromSO = async () => {
-  const nomorSo = formHeader.nomorSo.trim();
-  if (isEditMode.value || !nomorSo) return;
+// Ganti mode sumber: kosongkan semuanya supaya tidak ada data campuran SO dan Invoice
+const gantiSumber = () => {
+  formHeader.nomorSo = "";
+  formHeader.refInvoice = "";
+  clearSumber();
+};
+
+const isiDariSumber = (h: SoHeaderResponse, rows: ItemResponse[]) => {
+  formHeader.tanggalSo = h.tanggalSo;
+  formHeader.customerKode = h.customerKode;
+  formHeader.customerNama = h.customerNama;
+  formHeader.alamat = h.alamat;
+  formHeader.kota = h.kota;
+  formHeader.level = `${h.levelKode} - ${h.levelNama}`;
+  formHeader.top = num(h.top);
+  formHeader.ppn = num(h.ppn);
+  summary.diskon = num(h.diskon);
+  summary.diskonPersen = num(h.diskonPersen);
+  summary.biayaKirim = num(h.biayaKirim);
+  summary.dp = num(h.dp);
+  items.value = rows.map(toRow);
+};
+
+const loadFromSumber = async () => {
+  const nomor = nomorSumber.value.trim();
+  if (isEditMode.value || !nomor) return;
 
   busy.value = true;
   try {
-    const response = await api.get<SoResponse>(`/proforma-form/from-so/${nomorSo}`, {
-      params: { branchCode: formHeader.cabang },
-    });
-    const { header, items: soItems } = response.data;
-
-    formHeader.nomorSo = nomorSo;
-    formHeader.tanggalSo = header.tanggalSo;
-    formHeader.customerKode = header.customerKode;
-    formHeader.customerNama = header.customerNama;
-    formHeader.alamat = header.alamat;
-    formHeader.kota = header.kota;
-    formHeader.level = `${header.levelKode} - ${header.levelNama}`;
-    formHeader.top = num(header.top);
-    formHeader.ppn = num(header.ppn);
-    summary.diskon = num(header.diskon);
-    summary.diskonPersen = num(header.diskonPersen);
-    summary.biayaKirim = num(header.biayaKirim);
-    summary.dp = num(header.dp);
-
-    items.value = soItems.map(toRow);
-    soLoaded.value = nomorSo;
-    toast.success(`Data dari SO ${nomorSo} berhasil dimuat.`);
+    if (sumberTipe.value === "INVOICE") {
+      const response = await api.get<InvoiceResponse>(`/proforma-form/from-invoice/${nomor}`);
+      formHeader.refInvoice = nomor;
+      formHeader.nomorSo = response.data.header.nomorSo ?? "";
+      isiDariSumber(response.data.header, response.data.items);
+    } else {
+      const response = await api.get<SoResponse>(`/proforma-form/from-so/${nomor}`, {
+        params: { branchCode: formHeader.cabang },
+      });
+      formHeader.nomorSo = nomor;
+      formHeader.refInvoice = "";
+      isiDariSumber(response.data.header, response.data.items);
+    }
+    sumberLoaded.value = nomor;
+    toast.success(
+      `Data dari ${sumberTipe.value === "INVOICE" ? "invoice" : "SO"} ${nomor} berhasil dimuat.`
+    );
   } catch (err) {
-    // Jangan biarkan data SO sebelumnya menempel pada nomor SO yang gagal dimuat
-    clearSoData();
-    toast.error(errMsg(err, "Gagal memuat data SO."));
+    // Jangan biarkan data sumber sebelumnya menempel pada nomor yang gagal dimuat
+    clearSumber();
+    toast.error(
+      errMsg(err, `Gagal memuat data ${sumberTipe.value === "INVOICE" ? "invoice" : "SO"}.`)
+    );
   } finally {
     busy.value = false;
   }
@@ -262,6 +322,7 @@ const loadDataForEdit = async (id: string) => {
     formHeader.nomor = h.nomor;
     formHeader.tanggal = h.tanggal;
     formHeader.nomorSo = h.nomorSo;
+    formHeader.refInvoice = h.refInvoice ?? "";
     formHeader.tanggalSo = h.tanggalSo;
     formHeader.customerKode = h.customerKode;
     formHeader.customerNama = h.customerNama;
@@ -279,7 +340,9 @@ const loadDataForEdit = async (id: string) => {
     summary.dp = num(h.dp);
 
     items.value = rows.map(toRow);
-    soLoaded.value = h.nomorSo;
+    sumberTipe.value = formHeader.refInvoice ? "INVOICE" : "SO";
+    sumberLoaded.value = formHeader.refInvoice || h.nomorSo;
+    statusAcc.value = h.statusAcc ?? "";
   } catch (err) {
     toast.error(errMsg(err, "Gagal memuat data Proforma."));
     router.replace({ name: BROWSE_ROUTE });
@@ -288,7 +351,7 @@ const loadDataForEdit = async (id: string) => {
   }
 };
 
-// Hitung ulang diskon Rp baris setelah jumlah / harga / diskon % diedit.
+// Hitung ulang diskon Rp baris setelah jumlah / diskon % diedit.
 // nextTick: pastikan v-model sudah menulis nilai barunya.
 const recalcDiskonRp = (item: DetailItem) => {
   void nextTick(() => {
@@ -298,10 +361,11 @@ const recalcDiskonRp = (item: DetailItem) => {
 
 const validate = (): string | null => {
   if (!formHeader.tanggal) return "Tanggal harus diisi.";
-  if (!formHeader.nomorSo.trim()) return "Nomor SO harus diisi.";
-  if (!isEditMode.value && formHeader.nomorSo.trim() !== soLoaded.value)
-    return "Nomor SO belum dimuat. Tekan Enter atau pilih lewat F1.";
-  if (!formHeader.customerKode) return "Customer harus diisi (muat dari SO).";
+  if (!nomorSumber.value.trim())
+    return sumberTipe.value === "INVOICE" ? "Nomor Invoice harus diisi." : "Nomor SO harus diisi.";
+  if (!isEditMode.value && nomorSumber.value.trim() !== sumberLoaded.value)
+    return "Nomor sumber belum dimuat. Tekan Enter atau pilih lewat F1.";
+  if (!formHeader.customerKode) return "Customer harus diisi (muat dari sumber).";
   if (items.value.length === 0) return "Detail barang tidak boleh kosong.";
   if (validItems.value.length === 0) return "Minimal satu barang dengan jumlah lebih dari 0.";
   if (items.value.some((i) => num(i.jumlah) < 0 || num(i.harga) < 0))
@@ -320,24 +384,73 @@ const validate = (): string | null => {
   return null;
 };
 
+// Simpan = isi alasan dulu, lalu simpan dan ajukan ACC Manager Retail
 const handleSave = () => {
   const err = validate();
   if (err) {
     toast.error(err);
     return;
   }
-  const catatanNol =
-    jumlahNol.value > 0 ? ` ${jumlahNol.value} baris berjumlah 0 tidak akan ikut disimpan.` : "";
-  askConfirm(
-    "Konfirmasi Simpan",
-    `Simpan data Proforma Invoice ini?${catatanNol}`,
-    executeSave,
-    "Ya, Simpan"
+  saveDlg.alasan = "";
+  saveDlg.show = true;
+};
+
+const submitSave = () => {
+  if (!alasanValid.value) return;
+  saveDlg.show = false;
+  void executeSave(saveDlg.alasan.trim());
+};
+
+const keBrowse = () => {
+  isWaitingAuth.value = false;
+  router.push({ name: BROWSE_ROUTE });
+};
+
+const requestAcc = async (nomor: string, alasan: string) => {
+  const sumber =
+    sumberTipe.value === "INVOICE"
+      ? `Invoice ${formHeader.refInvoice}`
+      : `SO ${formHeader.nomorSo}`;
+  // o_ket maksimal 255 karakter; alasan dibatasi 100 dan baris pertama tampil di notifikasi
+  const keterangan = [
+    `Proforma ${nomor}: ${alasan}`,
+    `Cust: ${formHeader.customerNama.slice(0, 30)}`,
+    `Sumber: ${sumber}`,
+    `Diskon: ${fmt(Math.round(totalDiskonSemua.value))}`,
+    `Netto: ${fmt(Math.round(netto.value))}`,
+  ]
+    .join("\n")
+    .slice(0, 255);
+
+  const authResponse = await api.post<{ authNomor: string }>("/auth-pin/request", {
+    transaksi: nomor,
+    jenis: "PROFORMA",
+    keterangan,
+    nominal: Math.round(netto.value),
+    cabang: authStore.user?.cabang,
+    user: authStore.user?.kode,
+    barcode: "",
+    target_cabang: "",
+  });
+
+  isWaitingAuth.value = true;
+  startGlobalPolling(
+    authResponse.data.authNomor,
+    () => {
+      // Hanya pindah kalau kasir masih melihat dialog
+      if (isWaitingAuth.value) keBrowse();
+    },
+    {
+      pesanDisetujui: (approver) =>
+        `Proforma ${nomor} disetujui ${approver}. Sudah bisa dicetak dari daftar proforma.`,
+      pesanDitolak: `Proforma ${nomor} ditolak Manager Retail. Ubah lalu ajukan ulang.`,
+    }
   );
 };
 
-const executeSave = async () => {
+const executeSave = async (alasan: string) => {
   busy.value = true;
+  let nomorDokumen = "";
   try {
     const payload = {
       header: {
@@ -356,31 +469,38 @@ const executeSave = async () => {
       ? await api.put<SaveResponse>(`/proforma-form/${route.params.id}`, payload)
       : await api.post<SaveResponse>("/proforma-form", payload);
 
-    toast.success(response.data.message);
-    printDlg.nomor = response.data.nomor ?? formHeader.nomor ?? "";
-    printDlg.show = true;
+    nomorDokumen = response.data.nomor ?? formHeader.nomor ?? "";
   } catch (err) {
     toast.error(errMsg(err, "Gagal menyimpan data."));
+    busy.value = false;
+    return;
+  }
+
+  try {
+    await requestAcc(nomorDokumen, alasan);
+  } catch (authErr) {
+    toast.warning(
+      `Proforma ${nomorDokumen} tersimpan (status menunggu ACC), tetapi permintaan ACC gagal terkirim: ${errMsg(
+        authErr,
+        "periksa koneksi"
+      )}. Buka dokumennya lalu simpan ulang untuk mengajukan lagi.`
+    );
+    router.push({ name: BROWSE_ROUTE });
   } finally {
     busy.value = false;
   }
 };
 
-const doPrint = () => {
-  printDlg.show = false;
-  const printRoute = router.resolve({ name: "ProformaPrint", params: { nomor: printDlg.nomor } });
-  window.open(printRoute.href, "_blank");
-  router.push({ name: BROWSE_ROUTE });
-};
-const closeAfterSave = () => {
-  printDlg.show = false;
-  router.push({ name: BROWSE_ROUTE });
-};
-
 const onSoSelected = (selectedSo: { Nomor: string }) => {
   formHeader.nomorSo = selectedSo.Nomor;
   isSoLookupVisible.value = false;
-  loadFromSO();
+  loadFromSumber();
+};
+
+const onInvoiceSelected = (selected: { Nomor: string }) => {
+  formHeader.refInvoice = selected.Nomor;
+  isInvoiceLookupVisible.value = false;
+  loadFromSumber();
 };
 
 const onCustomerSelected = (customer: Customer) => {
@@ -392,13 +512,17 @@ const onCustomerSelected = (customer: Customer) => {
   isCustomerLookupVisible.value = false;
 };
 
-const openSoLookup = () => {
-  if (!isEditMode.value) isSoLookupVisible.value = true;
+const openSumberLookup = () => {
+  if (isEditMode.value) return;
+  if (sumberTipe.value === "INVOICE") isInvoiceLookupVisible.value = true;
+  else isSoLookupVisible.value = true;
 };
 
 const resetForm = () => {
   Object.assign(formHeader, createHeader());
-  clearSoData();
+  sumberTipe.value = "SO";
+  statusAcc.value = "";
+  clearSumber();
 };
 
 const handleBatal = () => {
@@ -509,7 +633,26 @@ onMounted(async () => {
       <!-- ══════════ KIRI: DOKUMEN, CUSTOMER, PEMBAYARAN ══════════ -->
       <div class="col-left">
         <section class="panel">
-          <div class="panel-title">Dokumen</div>
+          <div class="panel-title">
+            Dokumen
+            <span v-if="statusAcc" class="acc-badge" :class="`acc-${statusAcc.toLowerCase()}`">
+              {{ statusAcc }}
+            </span>
+          </div>
+
+          <v-btn-toggle
+            v-if="!isEditMode"
+            v-model="sumberTipe"
+            mandatory
+            density="compact"
+            variant="text"
+            class="sumber-toggle mb-2"
+            @update:model-value="gantiSumber"
+          >
+            <v-btn value="SO" size="small">Dari SO</v-btn>
+            <v-btn value="INVOICE" size="small">Dari Invoice</v-btn>
+          </v-btn-toggle>
+
           <div class="grid-2">
             <v-text-field
               label="Cabang"
@@ -540,25 +683,39 @@ onMounted(async () => {
               class="form-field"
             />
             <v-text-field
-              label="No. SO (F1)"
-              v-model="formHeader.nomorSo"
+              :label="labelSumber"
+              v-model="nomorSumber"
               :readonly="isEditMode"
               placeholder="F1 untuk cari..."
               :append-inner-icon="isEditMode ? undefined : 'mdi-magnify'"
               variant="outlined"
               density="compact"
               hide-details
-              :class="['form-field', { 'is-locked': isEditMode, 'is-target': soTarget }]"
-              @keydown.enter.prevent="loadFromSO"
-              @keydown.f1.prevent="openSoLookup"
-              @click:append-inner="openSoLookup"
+              :class="['form-field', { 'is-locked': isEditMode, 'is-target': sumberTarget }]"
+              @keydown.enter.prevent="loadFromSumber"
+              @keydown.f1.prevent="openSumberLookup"
+              @click:append-inner="openSumberLookup"
             />
           </div>
-          <div v-if="soDirty" class="hint hint-warn">
-            Nomor SO diubah. Tekan Enter untuk memuat ulang, atau data lama tetap dipakai.
+          <v-text-field
+            v-if="sumberTipe === 'INVOICE'"
+            label="No. SO (dari invoice)"
+            :model-value="formHeader.nomorSo || '-'"
+            readonly
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="form-field is-locked mt-2"
+          />
+          <div v-if="sumberDirty" class="hint hint-warn">
+            Nomor diubah. Tekan Enter untuk memuat ulang, atau data lama tetap dipakai.
           </div>
-          <div v-else-if="soTarget" class="hint">
-            Masukkan No. SO lalu tekan Enter (atau F1) untuk memuat customer dan barang.
+          <div v-else-if="sumberTarget" class="hint">
+            Masukkan nomor {{ sumberTipe === "INVOICE" ? "invoice" : "SO" }} lalu tekan Enter (atau
+            F1) untuk memuat customer dan barang.
+          </div>
+          <div v-else-if="isEditMode" class="hint">
+            Menyimpan perubahan akan mengajukan ACC ulang; cetak tertahan sampai disetujui.
           </div>
         </section>
 
@@ -651,7 +808,7 @@ onMounted(async () => {
             >
               <template #no-data>
                 <div class="empty-items">
-                  Belum ada barang. Masukkan No. SO (F1) untuk memuat detail.
+                  Belum ada barang. Pilih sumber (SO atau Invoice) lalu muat dengan Enter atau F1.
                 </div>
               </template>
               <template #[`item.no`]="{ index }">{{ index + 1 }}</template>
@@ -669,17 +826,7 @@ onMounted(async () => {
                 />
               </template>
               <template #[`item.harga`]="{ item }">
-                <v-text-field
-                  v-model.number="item.harga"
-                  type="number"
-                  min="0"
-                  hide-spin-buttons
-                  variant="underlined"
-                  density="compact"
-                  hide-details
-                  class="cell-input"
-                  @update:model-value="recalcDiskonRp(item)"
-                />
+                <span class="num-cell">{{ fmt(num(item.harga)) }}</span>
               </template>
               <template #[`item.diskonPersen`]="{ item }">
                 <v-text-field
@@ -833,6 +980,12 @@ onMounted(async () => {
       @close="isSoLookupVisible = false"
       @selected="onSoSelected"
     />
+    <InvoiceSearchModal
+      v-if="isInvoiceLookupVisible"
+      source="proforma"
+      @close="isInvoiceLookupVisible = false"
+      @invoice-selected="onInvoiceSelected"
+    />
     <CustomerSearchModal
       v-if="isCustomerLookupVisible"
       :gudang="formHeader.cabang"
@@ -855,21 +1008,46 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <!-- Dialog cetak setelah simpan -->
-    <v-dialog v-model="printDlg.show" max-width="400px" persistent>
+    <!-- Dialog simpan: alasan wajib untuk permintaan ACC -->
+    <v-dialog v-model="saveDlg.show" max-width="440px" persistent>
       <v-card class="dialog-card">
-        <v-card-title class="confirm-title">Cetak Dokumen</v-card-title>
+        <v-card-title class="confirm-title">Simpan dan Ajukan ACC</v-card-title>
         <v-card-text class="pt-4">
-          Data berhasil disimpan dengan nomor <strong>{{ printDlg.nomor }}</strong
-          >. Apakah Anda ingin mencetak?
+          <div class="mb-3">
+            Proforma ini perlu disetujui Manager Retail sebelum bisa dicetak.
+            {{ catatanNol }}
+          </div>
+          <v-textarea
+            v-model="saveDlg.alasan"
+            label="Alasan pengajuan"
+            maxlength="100"
+            counter="100"
+            rows="2"
+            auto-grow
+            variant="outlined"
+            density="compact"
+            color="#b71c1c"
+            autofocus
+            class="form-field"
+            :hint="alasanValid ? '' : 'Wajib diisi, minimal 5 karakter.'"
+            persistent-hint
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="closeAfterSave">Tutup</v-btn>
-          <v-btn variant="flat" class="btn-primary-red" @click="doPrint">Cetak</v-btn>
+          <v-btn variant="text" @click="saveDlg.show = false">Batal</v-btn>
+          <v-btn variant="flat" class="btn-primary-red" :disabled="!alasanValid" @click="submitSave"
+            >Simpan dan Ajukan</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <AuthWaitingDialog
+      :model-value="isWaitingAuth"
+      judul="Menunggu ACC Manager Retail..."
+      @tutup="keBrowse"
+    />
   </PageLayout>
 </template>
 
@@ -1203,6 +1381,56 @@ onMounted(async () => {
 }
 .tb-netto.is-negative .tb-value {
   color: #ffd54f;
+}
+
+/* ══════════ SUMBER & STATUS ACC ══════════ */
+.sumber-toggle {
+  height: 30px !important;
+  border: 1px solid rgba(183, 28, 28, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sumber-toggle :deep(.v-btn) {
+  height: 28px !important;
+  padding: 0 14px !important;
+  border-radius: 0 !important;
+  font-size: 11px !important;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #b71c1c;
+}
+.sumber-toggle :deep(.v-btn + .v-btn) {
+  border-left: 1px solid rgba(183, 28, 28, 0.25);
+}
+.sumber-toggle :deep(.v-btn--active) {
+  background-color: #b71c1c !important;
+  color: #ffffff !important;
+}
+.sumber-toggle :deep(.v-btn--active .v-btn__overlay) {
+  opacity: 0;
+}
+
+.acc-badge {
+  margin-left: auto;
+  padding: 1px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.acc-menunggu {
+  background: #fff3e0;
+  color: #b26a00;
+}
+.acc-acc {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.acc-ditolak {
+  background: #ffebee;
+  color: #b71c1c;
 }
 
 /* ══════════ DIALOG ══════════ */

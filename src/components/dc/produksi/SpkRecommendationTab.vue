@@ -105,6 +105,80 @@ const summaryData = reactive({
 
 const retainedState = ref<Record<string, EditableItem>>({});
 
+// --- PILIH SEMUA (LINTAS HALAMAN) ---
+const isSelectingAll = ref(false);
+// Kunci semua SKU yang dipilih lewat "Pilih semua" untuk filter yang sedang aktif
+const allKeysInScope = ref<Set<string>>(new Set());
+
+const itemKey = (i: { kode: string; ukuran: string }) => `${i.kode}_${i.ukuran}`;
+
+// Gabungkan data server dengan pilihan/input yang sudah tersimpan di retainedState
+const buatEditable = (item: PriorityItem): EditableItem => {
+  const saved = retainedState.value[itemKey(item)];
+  return {
+    ...item,
+    qty_input: saved ? saved.qty_input : item.rekomendasi_spk,
+    selected: saved ? saved.selected : false,
+    kepentingan: saved ? saved.kepentingan : "NORMAL",
+    dateline: saved ? saved.dateline : "",
+    dateline_min: saved?.dateline_min || "",
+    dateline_max: saved?.dateline_max || "",
+  };
+};
+
+const selectAllPages = async () => {
+  isSelectingAll.value = true;
+  try {
+    // itemsPerPage = -1 → backend mengembalikan seluruh hasil sesuai filter, tanpa paging
+    const response = await api.get("/dc-planning/priority", {
+      params: { ...filters, page: 1, itemsPerPage: -1 },
+    });
+    const all: PriorityItem[] = response.data.data;
+    const scope = new Set<string>();
+    for (const item of all) {
+      const key = itemKey(item);
+      scope.add(key);
+      retainedState.value[key] = { ...buatEditable(item), selected: true };
+    }
+    allKeysInScope.value = scope;
+
+    // Samakan baris di halaman yang sedang tampil
+    tableData.value.forEach((row) => {
+      const saved = retainedState.value[itemKey(row)];
+      if (saved) {
+        row.selected = true;
+        row.qty_input = saved.qty_input;
+      }
+    });
+    toast.success(`${all.length.toLocaleString("id-ID")} SKU dari semua halaman dipilih.`);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error))
+      toast.error(error.response?.data?.message || "Gagal memilih semua SKU.");
+  } finally {
+    isSelectingAll.value = false;
+  }
+};
+
+const deselectAllPages = () => {
+  for (const key of allKeysInScope.value) delete retainedState.value[key];
+  allKeysInScope.value = new Set();
+  tableData.value.forEach((row) => (row.selected = false));
+};
+
+const clearSelection = () => {
+  retainedState.value = {};
+  allKeysInScope.value = new Set();
+  tableData.value.forEach((row) => (row.selected = false));
+};
+
+// Ganti filter → cakupan "Pilih semua" sebelumnya tidak berlaku lagi
+watch(
+  () => [filters.kategori, filters.keyword],
+  () => {
+    allKeysInScope.value = new Set();
+  }
+);
+
 // --- COMPUTED ---
 const totalKapasitas = computed(() => planConfig.targetHarian * 5);
 const selectedItems = computed(() => Object.values(retainedState.value));
@@ -119,9 +193,13 @@ const sisaKapasitasPersen = computed(() =>
   totalKapasitas.value > 0 ? Math.round((sisaKapasitas.value / totalKapasitas.value) * 100) : 0
 );
 const allSelected = computed({
-  get: () => tableData.value.length > 0 && tableData.value.every((i) => i.selected),
+  get: () => {
+    if (totalItems.value === 0 || allKeysInScope.value.size !== totalItems.value) return false;
+    return Array.from(allKeysInScope.value).every((k) => k in retainedState.value);
+  },
   set: (val: boolean) => {
-    tableData.value.forEach((i) => (i.selected = val));
+    if (val) selectAllPages();
+    else deselectAllPages();
   },
 });
 const totalSpkBeredarDisplay = computed(() =>
@@ -350,21 +428,7 @@ const fetchData = async () => {
     summaryData.skuPerhatian = response.data.summary.skuPerhatian;
     summaryData.skuAman = response.data.summary.skuAman;
 
-    // Mapping dengan mengecek apakah SKU ini sebelumnya sudah tersimpan di retainedState
-    tableData.value = rawData.value.map((item) => {
-      const key = `${item.kode}_${item.ukuran}`;
-      const saved = retainedState.value[key];
-
-      return {
-        ...item,
-        qty_input: saved ? saved.qty_input : item.rekomendasi_spk,
-        selected: saved ? saved.selected : false,
-        kepentingan: saved ? saved.kepentingan : "NORMAL",
-        dateline: saved ? saved.dateline : "",
-        dateline_min: saved?.dateline_min || "",
-        dateline_max: saved?.dateline_max || "",
-      };
-    });
+    tableData.value = rawData.value.map(buatEditable);
   } catch (error: unknown) {
     if (axios.isAxiosError(error))
       toast.error(error.response?.data?.message || "Gagal memuat data.");
@@ -421,6 +485,7 @@ const generateSpk = async () => {
     toast.success(response.data.message);
 
     retainedState.value = {};
+    allKeysInScope.value = new Set();
     fetchData();
   } catch (error: unknown) {
     if (axios.isAxiosError(error))
@@ -428,6 +493,35 @@ const generateSpk = async () => {
   } finally {
     isGenerating.value = false;
   }
+};
+
+// Urutan kolom ukuran di pivot: ukuran anak (angka) → S..XL → 2XL dst; ukuran lain di belakang
+const URUTAN_UKURAN = [
+  "2",
+  "4",
+  "6",
+  "8",
+  "10",
+  "12",
+  "14",
+  "16",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "2XL",
+  "3XL",
+  "4XL",
+  "5XL",
+];
+const bandingUkuran = (a: string, b: string) => {
+  const ra = URUTAN_UKURAN.indexOf(a.toUpperCase());
+  const rb = URUTAN_UKURAN.indexOf(b.toUpperCase());
+  const na = ra === -1 ? URUTAN_UKURAN.length : ra;
+  const nb = rb === -1 ? URUTAN_UKURAN.length : rb;
+  return na - nb || a.localeCompare(b);
 };
 
 const exportExcel = async () => {
@@ -439,7 +533,97 @@ const exportExcel = async () => {
   try {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Rekomendasi SPK");
+    const items = selectedItems.value;
+
+    // ══════════ Sheet 1: Rekap Rekomendasi (pivot Kode × Ukuran) ══════════
+    const rekap = workbook.addWorksheet("Rekap Rekomendasi");
+
+    const ukuranList = Array.from(new Set(items.map((i) => i.ukuran))).sort(bandingUkuran);
+    const barisMap = new Map<string, { nama: string; perUkuran: Map<string, number> }>();
+    for (const item of items) {
+      let baris = barisMap.get(item.kode);
+      if (!baris) {
+        baris = { nama: item.nama, perUkuran: new Map() };
+        barisMap.set(item.kode, baris);
+      }
+      baris.perUkuran.set(
+        item.ukuran,
+        (baris.perUkuran.get(item.ukuran) ?? 0) + (Number(item.rekomendasi_spk) || 0)
+      );
+    }
+    const kodeList = Array.from(barisMap.keys()).sort((a, b) => a.localeCompare(b));
+    const kolomTotal = ukuranList.length + 3; // Kode, Nama, [ukuran...], Grand Total
+
+    const rowJudul = rekap.addRow(["Sum of Rekomendasi SPK (pcs)", "", "Ukuran"]);
+    const rowHeader = rekap.addRow(["Kode", "Nama Barang", ...ukuranList, "Grand Total"]);
+    for (let c = 1; c <= kolomTotal; c++) {
+      for (const r of [rowJudul, rowHeader]) {
+        const cell = r.getCell(c);
+        cell.font = { bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
+      }
+      // Judul pivot rata kiri; header ukuran rata tengah supaya tidak tertutup tombol filter
+      rowJudul.getCell(c).alignment = { horizontal: "left", vertical: "middle" };
+      rowHeader.getCell(c).alignment = {
+        horizontal: c <= 2 ? "left" : "center",
+        vertical: "middle",
+      };
+    }
+
+    const totalPerUkuran = new Map<string, number>();
+    let grand = 0;
+    for (const kode of kodeList) {
+      const baris = barisMap.get(kode)!;
+      let totalBaris = 0;
+      // Sel kosong (null) = SKU tidak punya ukuran itu; 0 = ada tapi tidak perlu SPK
+      const nilai = ukuranList.map((u) => {
+        const v = baris.perUkuran.get(u);
+        if (v === undefined) return null;
+        totalBaris += v;
+        totalPerUkuran.set(u, (totalPerUkuran.get(u) ?? 0) + v);
+        return v;
+      });
+      grand += totalBaris;
+
+      const row = rekap.addRow([kode, baris.nama, ...nilai, totalBaris]);
+      row.getCell(1).font = { bold: true };
+      for (let c = 3; c <= kolomTotal; c++) {
+        const cell = row.getCell(c);
+        cell.numFmt = "#,##0";
+        cell.alignment = { horizontal: "center" };
+      }
+      row.getCell(kolomTotal).font = { bold: true };
+    }
+
+    const rowGrand = rekap.addRow([
+      "Grand Total",
+      "",
+      ...ukuranList.map((u) => totalPerUkuran.get(u) ?? null),
+      grand,
+    ]);
+    for (let c = 1; c <= kolomTotal; c++) {
+      const cell = rowGrand.getCell(c);
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
+      cell.border = { top: { style: "thin" } };
+      if (c >= 3) {
+        cell.numFmt = "#,##0";
+        cell.alignment = { horizontal: "center" };
+      }
+    }
+
+    rekap.getColumn(1).width = 24;
+    rekap.getColumn(2).width = 48;
+    for (let c = 3; c < kolomTotal; c++) rekap.getColumn(c).width = 12;
+    rekap.getColumn(kolomTotal).width = 14;
+    rekap.autoFilter = {
+      from: { row: 2, column: 1 },
+      to: { row: 2, column: kolomTotal },
+    };
+    rekap.views = [{ state: "frozen", xSplit: 2, ySplit: 2 }];
+
+    // ══════════ Sheet 2: Rincian (daftar datar per Kode + Ukuran) ══════════
+    const sheet = workbook.addWorksheet("Rincian");
 
     const cols = [
       { header: "Prioritas", key: "ranking_asli", width: 10, align: "center" as const },
@@ -499,7 +683,7 @@ const exportExcel = async () => {
       };
     });
 
-    selectedItems.value.forEach((item) => {
+    items.forEach((item) => {
       const row = sheet.addRow(cols.map((c) => item[c.key] ?? ""));
       row.eachCell((cell, colNum) => {
         cell.border = {
@@ -514,6 +698,7 @@ const exportExcel = async () => {
     });
 
     sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -521,7 +706,7 @@ const exportExcel = async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `RekomendasiSPK_${new Date().toISOString().split("T")[0]}.xlsx`;
+    a.download = `RekapRekomendasiSPK_${new Date().toISOString().split("T")[0]}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Export berhasil.");
@@ -610,21 +795,35 @@ defineExpose({
     >
       <v-checkbox
         v-model="allSelected"
-        label="Pilih semua SKU"
+        label="Pilih semua SKU (semua halaman)"
         density="compact"
         hide-details
         color="primary"
-        class="me-4 action-check"
+        class="me-2 action-check"
+        :indeterminate="selectedItems.length > 0 && !allSelected"
+        :disabled="isSelectingAll || totalItems === 0"
       />
+      <v-progress-circular v-if="isSelectingAll" indeterminate size="16" width="2" class="me-3" />
+      <v-btn
+        v-if="selectedItems.length > 0 && !isSelectingAll"
+        size="x-small"
+        variant="text"
+        color="grey-darken-1"
+        class="me-2"
+        @click="clearSelection"
+      >
+        Hapus pilihan ({{ selectedItems.length.toLocaleString("id-ID") }})
+      </v-btn>
       <v-btn
         size="small"
         variant="tonal"
         color="teal-darken-2"
         prepend-icon="mdi-download"
+        :disabled="isSelectingAll"
         @click="exportExcel"
         class="me-4 font-weight-bold"
       >
-        Export Excel
+        Export Excel (Rekap + Rincian)
       </v-btn>
 
       <v-divider vertical class="mx-3 border-opacity-50" style="height: 28px" />

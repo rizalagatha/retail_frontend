@@ -43,16 +43,31 @@ interface KategoriOption {
   icon?: string;
 }
 
-const props = defineProps<{
-  modelValue: boolean;
-  gudang: string;
-  lookupOnly?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    gudang: string;
+    lookupOnly?: boolean;
+    theme?: "blue" | "red";
+  }>(),
+  { theme: "blue" }
+);
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "products-added", items: ProductPanelSelection[]): void;
 }>();
+
+const THEME_RED: Record<string, string> = {
+  "--panel-accent": "#b71c1c",
+  "--panel-accent-rgb": "183, 28, 28",
+  "--v-theme-primary": "183, 28, 28",
+  "--v-theme-on-primary": "255, 255, 255",
+};
+
+// Ditulis inline di <aside>: kelas tema Vuetify (.v-theme--light) ada di elemen
+// yang sama dan menimpa --v-theme-primary dari wadah luar.
+const themeStyle = computed<Record<string, string>>(() => (props.theme === "red" ? THEME_RED : {}));
 
 const toast = useToast();
 
@@ -429,6 +444,7 @@ const close = () => {
     location="right"
     temporary
     :width="drawerWidth"
+    :style="themeStyle"
     class="product-side-panel"
   >
     <div class="panel-header">
@@ -630,9 +646,9 @@ const close = () => {
 </template>
 
 <style scoped>
-.product-side-panel :deep(.v-navigation-drawer__content) {
-  display: flex;
-  flex-direction: column;
+.product-side-panel {
+  --panel-accent: #0d47a1;
+  --panel-accent-rgb: 13, 71, 161;
 }
 
 .panel-header {
@@ -640,7 +656,7 @@ const close = () => {
   align-items: center;
   gap: 8px;
   padding: 10px 8px;
-  background: #0d47a1;
+  background: var(--panel-accent);
   flex-shrink: 0;
 }
 
@@ -687,7 +703,7 @@ const close = () => {
 }
 
 .chip-active {
-  background: #0d47a1 !important;
+  background: var(--panel-accent) !important;
   color: white !important;
 }
 
@@ -717,8 +733,8 @@ const close = () => {
   padding: 14px;
   margin-bottom: 16px;
   opacity: 1;
-  box-shadow: 0 8px 24px rgba(13, 71, 161, 0.18);
-  border-color: rgba(13, 71, 161, 0.35);
+  box-shadow: 0 8px 24px rgba(var(--panel-accent-rgb), 0.18);
+  border-color: rgba(var(--panel-accent-rgb), 0.35);
   cursor: default;
 }
 
@@ -781,7 +797,7 @@ const close = () => {
 .harga-value {
   font-size: 13px;
   font-weight: 800;
-  color: #0d47a1;
+  color: var(--panel-accent);
 }
 
 .size-label {
@@ -808,13 +824,13 @@ const close = () => {
 }
 
 .size-btn:hover {
-  border-color: #0d47a1;
+  border-color: var(--panel-accent);
 }
 
 .size-btn-active {
-  border-color: #0d47a1;
+  border-color: var(--panel-accent);
   border-width: 2px;
-  background: rgba(13, 71, 161, 0.08);
+  background: rgba(var(--panel-accent-rgb), 0.08);
 }
 
 .size-btn-label {

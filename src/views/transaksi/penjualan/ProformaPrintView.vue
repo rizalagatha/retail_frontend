@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import api from "@/services/api";
 import { format, parseISO } from "date-fns";
 import Logo from "@/assets/logo.png";
+import type { AxiosError } from "axios";
 
 // Tipe data disesuaikan dengan query backend
 interface PrintHeader {
@@ -48,26 +49,30 @@ interface PrintData {
 const route = useRoute();
 const printData = ref<PrintData | null>(null);
 const isLoading = ref(true);
+const errorMsg = ref("");
 const appLogo = Logo;
 
 const fetchPrintData = async (nomor: string) => {
   isLoading.value = true;
+  errorMsg.value = "";
+  printData.value = null;
   try {
     const response = await api.get(`/proforma-form/print/${nomor}`);
     printData.value = response.data;
     if (printData.value?.header?.nomor) {
       document.title = printData.value.header.nomor;
     }
-  } catch (error) {
-    alert("Gagal memuat data untuk dicetak.");
-    console.error("Error fetching print data:", error);
+  } catch (error: unknown) {
+    const err = error as AxiosError<{ message?: string }>;
+    errorMsg.value = err.response?.data?.message || "Gagal memuat data untuk dicetak.";
   } finally {
     isLoading.value = false;
   }
 };
 
 watch(isLoading, (newValue) => {
-  if (newValue === false) {
+  // Cetak hanya kalau data benar-benar ada; jangan cetak halaman kosong saat gagal/ditolak
+  if (newValue === false && printData.value) {
     nextTick(() => {
       window.print();
     });
@@ -82,7 +87,7 @@ onMounted(() => {
 
 <template>
   <div class="print-container">
-    <div v-if="isLoading" class="text-center">Memuat data...</div>
+    <div v-if="errorMsg" class="text-center">{{ errorMsg }}</div>
     <div v-if="printData" class="page">
       <div class="header">
         <img :src="appLogo" alt="Logo" class="logo" />
